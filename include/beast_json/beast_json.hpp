@@ -6270,7 +6270,18 @@ class Parser {
           if (kidx < KeyLenCache::MAX_KEYS) {
             const uint16_t cl = kc_.lens[kd][kidx];
             if (cl != 0) {
-              if (BEAST_LIKELY(s + cl < end_) && s[cl] == '"') {
+              // Phase 59 fix: guard against false-positive cache hits.
+              // A true cache hit has s[cl] == '"' (closing quote of key) and
+              // s[cl+1] == ':' (JSON key-value separator, compact JSON).
+              // False positives occur when `cl` (from a previous object at the
+              // same depth) overshoots the actual key end and lands on a '"'
+              // that is part of the value region:
+              //   Case A: s[cl] is the opening '"' of a string value → s[cl-1]==':'
+              //   Case B: s[cl] is the closing '"' of a string value  → s[cl+1]!=':'
+              //   Case C: Case A with value starting with ':' (edge case, caught by s[cl-1]!=':')
+              // The combined guard s[cl-1]!=':' && s[cl+1]==':' rejects all three.
+              if (BEAST_LIKELY(s + cl + 1 < end_) && s[cl] == '"' &&
+                  s[cl - 1] != ':' && s[cl + 1] == ':') {
                 e = s + cl;
                 kc_.key_idx[kd] = kidx + 1;
                 goto skn_cache_hit;
