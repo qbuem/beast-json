@@ -16,26 +16,26 @@
 
 ## 🟡 x86_64 — Linux · GCC · AVX-512 + PGO
 
-**상태**: twitter/canada/gsoc 1.2× ✅ · citm parse **+15%** (1.2× 미달 🟡) · citm serialize **−41%** (yyjson에 뒤짐 ❌)
+**상태**: 전 파일 parse 1.2× ✅ (Phase 65 완료) · citm serialize **−52%** (yyjson에 뒤짐 ❌)
 
-### 현재 성적 (Phase 59+64 + bugfix PGO 재빌드, 150 iter)
+### 현재 성적 (Phase 65 + PGO 재빌드, 150 iter)
 
 | 파일 | Beast parse | yyjson parse | vs yyjson | 1.2× 목표 | 달성 |
 |:---|---:|---:|:---:|---:|:---:|
-| twitter.json | **201 μs** | 282 μs | Beast **+40%** | ≤235 μs | ✅ |
-| canada.json | **1,390 μs** | 2,659 μs | Beast **+91%** | ≤2,216 μs | ✅ |
-| citm_catalog.json | **637 μs** | 731 μs | Beast **+15%** | ≤609 μs | 🟡 |
-| gsoc-2018.json | **703 μs** | 1,603 μs | Beast **+128%** | ≤1,336 μs | ✅ |
+| twitter.json | **178 μs** | 255 μs | Beast **+43%** | ≤213 μs | ✅ |
+| canada.json | **1,429 μs** | 2,371 μs | Beast **+66%** | ≤1,976 μs | ✅ |
+| citm_catalog.json | **598 μs** | 722 μs | Beast **+21%** | ≤602 μs | ✅ 🎉 |
+| gsoc-2018.json | **706 μs** | 1,514 μs | Beast **+114%** | ≤1,262 μs | ✅ |
 
 | 파일 | Beast serialize | yyjson serialize | vs yyjson |
 |:---|---:|---:|:---:|
-| twitter.json | **126 μs** | 133 μs | Beast +5% ✅ |
-| canada.json | **804 μs** | 3,326 μs | Beast **4.1×** ✅ |
-| citm_catalog.json | **323 μs** | 229 μs | yyjson **+41%** ❌ |
-| gsoc-2018.json | **454 μs** | 1,364 μs | Beast **3.0×** ✅ |
+| twitter.json | **123 μs** | 127 μs | Beast +3% ✅ |
+| canada.json | **731 μs** | 2,992 μs | Beast **4.1×** ✅ |
+| citm_catalog.json | **332 μs** | 218 μs | yyjson **+52%** ❌ |
+| gsoc-2018.json | **484 μs** | 1,307 μs | Beast **2.7×** ✅ |
 
-> **citm 이중 문제**: 버그픽스 가드(`s[cl+1]==':'`) 오버헤드로 parse +37%→+15%로 후퇴,
-> serialize는 Phase 초기부터 yyjson 대비 41% 느림. 두 가지 모두 해결 필요.
+> **parse 전 파일 1.2× 달성** ✅ — Phase 65로 citm +15%→+21% 회복.
+> **다음 주력**: citm serialize (yyjson 52% 빠름) — Phase 66/67 대상.
 
 ### 완료된 x86_64 최적화 (연대순)
 
@@ -49,7 +49,8 @@
 | Phase 50 | Stage 1+2 두 단계 AVX-512 파싱 (simdjson-style) | twitter −19.7%(PGO) |
 | Phase 53 | Stage 1 positions `:,` 제거 (33% 배열 축소) | twitter −31.1%, citm −13.1% |
 | Phase 64 | LUT-based `push()` sep+state (2×8B 테이블) + SWAR-8 tail 버그 수정 | 구조적 개선 |
-| **Phase 59** | **KeyLenCache: `s[cached_len]=='"'` O(1) 키 스캔 바이패스** | **citm −23%** → 버그픽스 후 +15%로 축소 |
+| Phase 59 | KeyLenCache: `s[cached_len]=='"'` O(1) 키 스캔 바이패스 | citm −23% → 버그픽스 후 +15%로 축소 |
+| **Phase 65** | **KeyLenCache `s[cl-1]!=':'` 가드 제거 → `s[cl+1]==':'` 단독** | **citm +15%→+21%** · 전 파일 1.2× ✅ |
 
 ---
 
@@ -116,7 +117,7 @@
 
 ## 📋 Phase 65–70 상세 개선 계획
 
-### Phase 65 — KeyLenCache guard 단순화 `s[cl-1]` 제거 (단기 🟡)
+### ~~Phase 65~~ — KeyLenCache guard 단순화 `s[cl-1]` 제거 ✅ **완료**
 
 **목표**: citm parse x86 637→≤609μs (+4.4%↑) · M1 citm 563→~540μs
 
