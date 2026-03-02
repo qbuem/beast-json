@@ -165,14 +165,31 @@ if (s[cl] == '"' && s[cl + 1] == ':')
 
 ---
 
-### Phase 66-B — Serialize 병목 재분석 (중기 🟠)
+### ~~Phase 66-B~~ — Serialize 병목 분석 + buffer reuse ❌ **REVERTED**
 
-**배경**: Phase 66 SSE2 실패로 x86 serialize 병목이 단거리 문자열 복사가 아님을 확인.
+**핵심 발견 (callgrind 분석)**:
+`dump()` 함수 내 `out.resize(buf_cap)` 가 매 호출마다 `std::string::resize()` → `memset()` 으로 ~1.7MB zero-init. yyjson은 malloc (zero-init 없음). **칼그라인드 기준 47%의 instruction이 memset**.
 
-**다음 분석 방향**:
-- `perf stat` / `perf record` 로 serialize 핫스팟 정밀 측정 (어느 instruction이 스톨?)
-- 직렬화 루프의 per-node 구조 오버헤드 (switch dispatch, separator 조건 분기) 측정
-- 별도 serialize-only 벤치마크 빌드로 PGO 간섭 없이 측정
+**시도 1**: `dump(std::string& out)` 오버로드 추가 (코드 복제 버전) → citm parse +25% 회귀.
+
+**시도 2**: NOINLINE 속성 + 얇은 inline 래퍼 패턴 (코드 중복 제거):
+```cpp
+BEAST_NOINLINE void dump(std::string& out) const { /* 구현 */ }
+std::string dump() const { std::string out; dump(out); return out; /* NRVO */ }
+```
+
+**실패 원인**: NOINLINE이 이진 코드 레이아웃을 변경 → I-cache 공간 효율 저하.
+- Phase 65 citm: Beast 598μs, yyjson 722μs → 비율 0.83 (+21%)
+- Phase 66-B: 여러 연속 측정에서 비율 0.83~0.98 (±21% → ±2%) 불안정 → 1.2× 목표 달성 불가
+
+**근본 제약**: BEAST의 serialize 루프가 parse 코드와 동일 LTO 단위에서 코드 레이아웃 공유. 모든 serialize 코드 구조 변경(inline/noinline/중복 추가)이 I-cache → parse 성능에 영향.
+
+**교훈**:
+1. `resize()` 의 memset 오버헤드는 실재 (callgrind 47%)하나, 이를 제거하는 모든 시도가 parse 회귀 유발
+2. C++23 `resize_and_overwrite` 이 유일한 clean 해결책 (C++20 빌드에서 불가)
+3. serialize와 parse의 PGO/LTO 공유는 매우 취약한 상태 — serialize 코드 구조 변경 자체가 금기
+
+**코드**: 완전 원복 (`dump()` 원형 유지)
 
 ---
 

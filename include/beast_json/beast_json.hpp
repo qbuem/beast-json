@@ -144,10 +144,12 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 // ============================================================================
 
 #ifdef __GNUC__
-#define BEAST_INLINE __attribute__((always_inline)) inline
+#define BEAST_INLINE   __attribute__((always_inline)) inline
+#define BEAST_NOINLINE __attribute__((noinline))
 #define BEAST_PREFETCH(addr) __builtin_prefetch(addr, 0, 3)
 #else
-#define BEAST_INLINE inline
+#define BEAST_INLINE   inline
+#define BEAST_NOINLINE
 #define BEAST_PREFETCH(addr) ((void)0)
 #endif
 
