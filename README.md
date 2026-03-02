@@ -352,6 +352,15 @@ A 2 MB size threshold selects the path: files ≤2 MB (twitter, citm) use Stage 
 
 ---
 
+## 📚 Documentation
+- [API Readiness & The Ultimate API Blueprint](docs/API_READINESS_REPORT.md)
+- [1.0 Release GitHub Page TODO](docs/GITHUB_PAGE_TODO.md)
+- [Optimization Failures & History](docs/OPTIMIZATION_FAILURES.md)
+- [General TODO / Future Plans](docs/TODO.md)
+- [Extreme Optimization Plan (Phases 1-60)](docs/OPTIMIZATION_PLAN.md)
+
+---
+
 ## 🗺️ Roadmap to 1.0 (The Ultimate API)
 We are currently purging all legacy DOM code to establish a brand-new, modern C++20 **"Zero-Allocation Monadic DOM"**. This upcoming API combines the raw speed of `yyjson`/`simdjson`, the meta-programming power of `Glaze`, and the sheer intuitiveness of `nlohmann/json`.
 
