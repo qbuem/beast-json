@@ -276,3 +276,33 @@ Termux나 Apple Silicon 환경에서 작업할 차기 에이전트는 아래 수
   4. Pure NEON 패러다임 원칙: 단거리 WS가 지배하는 파일에서 추가 벡터 연산 비용이 오히려 증가.
 
 * **결론**: skip_to_action의 32B 확장은 "긴 연속 WS"가 지배하는 파일에서만 유리하며, 실제 JSON 파일의 WS 패턴(대부분 1-3바이트)에서는 순수 회귀. 16B NEON 루프가 최적.
+
+---
+
+## Phase 73: `dump(string&)` buffer-reuse ✅ **성공** (Phase 66-B 실패의 후속)
+
+> 이 섹션은 실패 기록이 아닌 **성공 사례**이지만, Phase 66-B 실패 기록과 직접 연결되어 있어 여기에 함께 기술합니다.
+
+### 배경 (Phase 66-B의 실패 원인 재검토)
+
+Phase 66-B는 동일한 `dump(string&)` 오버로드를 x86_64 + PGO + LTO 환경에서 시도했다가 파서 회귀를 유발했습니다. 실패 원인은 크게 두 가지였습니다:
+
+1. **NOINLINE 속성 사용**: `BEAST_NOINLINE void dump(std::string& out) const` 형태로 구현 → I-cache 레이아웃 변경 → GCC LTO 단위 내에서 파서 코드 재배치 → citm parse +21% 회귀.
+2. **x86_64 PGO/LTO 환경**: serialize 루프와 parse 코드가 동일 LTO 단위에서 코드 레이아웃 공유. 어떤 serialize 변경도 간접적으로 파서에 영향.
+
+### Phase 73의 해결 방법
+
+* **NOINLINE 없음**: 두 오버로드(`dump()`, `dump(string&)`)를 완전히 독립적으로 구현 (코드 복제). 컴파일러가 두 call site 모두 인라인 → I-cache 레이아웃 안정.
+* **AArch64 + `-fno-lto` 환경**: Snapdragon/Termux 빌드는 이미 LTO 없이 빌드 (`-fno-lto -fno-vectorize -fno-slp-vectorize`). PGO/LTO 크로스 컨테미네이션 없음.
+* **`__resize_default_init` (libc++ 전용)**: `resize(n)`는 새 바이트를 0으로 초기화하지만, `__resize_default_init(n)`은 크기 필드만 업데이트(O(1)). libstdc++ 환경은 `resize(n)` 폴백(첫 호출에만 memset 발생, 이후 shrink+expand 시에도 덮어쓰기).
+
+### 결과 (2026-03-03, Snapdragon Cortex-X3, bench_ser_profile 1000 iter)
+
+| 파일 | 구 `dump()` | 신 `dump(string&)` | 개선 |
+|:---|---:|---:|:---:|
+| twitter.json | 170 μs | **89 μs** | **-47.7%** |
+| canada.json | 778 μs | **471 μs** | **-39.5%** |
+| citm_catalog.json | 466 μs | **208 μs** | **-55.4%** |
+| gsoc-2018.json | 694 μs | **197 μs** | **-71.6%** |
+
+**교훈**: Phase 66-B는 구현 방식(NOINLINE + LTO 환경) 문제였고, 아이디어 자체(buffer-reuse)는 정확했다. Snapdragon AArch64 + `-fno-lto` 환경에서는 코드 복제 + 인라인 전략이 완벽하게 작동했다.

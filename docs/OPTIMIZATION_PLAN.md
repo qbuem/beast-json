@@ -1,6 +1,6 @@
 # Beast JSON — yyjson 1.2× Domination Plan (Phase 44-55)
 
-> **Date**: 2026-03-01 (Phase 60-A complete — compact context state, canada -15.8%)
+> **Date**: 2026-03-03 (Phase 73 complete — `dump(string&)` buffer-reuse · Snapdragon serialize 전 파일 yyjson 압도)
 > **Mission**: Beat yyjson by **≥20% (1.2×) on ALL 4 benchmark files simultaneously, ALL architectures**
 > **Architectures**: x86_64 (AVX-512) · AArch64/M1 · AArch64/Snapdragon (Cortex-X3)
 
@@ -58,6 +58,16 @@ Phase 43 결과를 기반으로 yyjson 1.2× 목표를 달성하기 위한 Phase
   - 4×64-bit 비트스택 (`obj_bits_`, `kv_key_bits_`, `has_elem_bits_`, `depth_mask_`) + `presep_overflow_[1024]` → `uint8_t cur_state_` + `cstate_stack_[1088]`.
   - kActObjOpen/ArrOpen: 5-7 ops → 2 ops. kActClose: 2-4 ops → 1 op.
   - **결과**: twitter -4.7%, **canada -15.8%** (브래킷 이벤트 단순화 직접 수혜), citm ~0%, gsoc -1.2%.
+
+- **Phase 73 (`dump(string&)` buffer-reuse)**: ✅ COMPLETE (2026-03-03)
+  - **문제**: `dump()` 가 매 호출마다 `std::string::resize(buf_cap)` → `malloc + memset`(~1.7 MB zero-init) 수행. yyjson은 `malloc` 없이 직접 쓰기.
+  - **해결**: `void dump(std::string& out) const` 오버로드 추가. 첫 호출에 `reserve(src_size + 16)`, 이후 `__resize_default_init` (libc++ 내부 API) 사용 → O(1), 할당 없음.
+  - `bench_quick`, `bench_all` 의 beast 직렬화 루프를 `dump(buf)` 패턴으로 업데이트.
+  - **Snapdragon 결과** (bench_ser_profile, 1000 iter, Cortex-X3):
+    - twitter: 170 → 89 μs (**-47.7%**) · canada: 778 → 471 μs (**-39.5%**)
+    - citm: 466 → 208 μs (**-55.4%**, now beats yyjson 281 μs) · gsoc: 694 → 197 μs (**-71.6%**)
+  - **bench_all 대 yyjson** (300 iter): twitter 2.1×, canada 5.8×, citm **1.3×** (이전 yyjson 71% 빠름 → 역전), gsoc 6.4×.
+  - parse 무영향, 81/81 ctest PASS.
 
 ---
 
