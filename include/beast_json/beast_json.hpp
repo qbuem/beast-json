@@ -6061,10 +6061,14 @@ class Parser {
   // SIMD key-end scan: a single byte comparison s[cached_len]=='"' suffices.
   //
   // citm_catalog.json: 243 performances × 9 keys = 2187 SIMD scans replaced
-  // by byte comparisons. Memory: 8×16×2 + 8 = 264 bytes (trivially L1-resident).
+  // by byte comparisons.
+  // Phase 65-M1: twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
+  // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to 32
+  // covers all twitter keys and citm's worst-case depth (9 keys per performance).
+  // Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets; M1 L1 = 192KB).
   struct KeyLenCache {
     static constexpr uint8_t MAX_DEPTH = 8;
-    static constexpr uint8_t MAX_KEYS  = 16;
+    static constexpr uint8_t MAX_KEYS  = 32;
     uint8_t  key_idx[MAX_DEPTH] = {};            // current key pos per depth
     uint16_t lens[MAX_DEPTH][MAX_KEYS] = {};     // cached source lengths (0=unset)
   } kc_;
@@ -6599,18 +6603,67 @@ class Parser {
         // utilization.
         goto skn_slow;
 #elif BEAST_HAS_NEON
-    // ── Phase 57: Global AArch64 NEON Priority Scanner ──────────────────────
-    // NEON vectorization outperforms scalar SWAR-24 globally across all AArch64
-    // (Apple M-Series, Graviton, Cortex) due to wide vector pipelines.
+#if defined(BEAST_ARCH_APPLE_SILICON)
+    // ── Phase 60-C / 65-M1: Apple Silicon 3×16B NEON key scanner ────────────
+    // M1/M2/M3 characteristics that enable this extension:
+    //   - 128B L1/L2 cache lines: 3×16B loads (48B) still within one cache line
+    //     on aligned access → 3rd load is effectively free after the 1st miss.
+    //   - 576-entry ROB: wider speculative window absorbs the extra branch vs
+    //     Cortex-X3 (~200 ROB entries) where Phase 60-B showed +5.6% regression.
+    //   - Pure NEON: no scalar pre-gates; all loads are vector instructions.
     //
-    // Cycle Latency & ILP Analysis vs SWAR:
-    // 1. SWAR GPR: ldr(8B) -> eor -> sub -> bic -> and
-    //    Dependencies: 4 serial Integer ALU ops. Critical path: ~4-5 cycles/8B.
-    // 2. NEON SIMD: vld1q(16B) -> vceqq -> vmaxvq
-    //    Dependencies: 2 Vector ALU ops. Critical path: ~5-6 cycles/16B.
+    // Key-length distribution for benchmark files:
+    //   twitter.json  : most keys ≤16B → v1 hit in hot path (same as 2×16B)
+    //   citm_catalog  : keys up to ~20B → v1/v2 hit; v3 rarely needed
+    //   gsoc-2018.json: some keys 30-50B → v3 saves skip_string rescan
     //
-    // Conclusion: NEON processes 2x data (16B vs 8B) with a perfectly parallel
-    // issue queue without choking the branch predictor with scalar pre-gates.
+    // For keys >48B (all 3 clean): skip_string(s+48) avoids rescanning 48B.
+    // For keys 32-48B (v1+v2 clean, gate fails): fall to 2×16B path below.
+    // For keys ≤32B (common case): identical hot path to the 2×16B baseline.
+    if (BEAST_LIKELY(s + 48 <= end_)) {
+      const uint8x16_t vq = vdupq_n_u8('"');
+      const uint8x16_t vbs = vdupq_n_u8('\\');
+
+      uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
+      uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
+        e = s;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v2 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
+      uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
+        e = s + 16;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v3 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 32));
+      uint8x16_t m3 = vorrq_u8(vceqq_u8(v3, vq), vceqq_u8(v3, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m3)) != 0)) {
+        e = s + 32;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      // [s, s+48) confirmed clean — skip_string(s+48) bypasses rescanning
+      e = skip_string(s + 48);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
+    }
+    // 32 ≤ remaining < 48: 2×16B with skip_string(s+32) bypass
     if (BEAST_LIKELY(s + 32 <= end_)) {
       const uint8x16_t vq = vdupq_n_u8('"');
       const uint8x16_t vbs = vdupq_n_u8('\\');
@@ -6636,11 +6689,69 @@ class Parser {
           goto skn_found;
         goto skn_slow;
       }
-      goto skn_slow;
+
+      // [s, s+32) clean → continue from s+32 (avoids rescanning via skn_slow)
+      e = skip_string(s + 32);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
     }
     goto skn_slow;
 #else
-    // ── SWAR-24 (Apple Silicon M-Series / non-AVX2 fallback) ────────────────
+    // ── Phase 57: Generic AArch64 Pure NEON 2×16B ────────────────────────────
+    // NEON vectorization outperforms scalar SWAR-24 globally across all AArch64
+    // (Graviton, Cortex-X, Neoverse) due to wide vector pipelines.
+    //
+    // Cycle Latency & ILP Analysis vs SWAR:
+    // 1. SWAR GPR: ldr(8B) -> eor -> sub -> bic -> and
+    //    Dependencies: 4 serial Integer ALU ops. Critical path: ~4-5 cycles/8B.
+    // 2. NEON SIMD: vld1q(16B) -> vceqq -> vmaxvq
+    //    Dependencies: 2 Vector ALU ops. Critical path: ~5-6 cycles/16B.
+    //
+    // Phase 60-B result (Cortex-X3 pinned, 500 iter):
+    //   Pure NEON baseline: 243.7 μs
+    //   + 8B scalar while pre-scan: 257.5 μs (+5.6% regression)
+    //   Root cause: branch dependency stalls NEON pipeline in ~200-entry ROB.
+    //   → Do NOT add scalar pre-gates here; keep purely vectorised.
+    //
+    // Phase 65-M1: when both 16B checks are clean (key >32B), call
+    // skip_string(s+32) instead of goto skn_slow to avoid rescanning [s,s+32).
+    if (BEAST_LIKELY(s + 32 <= end_)) {
+      const uint8x16_t vq = vdupq_n_u8('"');
+      const uint8x16_t vbs = vdupq_n_u8('\\');
+
+      uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
+      uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
+        e = s;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v2 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
+      uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
+        e = s + 16;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      // [s, s+32) confirmed clean — skip_string(s+32) avoids rescanning
+      e = skip_string(s + 32);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
+    }
+    goto skn_slow;
+#endif // BEAST_ARCH_APPLE_SILICON vs generic AArch64
+#else
+    // ── SWAR-24 (non-SIMD fallback: no AVX2, no NEON) ───────────────────────
     // Phase 56-5 finding: On Apple Silicon, this scalar SWAR path is faster
     // than NEON for short keys due to massive OoO windows and fast predictors.
     // Phase D2: load v0 first; exit immediately for ≤8-char keys (most common
