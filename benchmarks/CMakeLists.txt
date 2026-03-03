@@ -162,20 +162,9 @@ target_link_libraries(bench_ser_profile PRIVATE beast_json::beast_json)
 add_executable(bench_quick bench_quick.cpp)
 target_link_libraries(bench_quick PRIVATE beast_json::beast_json)
 
-# Phase 74: use C++23 on GCC 13+ / Clang 16+ to enable resize_and_overwrite
-# in dump(string&) — eliminates the ~1.2 MB zero-fill per citm call on libstdc++.
-# On Clang/libc++ __resize_default_init already handles this (C++20 path).
-# Falls back to C++20 on older compilers (resize() with partial zero-fill).
-if((CMAKE_CXX_COMPILER_ID MATCHES "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "13.0") OR
-   (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "16.0"))
-    target_compile_features(bench_all PRIVATE cxx_std_23)
-    target_compile_features(bench_quick PRIVATE cxx_std_23)
-    target_compile_features(bench_ser_profile PRIVATE cxx_std_23)
-else()
-    target_compile_features(bench_all PRIVATE cxx_std_20)
-    target_compile_features(bench_quick PRIVATE cxx_std_20)
-    target_compile_features(bench_ser_profile PRIVATE cxx_std_20)
-endif()
+target_compile_features(bench_all PRIVATE cxx_std_20)
+target_compile_features(bench_quick PRIVATE cxx_std_20)
+target_compile_features(bench_ser_profile PRIVATE cxx_std_20)
 
 # ── Architecture-specific flags ───────────────────────────────────────────────
 # x86_64: enable -march=native so AVX-512/AVX2 intrinsics are compiled correctly

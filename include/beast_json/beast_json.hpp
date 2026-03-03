@@ -5281,24 +5281,20 @@ public:
 
   // Phase 73: Buffer-reuse dump() overload.
   //
-  // Serializes into a caller-provided std::string, amortising malloc+memset
+  // Serializes into a caller-provided std::string, amortising malloc+free
   // across repeated calls on the same document (streaming, hot loops).
   //
   // Usage:
   //   std::string buf;
   //   for (...) { root.dump(buf); process(buf); }
   //
-  // On libc++ (Clang / Android / Apple), __resize_default_init avoids
-  // zero-initialising the buffer on every call.  After the first call the
-  // buffer has sufficient capacity and __resize_default_init is O(1) —
-  // no malloc, no memset.  On libstdc++ (GCC) we fall back to resize(),
-  // which still saves the malloc+free on repeated calls (only partial memset
-  // of the unused tail is needed).
+  // After the first call the string has sufficient capacity; subsequent calls
+  // only pay for the partial zero-fill of the gap between the last output size
+  // and buf_cap (resize() contract).  malloc+free is avoided entirely.
   //
   // LTO safety (Phase 66-B lesson): do NOT mark this NOINLINE.  The compiler
   // will inline it at call sites, keeping code layout identical to dump().
-  // NOINLINE caused parse regression on x86 PGO/LTO builds.  On AArch64
-  // Snapdragon (-fno-lto), this is unconditionally safe.
+  // NOINLINE caused parse regression on x86 PGO/LTO builds.
   void dump(std::string &out) const {
     if (!doc_ || doc_->tape.size() == 0) {
       out.assign("null", 4);
@@ -5308,24 +5304,7 @@ public:
     const size_t ntape = doc_->tape.size();
     const size_t buf_cap = doc_->source.size() + 16;
 
-    // Resize without zero-init so repeated calls are O(1)
-    // (capacity already sufficient → just bumps the size field, no memset).
-    //
-    // Priority order:
-    //  1. C++23 std::string::resize_and_overwrite — standard, zero-init-free,
-    //     works on any conforming C++23 library (GCC 13+ libstdc++, Clang libc++).
-    //  2. libc++ __resize_default_init — non-standard extension, O(1) on older Clang.
-    //  3. resize() fallback — still saves malloc+free on repeated calls; only
-    //     zero-fills the gap between the previous output length and buf_cap.
-    //     For citm (output 488 KB, buf_cap 1686 KB), this zero-fills ~1.2 MB
-    //     per call on libstdc++ C++20 builds — saved by upgrading to C++23.
-#if defined(__cpp_lib_string_resize_and_overwrite)
-    out.resize_and_overwrite(buf_cap, [](char *p, std::size_t n) { return n; });
-#elif defined(_LIBCPP_VERSION)
-    out.__resize_default_init(buf_cap);
-#else
     out.resize(buf_cap);
-#endif
     char *w = out.data();
     char *w0 = w;
 

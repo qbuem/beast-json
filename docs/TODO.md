@@ -1,6 +1,6 @@
 # Beast JSON Optimization — TODO
 
-> **최종 업데이트**: 2026-03-03 (Phase 74 ✅ — C++23 `resize_and_overwrite` x86 citm serialize **−22%** · Phase 73 ✅ Snapdragon 8/8 석권 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED)
+> **최종 업데이트**: 2026-03-03 (Phase 74 ❌ REVERTED — C++20 단일 표준 유지, 컴파일러 중립 `resize()` · Phase 73 ✅ Snapdragon 8/8 석권 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED)
 
 ---
 
@@ -16,11 +16,11 @@
 
 ## 🟡 x86_64 — Linux · GCC · AVX-512 + PGO
 
-**상태**: 전 파일 parse 1.2× ✅ (Phase 65) · citm serialize Phase 74로 **−22%** 개선 (하지만 여전히 yyjson 대비 격차 있음)
+**상태**: 전 파일 parse 1.2× ✅ (Phase 65) · citm serialize 개선 과제 지속 중
 
-### 현재 성적 (Phase 74 — C++23 + PGO, 150 iter, bench_all 기준)
+### 현재 성적 (Phase 73 — C++20 + PGO, 150 iter, bench_all 기준)
 
-> ⚠️ **주의**: Phase 73/74에서 bench_all의 serialize hot path가 `dump(string&)`으로 변경되면서 PGO 프로파일이 달라짐 → LTO 코드 레이아웃 변경 → parse/yyjson serialize 절대값이 Phase 65 대비 ~2× 증가. **비율** 기준으로 해석할 것.
+> ⚠️ **주의**: Phase 73에서 bench_all의 serialize hot path가 `dump(string&)`으로 변경되면서 PGO 프로파일이 달라짐 → LTO 코드 레이아웃 변경 → parse/yyjson serialize 절대값이 Phase 65 대비 ~2× 증가. **비율** 기준으로 해석할 것.
 
 | 파일 | Beast parse | yyjson parse | vs yyjson | 1.2× 목표 | 달성 |
 |:---|---:|---:|:---:|---:|:---:|
@@ -36,29 +36,24 @@
 | citm_catalog.json | ~325 μs | ~321 μs | ≈ **동률** |
 | gsoc-2018.json | ~409 μs | ~1,674 μs | Beast **4.1×** ✅ |
 
-> **twitter parse 비율 저하** (43%→6%): Phase 73/74 PGO 레이아웃 변경으로 twitter parse 비율이 줄어든 것이 관측됨. 실제 코드 성능보다 PGO 편향 효과가 크게 반영된 상태. 절대값은 기준 비교기(Phase 65) 당시보다 ~2× 높음 (machine load 변동).
-> **citm serialize**: bench_ser_profile (격리 측정, non-PGO, C++23): old 437μs → new 325μs (−**22%**). Phase 65 yyjson clean baseline 218μs 대비 여전히 격차 있음.
+> **twitter parse 비율 저하** (43%→6%): Phase 73 PGO 레이아웃 변경으로 twitter parse 비율이 줄어든 것이 관측됨. 실제 코드 성능보다 PGO 편향 효과가 크게 반영된 상태. 절대값은 기준 비교기(Phase 65) 당시보다 ~2× 높음 (machine load 변동).
+> **citm serialize**: bench_ser_profile (격리 측정, non-PGO, C++20): 415μs. Phase 65 yyjson clean baseline 218μs 대비 여전히 격차 있음.
 
-### Phase 74 — C++23 `resize_and_overwrite` 적용 결과
+### ~~Phase 74~~ — C++23 `resize_and_overwrite` / libc++ `__resize_default_init` ❌ **REVERTED**
 
-**핵심 발견 (bench_ser_profile 격리 측정, C++20 vs C++23 비교):**
+**시도**: `dump(string&)` 내 `resize()` 대신 컴파일러별 zero-fill-free API 사용:
+- C++23: `resize_and_overwrite` (GCC 13+ / Clang 16+ 전용)
+- libc++ 내부: `__resize_default_init` (Clang/libc++ 전용, 비표준)
 
-| 파일 | C++20 new | C++23 new | 추가 개선 | 이유 |
-|:---|---:|---:|---:|:---|
-| twitter.json | 171 μs | ~184 μs | ±0% | zero-fill 160KB → 무시할 수준 |
-| citm_catalog.json | 415 μs | **325 μs** | **−22%** | zero-fill **1,198KB** 제거 |
-| canada.json | 870 μs | ~870 μs | 0% | zero-fill 0KB (출력=입력) |
-| gsoc-2018.json | 425 μs | ~510 μs | (노이즈) | zero-fill 248KB |
+**citm 개선 원리**: citm compact 출력 488 KB vs source 1,686 KB → `resize(buf_cap)`마다 1,198 KB zero-fill 발생. 이를 제거하면 cache pollution 감소 → x86 bench_ser_profile 기준 −22% 측정.
 
-**왜 citm이 가장 크게 개선되는가:**
-- citm compact 출력 = **488 KB** (입력 1,686 KB의 29%)
-- `resize()` fallback: 매 호출마다 `buf_cap(1,686KB) - output(488KB) = 1,198KB` zero-fill 발생
-- `resize_and_overwrite`: O(1) — zero-fill 없음 → 불필요한 cache pollution 제거 → 22% 개선
-- canada: 출력 ≈ 입력 (floating-point 파일, 공백 없음) → zero-fill 0 → 개선 없음
+**원복 이유**:
+- `__resize_default_init`: libc++/Clang 전용 비표준 내부 API — GCC/libstdc++ 빌드에서 사용 불가
+- `resize_and_overwrite`: C++23 전용 — x86 GCC 빌드를 C++23으로 강제 업그레이드 필요
+- 목표: GCC/Clang, x86/AArch64 공통 C++20 단일 표준으로 빌드/동작
+- `resize()` 도 malloc+free 절약 효과(반복 호출 시 capacity 재사용)는 그대로 유지
 
-**Phase 66-B 주석 오류 수정**: "C++20 빌드에서 resize_and_overwrite 불가" → GCC 13+ C++23 모드에서 가능. benchmarks/CMakeLists.txt에서 GCC 13+ / Clang 16+ 자동 C++23 업그레이드 추가.
-
-### 완료된 x86_64 최적화 (연대순)
+**코드**: 완전 원복 (`out.resize(buf_cap)` 단일 호출, C++20 전용)
 
 ### 완료된 x86_64 최적화 (연대순)
 
