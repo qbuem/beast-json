@@ -7340,6 +7340,31 @@ class Parser {
             const char *s = p_;
             if (*p_ == '-')
               ++p_;
+            // ── Phase 66-M1: NEON 16B integer scanner ──────────────────────
+            // Replaces SWAR-8 (8B/iter) with NEON (16B/iter) on AArch64.
+            // canada.json: integer parts are short (1-5 digits) → minimal gain
+            //   but consistent with the fractional-part NEON approach below.
+            // twitter.json: tweet ID integers (18 digits) → 1 NEON iter vs 3
+            //   SWAR-8 iterations → saves ~2 SWAR overhead per ID.
+            // Pure NEON: no scalar pre-gate inside the loop; vmaxvq_u32 result
+            // drives a single branch identical to scan_string_end's pattern.
+#if BEAST_HAS_NEON
+            {
+              const uint8x16_t vzero = vdupq_n_u8('0');
+              const uint8x16_t vnine = vdupq_n_u8(9);
+              while (p_ + 16 <= end_) {
+                uint8x16_t vv = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));
+                uint8x16_t sub = vsubq_u8(vv, vzero);   // [0..9]=digit; else wraps ≥10
+                uint8x16_t nd  = vcgtq_u8(sub, vnine);  // 0xFF where non-digit
+                if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(nd)) != 0)) {
+                  while (static_cast<unsigned>(*p_ - '0') < 10u)
+                    ++p_;
+                  goto num_done;
+                }
+                p_ += 16;
+              }
+            }
+#else
             while (p_ + 8 <= end_) {
               uint64_t v;
               std::memcpy(&v, p_, 8);
@@ -7354,6 +7379,7 @@ class Parser {
               }
               p_ += 8;
             }
+#endif
             while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)
               ++p_;
           num_done:;
@@ -7364,19 +7390,47 @@ class Parser {
               ++p_;
               if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
                 ++p_;
-              // ── Phase 33: SWAR-8 float digit scanner (fractional part) ──
-              // canada.json has 2.32M floats: scalar was 1 byte/iter.
-              // SWAR-8 processes 8 digits in a single 64-bit operation.
-              // Architecture-agnostic pure SWAR — fully inlined, zero call
-              // overhead.
-#define BEAST_SWAR_SKIP_DIGITS()                                               \
+              // ── Phase 66-M1: NEON 16B float digit scanner (fractional) ─
+              // canada.json: 2.32M floats, avg ~14 fractional digits.
+              //   SWAR-8: 2 iterations/float (8B + 6B tail) = 16 ops/float.
+              //   NEON-16: 1 iteration/float (14B in 16B chunk) = 8 ops/float.
+              // twitter.json: small floats → mostly scalar tail (no change).
+              //
+              // Correctness: vsubq_u8 wraps (uint8) so bytes < '0' produce
+              // values ≥ 246 > 9, correctly flagged as non-digit by vcgtq_u8.
+              //
+              // Pure NEON: vmaxvq_u32 → branch → scalar pinpoint (identical
+              // pattern to scan_string_end NEON; proven safe on all AArch64).
+#if BEAST_HAS_NEON
+#define BEAST_SKIP_DIGITS()                                                    \
+  do {                                                                         \
+    {                                                                          \
+      const uint8x16_t _vzero = vdupq_n_u8('0');                              \
+      const uint8x16_t _vnine = vdupq_n_u8(9);                                \
+      while (p_ + 16 <= end_) {                                                \
+        uint8x16_t _vv  = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));    \
+        uint8x16_t _sub = vsubq_u8(_vv, _vzero);                              \
+        uint8x16_t _nd  = vcgtq_u8(_sub, _vnine);                             \
+        if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(_nd)) != 0)) {     \
+          while (static_cast<unsigned>(*p_ - '0') < 10u)                      \
+            ++p_;                                                              \
+          break;                                                               \
+        }                                                                      \
+        p_ += 16;                                                              \
+      }                                                                        \
+    }                                                                          \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
+      ++p_;                                                                    \
+  } while (0)
+#else
+#define BEAST_SKIP_DIGITS()                                                    \
   do {                                                                         \
     while (p_ + 8 <= end_) {                                                   \
       uint64_t _v;                                                             \
       std::memcpy(&_v, p_, 8);                                                 \
       uint64_t _s = _v - 0x3030303030303030ULL;                                \
       uint64_t _nd =                                                           \
-          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &      \
+          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &     \
           0x8080808080808080ULL;                                               \
       if (_nd) {                                                               \
         p_ += BEAST_CTZ(_nd) >> 3;                                             \
@@ -7384,17 +7438,18 @@ class Parser {
       }                                                                        \
       p_ += 8;                                                                 \
     }                                                                          \
-    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)                \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
       ++p_;                                                                    \
   } while (0)
-              BEAST_SWAR_SKIP_DIGITS(); // fractional digits
+#endif
+              BEAST_SKIP_DIGITS(); // fractional digits
               if (p_ < end_ && (*p_ == 'e' || *p_ == 'E')) {
                 ++p_;
                 if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
                   ++p_;
-                BEAST_SWAR_SKIP_DIGITS(); // exponent digits
+                BEAST_SKIP_DIGITS(); // exponent digits
               }
-#undef BEAST_SWAR_SKIP_DIGITS
+#undef BEAST_SKIP_DIGITS
             }
             push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
                  static_cast<uint16_t>(p_ - s),
