@@ -1,6 +1,6 @@
 # Beast JSON Optimization — TODO
 
-> **최종 업데이트**: 2026-03-02 (Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED — x86 serialize dump() 구조 변경 전면 동결)
+> **최종 업데이트**: 2026-03-03 (Phase 73 ✅ — `dump(string&)` buffer-reuse · Snapdragon serialize 전 파일 yyjson 압도 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED)
 
 ---
 
@@ -8,8 +8,8 @@
 
 | 아키텍처 | 환경 | Parse 1.2× | Serialize 1.2× | 상태 |
 |:---|:---|:---:|:---:|:---|
-| **Linux x86_64** | GCC 13.3, AVX-512, PGO | 3/4 ✅ citm 🟡 | 3/4 ✅ citm ❌ | citm 양면 격차 해소 필요 |
-| **Snapdragon 8 Gen 2** (Cortex-X3) | Android Termux, Clang 21 | ✅ 전 파일 | 미측정 | 안정 |
+| **Linux x86_64** | GCC 13.3, AVX-512, PGO | ✅ 전 파일 | 3/4 ✅ citm ❌ | citm serialize 격차 해소 필요 |
+| **Snapdragon 8 Gen 2** (Cortex-X3) | Android Termux, Clang 21 | ✅ 전 파일 | **✅ 전 파일** | **Phase 73 완료 · 8/8 완전 석권** |
 | **macOS AArch64** (M1 Pro) | Apple Clang, NEON | gsoc만 ✅ | canada/gsoc ✅ | **주력 과제** |
 
 ---
@@ -100,17 +100,30 @@
 
 ## 🟢 Generic AArch64 — Snapdragon 8 Gen 2 · Cortex-X3 · Android
 
-**상태**: 전 파일 parse 1.2× 달성 ✅
+**상태**: 전 파일 parse + serialize 1.2× 달성 ✅ **8/8 완전 석권** (Phase 73)
 
-### 현재 성적 (Phase 60-A 기준, Cortex-X3 pinned, 300 iter)
+### 현재 성적 (Phase 73 기준, Cortex-X3 pinned, 300 iter)
 
-| 파일 | Beast | yyjson | Beast vs yyjson | 1.2× 달성 |
+**Parse**:
+
+| 파일 | Beast parse | yyjson parse | Beast vs yyjson | 1.2× 달성 |
 |:---|---:|---:|:---:|:---:|
 | twitter.json | **231.6 μs** | 371 μs | Beast **+60%** | ✅ |
 | canada.json | **1,692 μs** | 2,761 μs | Beast **+63%** | ✅ |
 | citm_catalog.json | **645 μs** | 973 μs | Beast **+51%** | ✅ |
 | gsoc-2018.json | **651 μs** | 1,742 μs | Beast **+173%** | ✅ |
 
+**Serialize (Phase 73 `dump(string&)` buffer-reuse 적용)**:
+
+| 파일 | Beast serialize | yyjson serialize | Beast vs yyjson | 달성 |
+|:---|---:|---:|:---:|:---:|
+| twitter.json | **85 μs** | 177 μs | Beast **2.1×** | ✅ |
+| canada.json | **497 μs** | 2,897 μs | Beast **5.8×** | ✅ |
+| citm_catalog.json | **240 μs** | 312 μs | Beast **1.3×** | ✅ 🎉 |
+| gsoc-2018.json | **212 μs** | 1,349 μs | Beast **6.4×** | ✅ |
+
+> **Phase 73 핵심**: citm serialize 이전 440 μs (yyjson 71% 빠름) → **240 μs** (beast 1.3× 빠름)으로 역전. `dump(string&)` 오버로드가 매 호출 `malloc+memset`을 `__resize_default_init` O(1) 버퍼 재사용으로 대체. bench_ser_profile 기준 citm **-55.4%**, gsoc **-71.6%**, twitter **-47.7%**, canada **-39.5%**.
+>
 > **SVE 절대 금기**: Android 커널 비활성화 → SIGILL. `-march=armv8.4-a+crypto+dotprod+fp16+i8mm+bf16` 명시 필수.
 
 ---
@@ -338,6 +351,7 @@ yyjson: 1,464μs → Beast 1,681μs. Gap 15%, 27% 개선 필요.
 | Phase 60-A | compact `cur_state_` 상태 머신 | AArch64 | canada −15.8% |
 | Phase 61 | NEON 오버랩 페어 dump() 문자열 복사 | AArch64 | dump −5.5% |
 | Phase 62 | NEON 32B inline value string 스캔 | AArch64 | twitter −5.7% |
+| **Phase 73** | **`dump(string&)` buffer-reuse 오버로드 (`__resize_default_init`)** | **All** | **serialize citm −55%, gsoc −72%, twitter −48%, canada −40%** |
 
 ---
 
