@@ -5308,10 +5308,20 @@ public:
     const size_t ntape = doc_->tape.size();
     const size_t buf_cap = doc_->source.size() + 16;
 
-    // Resize without zero-init on libc++ so repeated calls are O(1)
+    // Resize without zero-init so repeated calls are O(1)
     // (capacity already sufficient → just bumps the size field, no memset).
-    // Falls back to resize() on other standard libraries.
-#if defined(_LIBCPP_VERSION)
+    //
+    // Priority order:
+    //  1. C++23 std::string::resize_and_overwrite — standard, zero-init-free,
+    //     works on any conforming C++23 library (GCC 13+ libstdc++, Clang libc++).
+    //  2. libc++ __resize_default_init — non-standard extension, O(1) on older Clang.
+    //  3. resize() fallback — still saves malloc+free on repeated calls; only
+    //     zero-fills the gap between the previous output length and buf_cap.
+    //     For citm (output 488 KB, buf_cap 1686 KB), this zero-fills ~1.2 MB
+    //     per call on libstdc++ C++20 builds — saved by upgrading to C++23.
+#if defined(__cpp_lib_string_resize_and_overwrite)
+    out.resize_and_overwrite(buf_cap, [](char *p, std::size_t n) { return n; });
+#elif defined(_LIBCPP_VERSION)
     out.__resize_default_init(buf_cap);
 #else
     out.resize(buf_cap);

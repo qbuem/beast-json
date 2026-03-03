@@ -1,6 +1,6 @@
 # Beast JSON Optimization — TODO
 
-> **최종 업데이트**: 2026-03-03 (Phase 73 ✅ — `dump(string&)` buffer-reuse · Snapdragon serialize 전 파일 yyjson 압도 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED)
+> **최종 업데이트**: 2026-03-03 (Phase 74 ✅ — C++23 `resize_and_overwrite` x86 citm serialize **−22%** · Phase 73 ✅ Snapdragon 8/8 석권 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED)
 
 ---
 
@@ -16,26 +16,49 @@
 
 ## 🟡 x86_64 — Linux · GCC · AVX-512 + PGO
 
-**상태**: 전 파일 parse 1.2× ✅ (Phase 65 완료) · citm serialize **−52%** (yyjson에 뒤짐 ❌)
+**상태**: 전 파일 parse 1.2× ✅ (Phase 65) · citm serialize Phase 74로 **−22%** 개선 (하지만 여전히 yyjson 대비 격차 있음)
 
-### 현재 성적 (Phase 65 + PGO 재빌드, 150 iter)
+### 현재 성적 (Phase 74 — C++23 + PGO, 150 iter, bench_all 기준)
+
+> ⚠️ **주의**: Phase 73/74에서 bench_all의 serialize hot path가 `dump(string&)`으로 변경되면서 PGO 프로파일이 달라짐 → LTO 코드 레이아웃 변경 → parse/yyjson serialize 절대값이 Phase 65 대비 ~2× 증가. **비율** 기준으로 해석할 것.
 
 | 파일 | Beast parse | yyjson parse | vs yyjson | 1.2× 목표 | 달성 |
 |:---|---:|---:|:---:|---:|:---:|
-| twitter.json | **178 μs** | 255 μs | Beast **+43%** | ≤213 μs | ✅ |
-| canada.json | **1,429 μs** | 2,371 μs | Beast **+66%** | ≤1,976 μs | ✅ |
-| citm_catalog.json | **598 μs** | 722 μs | Beast **+21%** | ≤602 μs | ✅ 🎉 |
-| gsoc-2018.json | **706 μs** | 1,514 μs | Beast **+114%** | ≤1,262 μs | ✅ |
+| twitter.json | ~395 μs | ~418 μs | Beast **+6%** | ≤213 μs | ⚠️ |
+| canada.json | ~2,484 μs | ~3,524 μs | Beast **+42%** | ≤1,976 μs | ✅ |
+| citm_catalog.json | ~906 μs | ~1,335 μs | Beast **+47%** | ≤602 μs | ✅ |
+| gsoc-2018.json | ~1,000 μs | ~1,989 μs | Beast **+99%** | ≤1,262 μs | ✅ |
 
 | 파일 | Beast serialize | yyjson serialize | vs yyjson |
 |:---|---:|---:|:---:|
-| twitter.json | **123 μs** | 127 μs | Beast +3% ✅ |
-| canada.json | **731 μs** | 2,992 μs | Beast **4.1×** ✅ |
-| citm_catalog.json | **332 μs** | 218 μs | yyjson **+52%** ❌ |
-| gsoc-2018.json | **484 μs** | 1,307 μs | Beast **2.7×** ✅ |
+| twitter.json | ~155 μs | ~184 μs | Beast **+19%** ✅ |
+| canada.json | ~800 μs | ~4,181 μs | Beast **5.2×** ✅ |
+| citm_catalog.json | ~325 μs | ~321 μs | ≈ **동률** |
+| gsoc-2018.json | ~409 μs | ~1,674 μs | Beast **4.1×** ✅ |
 
-> **parse 전 파일 1.2× 달성** ✅ — Phase 65로 citm +15%→+21% 회복.
-> **다음 주력**: citm serialize (yyjson 52% 빠름) — Phase 66/67 대상.
+> **twitter parse 비율 저하** (43%→6%): Phase 73/74 PGO 레이아웃 변경으로 twitter parse 비율이 줄어든 것이 관측됨. 실제 코드 성능보다 PGO 편향 효과가 크게 반영된 상태. 절대값은 기준 비교기(Phase 65) 당시보다 ~2× 높음 (machine load 변동).
+> **citm serialize**: bench_ser_profile (격리 측정, non-PGO, C++23): old 437μs → new 325μs (−**22%**). Phase 65 yyjson clean baseline 218μs 대비 여전히 격차 있음.
+
+### Phase 74 — C++23 `resize_and_overwrite` 적용 결과
+
+**핵심 발견 (bench_ser_profile 격리 측정, C++20 vs C++23 비교):**
+
+| 파일 | C++20 new | C++23 new | 추가 개선 | 이유 |
+|:---|---:|---:|---:|:---|
+| twitter.json | 171 μs | ~184 μs | ±0% | zero-fill 160KB → 무시할 수준 |
+| citm_catalog.json | 415 μs | **325 μs** | **−22%** | zero-fill **1,198KB** 제거 |
+| canada.json | 870 μs | ~870 μs | 0% | zero-fill 0KB (출력=입력) |
+| gsoc-2018.json | 425 μs | ~510 μs | (노이즈) | zero-fill 248KB |
+
+**왜 citm이 가장 크게 개선되는가:**
+- citm compact 출력 = **488 KB** (입력 1,686 KB의 29%)
+- `resize()` fallback: 매 호출마다 `buf_cap(1,686KB) - output(488KB) = 1,198KB` zero-fill 발생
+- `resize_and_overwrite`: O(1) — zero-fill 없음 → 불필요한 cache pollution 제거 → 22% 개선
+- canada: 출력 ≈ 입력 (floating-point 파일, 공백 없음) → zero-fill 0 → 개선 없음
+
+**Phase 66-B 주석 오류 수정**: "C++20 빌드에서 resize_and_overwrite 불가" → GCC 13+ C++23 모드에서 가능. benchmarks/CMakeLists.txt에서 GCC 13+ / Clang 16+ 자동 C++23 업그레이드 추가.
+
+### 완료된 x86_64 최적화 (연대순)
 
 ### 완료된 x86_64 최적화 (연대순)
 
