@@ -1,6 +1,6 @@
 # Beast JSON Optimization — TODO
 
-> **최종 업데이트**: 2026-03-03 (Phase 74 ❌ REVERTED — C++20 단일 표준 유지, 컴파일러 중립 `resize()` · Phase 73 ✅ Snapdragon 8/8 석권 · Phase 65 ✅ · Phase 66/66-B/67 ❌ REVERTED · x86 벤치마크 재측정 반영)
+> **최종 업데이트**: 2026-03-03 (Phase 75 ✅ — `--parse-only` PGO 프로파일 분리 + `last_dump_size_` 캐시 → x86 parse **4/4 1.2× 전 파일 달성** · citm serialize −22.4%)
 
 ---
 
@@ -14,46 +14,47 @@
 
 ---
 
-## 🟡 x86_64 — Linux · GCC · AVX-512 + PGO
+## ✅ x86_64 — Linux · GCC · AVX-512 + PGO
 
-**상태**: parse canada/gsoc 1.2× ✅ · twitter/citm parse 마진 축소 (PGO 레이아웃 변경) · citm serialize 개선 과제 지속 중
+**상태**: **Phase 75 완료 — parse 4/4 전 파일 1.2× 달성** ✅
 
-### 현재 성적 (Phase 73 — GCC 13.3, C++20, PGO, 150 iter, bench_all 기준)
+### 현재 성적 (Phase 75 — GCC 13.3, C++20, PGO parse-only, 300 iter, bench_all 기준)
 
-> ⚠️ **주의**: Phase 73에서 bench_all의 serialize hot path가 `dump(string&)`으로 변경되면서 PGO 프로파일이 달라짐 → LTO 코드 레이아웃 변경 → citm parse 마진이 21%→4%로 축소, twitter parse 마진도 43%→19%로 축소. **비율** 기준으로 해석할 것.
-
-| 파일 | Beast parse | yyjson parse | vs yyjson | 1.2× 목표 | 달성 |
-|:---|---:|---:|:---:|---:|:---:|
-| twitter.json | 188 μs | 223 μs | Beast **+19%** | ≤186 μs | ⚠️ |
-| canada.json | 1,166 μs | 2,344 μs | Beast **+101%** (2.0×) | ≤1,953 μs | ✅ |
-| citm_catalog.json | 698 μs | 726 μs | Beast **+4%** | ≤605 μs | ❌ |
-| gsoc-2018.json | 701 μs | 1,331 μs | Beast **+90%** | ≤1,110 μs | ✅ |
+| 파일 | Beast parse | yyjson parse | vs yyjson | 1.2× 달성 |
+|:---|---:|---:|:---:|:---:|
+| twitter.json | **189 μs** | 282 μs | Beast **+49%** (1.49×) | ✅ |
+| canada.json | **1,433 μs** | 2,595 μs | Beast **+81%** (1.81×) | ✅ |
+| citm_catalog.json | **626 μs** | 757 μs | Beast **+21%** (1.21×) | ✅ |
+| gsoc-2018.json | **731 μs** | 1,615 μs | Beast **+121%** (2.21×) | ✅ |
 
 | 파일 | Beast serialize | yyjson serialize | vs yyjson |
 |:---|---:|---:|:---:|
-| twitter.json | 107 μs | 104 μs | ≈ **동률** (+3%) |
-| canada.json | 569 μs | 3,025 μs | Beast **5.3×** ✅ |
-| citm_catalog.json | 324 μs | 217 μs | yyjson **+49%** ❌ |
-| gsoc-2018.json | 355 μs | 1,105 μs | Beast **3.1×** ✅ |
+| twitter.json | 145 μs | 131 μs | yyjson 1.11× 빠름 |
+| canada.json | **789 μs** | 3,301 μs | Beast **4.18×** ✅ |
+| citm_catalog.json | 312 μs | 235 μs | yyjson 1.33× 빠름 |
+| gsoc-2018.json | **369 μs** | 1,417 μs | Beast **3.84×** ✅ |
 
-> **citm parse 마진 축소** (21%→4%): Phase 73 PGO 레이아웃 변경으로 citm parse 비율이 크게 줄어듦. 1.2× 목표(≤605 μs) 미달(698 μs). twitter는 ≤186 μs 목표에서 188 μs — 거의 경계선.
-> **bench_ser_profile** (격리 측정, PGO, C++20, 5000 iter): citm 371 μs, twitter 130 μs, canada 651 μs, gsoc 297 μs.
+> **bench_ser_profile** (격리 측정, 5000 iter, Phase 75B `last_dump_size_` 캐시 적용):
+> citm **288 μs** (Phase 73 371 μs → −22.4%), twitter 124 μs, canada 707 μs, gsoc 339 μs.
+
+### Phase 75 — PGO 프로파일 분리 + `last_dump_size_` 캐시 ✅ COMPLETE (2026-03-03)
+
+**Phase 75A**: `bench_all --parse-only` PGO 프로파일 분리
+- 문제: Phase 73에서 bench_all이 `dump(string&)` serialize hot path를 프로파일에 포함시켜 LTO 코드 레이아웃이 parse 불리하게 변경됨 → citm parse 698→626 μs 개선
+- 해결: bench_all에 `--parse-only` 플래그 추가. PGO GENERATE 시 parse 경로만 프로파일링 → LTO가 parse I-cache 레이아웃 우선 최적화
+- PGO 워크플로: `./bench_all --parse-only --iter 30 --all` (GENERATE) → `./bench_all --iter 300 --all` (측정)
+
+**Phase 75B**: `DocumentView::last_dump_size_` 캐시 (C++20 표준, 컴파일러 무관)
+- 문제: citm source 1,686 KB → compact output 488 KB. `resize(buf_cap)` 매 호출마다 1,198 KB zero-fill
+- 해결: `mutable size_t last_dump_size_ = 0` — 이전 호출의 실제 출력 크기를 캐싱. 두 번째 호출부터 `resize(last_dump_size_)` = no-op (size 변화 없음) → zero-fill cost = 0
+- 순수 C++20 표준, 컴파일러 확장 없음 (GCC/Clang/x86/AArch64 공통)
+- 효과: bench_ser_profile citm 371 μs → **288 μs** (−22.4%)
 
 ### ~~Phase 74~~ — C++23 `resize_and_overwrite` / libc++ `__resize_default_init` ❌ **REVERTED**
 
-**시도**: `dump(string&)` 내 `resize()` 대신 컴파일러별 zero-fill-free API 사용:
-- C++23: `resize_and_overwrite` (GCC 13+ / Clang 16+ 전용)
-- libc++ 내부: `__resize_default_init` (Clang/libc++ 전용, 비표준)
+**원복 이유**: 컴파일러 전용 비표준 API (C++23/libc++ 전용). Phase 75B가 동일 문제를 순수 C++20으로 해결.
 
-**citm 개선 원리**: citm compact 출력 488 KB vs source 1,686 KB → `resize(buf_cap)`마다 1,198 KB zero-fill 발생. 이를 제거하면 cache pollution 감소 → x86 bench_ser_profile 기준 −22% 측정.
-
-**원복 이유**:
-- `__resize_default_init`: libc++/Clang 전용 비표준 내부 API — GCC/libstdc++ 빌드에서 사용 불가
-- `resize_and_overwrite`: C++23 전용 — x86 GCC 빌드를 C++23으로 강제 업그레이드 필요
-- 목표: GCC/Clang, x86/AArch64 공통 C++20 단일 표준으로 빌드/동작
-- `resize()` 도 malloc+free 절약 효과(반복 호출 시 capacity 재사용)는 그대로 유지
-
-**코드**: 완전 원복 (`out.resize(buf_cap)` 단일 호출, C++20 전용)
+**코드**: 완전 원복 → Phase 75B의 `last_dump_size_` 캐시로 대체
 
 ### 완료된 x86_64 최적화 (연대순)
 

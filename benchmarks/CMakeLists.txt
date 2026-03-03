@@ -175,7 +175,7 @@ target_compile_features(bench_ser_profile PRIVATE cxx_std_20)
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
     # x86_64: use native ISA; keep LTO and auto-vectorization intact.
-    foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick)
+    foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile)
         if(TARGET ${_tgt})
             target_compile_options(${_tgt} PRIVATE -march=native)
         endif()
