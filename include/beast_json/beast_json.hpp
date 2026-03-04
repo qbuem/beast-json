@@ -5255,35 +5255,50 @@ public:
             vst1q_u8(uw + slen - 16, vld1q_u8(up + slen - 16));
             w += slen;
           } else {
-            uint16_t rem = slen;
-            if (rem >= 16) {
-              uint64_t a, b;
-              std::memcpy(&a, sp, 8);
-              std::memcpy(&b, sp + 8, 8);
-              std::memcpy(w, &a, 8);
-              std::memcpy(w + 8, &b, 8);
-              sp += 16;
-              w += 16;
-              rem = 0;
+            // Phase 72-M1: NEON 16B single-store for 9–16B strings (M1/M2/M3).
+            //   vld1q + vst1q = 2 ops vs scalar cascade 3–6 ops for slen 9–16.
+            //   Overlapping write: store 16B, advance w by slen.
+            //   Source safety: sp+16 ≤ src+source.size() checked explicitly.
+            //   No BEAST_LIKELY: twitter ~40% short keys (<9B) — neutral branch.
+            //   Scalar cascade is shared (single copy) to minimise I-cache footprint.
+#if BEAST_ARCH_APPLE_SILICON
+            if (slen >= 9 && sp + 16 <= src + (buf_cap - 16)) {
+              vst1q_u8(reinterpret_cast<uint8_t *>(w),
+                       vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
+              w += slen;
+            } else  // fallthrough to shared scalar cascade below
+#endif  // BEAST_ARCH_APPLE_SILICON
+            {
+              uint16_t rem = slen;
+              if (rem >= 16) {
+                uint64_t a, b;
+                std::memcpy(&a, sp, 8);
+                std::memcpy(&b, sp + 8, 8);
+                std::memcpy(w, &a, 8);
+                std::memcpy(w + 8, &b, 8);
+                sp += 16;
+                w += 16;
+                rem = 0;
+              }
+              if (rem >= 8) {
+                uint64_t a;
+                std::memcpy(&a, sp, 8);
+                std::memcpy(w, &a, 8);
+                sp += 8;
+                w += 8;
+                rem = static_cast<uint16_t>(rem - 8);
+              }
+              if (rem >= 4) {
+                uint32_t a;
+                std::memcpy(&a, sp, 4);
+                std::memcpy(w, &a, 4);
+                sp += 4;
+                w += 4;
+                rem = static_cast<uint16_t>(rem - 4);
+              }
+              while (rem--)
+                *w++ = *sp++;
             }
-            if (rem >= 8) {
-              uint64_t a;
-              std::memcpy(&a, sp, 8);
-              std::memcpy(w, &a, 8);
-              sp += 8;
-              w += 8;
-              rem = static_cast<uint16_t>(rem - 8);
-            }
-            if (rem >= 4) {
-              uint32_t a;
-              std::memcpy(&a, sp, 4);
-              std::memcpy(w, &a, 4);
-              sp += 4;
-              w += 4;
-              rem = static_cast<uint16_t>(rem - 4);
-            }
-            while (rem--)
-              *w++ = *sp++;
           }
         } else {
           std::memcpy(w, sp, slen);
@@ -5437,24 +5452,34 @@ public:
             vst1q_u8(uw + slen - 16, vld1q_u8(up + slen - 16));
             w += slen;
           } else {
-            uint16_t rem = slen;
-            if (rem >= 16) {
-              uint64_t a, b;
-              std::memcpy(&a, sp, 8); std::memcpy(&b, sp + 8, 8);
-              std::memcpy(w, &a, 8); std::memcpy(w + 8, &b, 8);
-              sp += 16; w += 16; rem = 0;
+            // Phase 72-M1: see dump() above for full rationale.
+#if BEAST_ARCH_APPLE_SILICON
+            if (slen >= 9 && sp + 16 <= src + (buf_cap - 16)) {
+              vst1q_u8(reinterpret_cast<uint8_t *>(w),
+                       vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
+              w += slen;
+            } else  // fallthrough to shared scalar cascade below
+#endif  // BEAST_ARCH_APPLE_SILICON
+            {
+              uint16_t rem = slen;
+              if (rem >= 16) {
+                uint64_t a, b;
+                std::memcpy(&a, sp, 8); std::memcpy(&b, sp + 8, 8);
+                std::memcpy(w, &a, 8); std::memcpy(w + 8, &b, 8);
+                sp += 16; w += 16; rem = 0;
+              }
+              if (rem >= 8) {
+                uint64_t a;
+                std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
+                sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
+              }
+              if (rem >= 4) {
+                uint32_t a;
+                std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
+                sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
+              }
+              while (rem--) *w++ = *sp++;
             }
-            if (rem >= 8) {
-              uint64_t a;
-              std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
-              sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
-            }
-            if (rem >= 4) {
-              uint32_t a;
-              std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
-              sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
-            }
-            while (rem--) *w++ = *sp++;
           }
         } else {
           std::memcpy(w, sp, slen);
