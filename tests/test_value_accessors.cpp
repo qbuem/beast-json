@@ -1,7 +1,11 @@
 #include <beast_json/beast_json.hpp>
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <iterator>
 #include <map>
+#include <numeric>
 #include <optional>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1167,4 +1171,97 @@ TEST(AutoChain, TypeMismatch) {
   // "a" is int, not object — further chaining returns invalid
   Value v = root["a"]["sub"];
   EXPECT_FALSE(static_cast<bool>(v));
+}
+
+// ── C++20 ranges / STL algorithm compatibility ────────────────────────────────
+
+TEST(Ranges, FindIfObject) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":99,"c":3})");
+  auto it = std::ranges::find_if(root.items(),
+      [](auto kv){ return kv.first == "b"; });
+  ASSERT_NE(it, root.items().end());
+  EXPECT_EQ((*it).second.as<int>(), 99);
+}
+
+TEST(Ranges, CountIfArray) {
+  Document doc;
+  auto root = parse_root(doc, "[1,5,2,8,3,9]");
+  long cnt = std::ranges::count_if(root.elements(),
+      [](Value v){ return v.as<int>() > 4; });
+  EXPECT_EQ(cnt, 3);
+}
+
+TEST(Ranges, MaxElement) {
+  Document doc;
+  auto root = parse_root(doc, "[3,1,4,1,5,9,2,6]");
+  auto mx = std::ranges::max_element(root.elements(),
+      [](Value a, Value b){ return a.as<int>() < b.as<int>(); });
+  ASSERT_NE(mx, root.elements().end());
+  EXPECT_EQ((*mx).as<int>(), 9);
+}
+
+TEST(Ranges, Accumulate) {
+  Document doc;
+  auto root = parse_root(doc, "[1,2,3,4,5]");
+  int sum = std::accumulate(root.elements().begin(), root.elements().end(), 0,
+      [](int acc, Value v){ return acc + v.as<int>(); });
+  EXPECT_EQ(sum, 15);
+}
+
+TEST(Ranges, TransformToVector) {
+  Document doc;
+  auto root = parse_root(doc, "[10,20,30]");
+  std::vector<int> out;
+  std::ranges::transform(root.elements(), std::back_inserter(out),
+      [](Value v){ return v.as<int>(); });
+  ASSERT_EQ(out.size(), 3u);
+  EXPECT_EQ(out[1], 20);
+}
+
+TEST(Ranges, FilterPipeOnArray) {
+  Document doc;
+  auto root = parse_root(doc, "[1,2,3,4,5,6]");
+  int cnt = 0;
+  for (auto v : root.elements() | std::views::filter([](Value v){ return v.as<int>() % 2 == 0; }))
+    { (void)v; ++cnt; }
+  EXPECT_EQ(cnt, 3);
+}
+
+TEST(Ranges, FilterPipeOnObject) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":20,"c":3,"d":40})");
+  // Use explicit pair type in lambda (auto kv requires `template` for .as<T>() in generic context)
+  using ObjPair = std::pair<std::string_view, Value>;
+  int cnt = 0;
+  for (auto [k, v] : root.items() | std::views::filter([](ObjPair kv){ return kv.second.as<int>() > 10; }))
+    { (void)k; ++cnt; }
+  EXPECT_EQ(cnt, 2);
+}
+
+TEST(Ranges, Distance) {
+  Document doc;
+  auto root = parse_root(doc, "[10,20,30,40,50]");
+  EXPECT_EQ(std::ranges::distance(root.elements()), 5);
+}
+
+TEST(Ranges, BorrowedRangeRvalue) {
+  // borrowed_range: std::ranges::find_if on rvalue range returns real iterator
+  Document doc;
+  auto root = parse_root(doc, "[7,8,9]");
+  // This would return std::ranges::dangling without enable_borrowed_range
+  auto it = std::ranges::find_if(root.elements(),
+      [](Value v){ return v.as<int>() == 8; });
+  ASSERT_NE(it, root.elements().end());
+  EXPECT_EQ((*it).as<int>(), 8);
+}
+
+TEST(Ranges, ForEach) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":1,"y":2,"z":3})");
+  int sum = 0;
+  using ObjPair = std::pair<std::string_view, Value>;
+  std::for_each(root.items().begin(), root.items().end(),
+      [&](ObjPair kv){ sum += kv.second.as<int>(); });
+  EXPECT_EQ(sum, 6);
 }

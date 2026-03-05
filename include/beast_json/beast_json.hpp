@@ -1696,6 +1696,14 @@ public:
     ArrayIterator end()   const noexcept { return {}; }
   };
 
+  // ── Public type aliases for use in lambdas ──────────────────────────────
+  //
+  // Avoids the `template` keyword in generic lambdas over items():
+  //   for (auto kv : root.items()) { kv.second.as<int>(); }  // generic lambda: needs 'template'
+  //   [](Value::ObjectItem kv){ kv.second.as<int>(); }       // explicit type: no 'template'
+  //   [](Value::ObjectItem kv){ kv.second.as<int>(); }
+  using ObjectItem = std::pair<std::string_view, Value>;  // key-value pair from items()
+
   // items() — object iteration
   ObjectRange items() const noexcept {
     if (!doc_ || !is_object()) return {nullptr, 0};
@@ -4489,6 +4497,25 @@ class Parser {
   } // namespace lazy
 } // namespace json
 } // namespace beast
+
+// ── C++20 ranges support ────────────────────────────────────────────────────
+//
+// ObjectRange and ArrayRange are non-owning views into a DocumentView — they
+// hold only a raw pointer.  Iterators derived from them cannot dangle even
+// after the range object is destroyed, so both types qualify as
+// `borrowed_range`.  Specialising enable_borrowed_range allows:
+//   • std::ranges::find_if / find to return a real iterator (not dangling)
+//   • pipe syntax:  root.items() | std::views::transform(f) | ...
+//
+// enable_view is intentionally NOT set — these are range proxies, not views
+// in the library sense (they are not cheaply copyable in O(1)).
+template <>
+inline constexpr bool
+std::ranges::enable_borrowed_range<beast::json::lazy::Value::ObjectRange> = true;
+
+template <>
+inline constexpr bool
+std::ranges::enable_borrowed_range<beast::json::lazy::Value::ArrayRange> = true;
 
 // ============================================================================
 // 3-Tier Public API
