@@ -5214,8 +5214,19 @@ public:
       // Root cause: same PGO/LTO cross-contamination pattern as Phase 66/66-B.
       // The serialize loop and parse code share one LTO unit — any structural
       // change to the serialize switch affects parse I-cache layout.
+      // Phase 79-M1: branchless sep write — table lookup + conditional advance.
+      // sep=0 writes '\0' harmlessly; switch case always overwrites it.
+      // Saves 2 instructions + eliminates 1 branch vs conditional write.
+#if BEAST_ARCH_APPLE_SILICON
+      {
+        static constexpr char kSepChars[3] = {'\0', ',', ':'};
+        *w = kSepChars[sep];
+        w += static_cast<size_t>(sep != 0);
+      }
+#else
       if (sep)
         *w++ = (sep == 0x02u) ? ':' : ',';
+#endif
 
       switch (type) {
 
@@ -5247,6 +5258,31 @@ public:
         //
         // For slen ≤ 16: scalar 8-4-1 cascade (fast for short keys).
         // For slen ≥ 32: std::memcpy (large values, dispatch overhead amortised).
+        // Phase 80-M1: Restructured branch order — slen 1-16 (95%+ of citm/twitter)
+        // checked FIRST → 2 branches in hot path vs 3 (saves 1 branch/string).
+        // Code size: ~13 instructions vs ~16 → smaller hot-path I-cache footprint.
+        // Generic NEON (non-M1): Phase 61 structure unchanged.
+#if BEAST_ARCH_APPLE_SILICON
+        if (BEAST_LIKELY(slen <= 16)) {
+          if (BEAST_LIKELY(sp + 16 <= src + (buf_cap - 16))) {
+            vst1q_u8(reinterpret_cast<uint8_t *>(w),
+                     vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
+            w += slen;
+          } else {
+            std::memcpy(w, sp, slen);
+            w += slen;
+          }
+        } else if (BEAST_LIKELY(slen <= 31)) {
+          const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
+          uint8_t *uw = reinterpret_cast<uint8_t *>(w);
+          vst1q_u8(uw, vld1q_u8(up));
+          vst1q_u8(uw + slen - 16, vld1q_u8(up + slen - 16));
+          w += slen;
+        } else {
+          std::memcpy(w, sp, slen);
+          w += slen;
+        }
+#else  // generic NEON (non-Apple-Silicon): Phase 61 structure
         if (BEAST_LIKELY(slen <= 31)) {
           if (slen >= 17) {
             const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
@@ -5262,33 +5298,25 @@ public:
               std::memcpy(&b, sp + 8, 8);
               std::memcpy(w, &a, 8);
               std::memcpy(w + 8, &b, 8);
-              sp += 16;
-              w += 16;
-              rem = 0;
+              sp += 16; w += 16; rem = 0;
             }
             if (rem >= 8) {
               uint64_t a;
-              std::memcpy(&a, sp, 8);
-              std::memcpy(w, &a, 8);
-              sp += 8;
-              w += 8;
-              rem = static_cast<uint16_t>(rem - 8);
+              std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
+              sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
             }
             if (rem >= 4) {
               uint32_t a;
-              std::memcpy(&a, sp, 4);
-              std::memcpy(w, &a, 4);
-              sp += 4;
-              w += 4;
-              rem = static_cast<uint16_t>(rem - 4);
+              std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
+              sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
             }
-            while (rem--)
-              *w++ = *sp++;
+            while (rem--) *w++ = *sp++;
           }
         } else {
           std::memcpy(w, sp, slen);
           w += slen;
         }
+#endif  // BEAST_ARCH_APPLE_SILICON
 #else
         // Unrolled 16-8-4-1 copy (Phase D3): avoids glibc dispatch overhead
         // for short strings (twitter.json avg 16.9 chars, 84% ≤ 24 chars).
@@ -5406,8 +5434,16 @@ public:
       const auto type = static_cast<TapeNodeType>((meta >> 24) & 0xFF);
       const uint8_t sep = (meta >> 16) & 0xFFu;
 
+#if BEAST_ARCH_APPLE_SILICON
+      {
+        static constexpr char kSepChars[3] = {'\0', ',', ':'};
+        *w = kSepChars[sep];
+        w += static_cast<size_t>(sep != 0);
+      }
+#else
       if (sep)
         *w++ = (sep == 0x02u) ? ':' : ',';
+#endif
 
       switch (type) {
 
@@ -5429,6 +5465,28 @@ public:
         const char *sp = src + nd.offset;
         *w++ = '"';
 #if BEAST_HAS_NEON
+        // Phase 80-M1: see dump() above for rationale.
+#if BEAST_ARCH_APPLE_SILICON
+        if (BEAST_LIKELY(slen <= 16)) {
+          if (BEAST_LIKELY(sp + 16 <= src + (buf_cap - 16))) {
+            vst1q_u8(reinterpret_cast<uint8_t *>(w),
+                     vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
+            w += slen;
+          } else {
+            std::memcpy(w, sp, slen);
+            w += slen;
+          }
+        } else if (BEAST_LIKELY(slen <= 31)) {
+          const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
+          uint8_t *uw = reinterpret_cast<uint8_t *>(w);
+          vst1q_u8(uw, vld1q_u8(up));
+          vst1q_u8(uw + slen - 16, vld1q_u8(up + slen - 16));
+          w += slen;
+        } else {
+          std::memcpy(w, sp, slen);
+          w += slen;
+        }
+#else  // generic NEON (non-Apple-Silicon): Phase 61 structure
         if (BEAST_LIKELY(slen <= 31)) {
           if (slen >= 17) {
             const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
@@ -5460,6 +5518,7 @@ public:
           std::memcpy(w, sp, slen);
           w += slen;
         }
+#endif  // BEAST_ARCH_APPLE_SILICON
 #else
         if (BEAST_LIKELY(slen <= 31)) {
           uint16_t rem = slen;
@@ -6061,10 +6120,14 @@ class Parser {
   // SIMD key-end scan: a single byte comparison s[cached_len]=='"' suffices.
   //
   // citm_catalog.json: 243 performances × 9 keys = 2187 SIMD scans replaced
-  // by byte comparisons. Memory: 8×16×2 + 8 = 264 bytes (trivially L1-resident).
+  // by byte comparisons.
+  // Phase 65-M1: twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
+  // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to 32
+  // covers all twitter keys and citm's worst-case depth (9 keys per performance).
+  // Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets; M1 L1 = 192KB).
   struct KeyLenCache {
     static constexpr uint8_t MAX_DEPTH = 8;
-    static constexpr uint8_t MAX_KEYS  = 16;
+    static constexpr uint8_t MAX_KEYS  = 32;
     uint8_t  key_idx[MAX_DEPTH] = {};            // current key pos per depth
     uint16_t lens[MAX_DEPTH][MAX_KEYS] = {};     // cached source lengths (0=unset)
   } kc_;
@@ -6599,18 +6662,67 @@ class Parser {
         // utilization.
         goto skn_slow;
 #elif BEAST_HAS_NEON
-    // ── Phase 57: Global AArch64 NEON Priority Scanner ──────────────────────
-    // NEON vectorization outperforms scalar SWAR-24 globally across all AArch64
-    // (Apple M-Series, Graviton, Cortex) due to wide vector pipelines.
+#if defined(BEAST_ARCH_APPLE_SILICON)
+    // ── Phase 60-C / 65-M1: Apple Silicon 3×16B NEON key scanner ────────────
+    // M1/M2/M3 characteristics that enable this extension:
+    //   - 128B L1/L2 cache lines: 3×16B loads (48B) still within one cache line
+    //     on aligned access → 3rd load is effectively free after the 1st miss.
+    //   - 576-entry ROB: wider speculative window absorbs the extra branch vs
+    //     Cortex-X3 (~200 ROB entries) where Phase 60-B showed +5.6% regression.
+    //   - Pure NEON: no scalar pre-gates; all loads are vector instructions.
     //
-    // Cycle Latency & ILP Analysis vs SWAR:
-    // 1. SWAR GPR: ldr(8B) -> eor -> sub -> bic -> and
-    //    Dependencies: 4 serial Integer ALU ops. Critical path: ~4-5 cycles/8B.
-    // 2. NEON SIMD: vld1q(16B) -> vceqq -> vmaxvq
-    //    Dependencies: 2 Vector ALU ops. Critical path: ~5-6 cycles/16B.
+    // Key-length distribution for benchmark files:
+    //   twitter.json  : most keys ≤16B → v1 hit in hot path (same as 2×16B)
+    //   citm_catalog  : keys up to ~20B → v1/v2 hit; v3 rarely needed
+    //   gsoc-2018.json: some keys 30-50B → v3 saves skip_string rescan
     //
-    // Conclusion: NEON processes 2x data (16B vs 8B) with a perfectly parallel
-    // issue queue without choking the branch predictor with scalar pre-gates.
+    // For keys >48B (all 3 clean): skip_string(s+48) avoids rescanning 48B.
+    // For keys 32-48B (v1+v2 clean, gate fails): fall to 2×16B path below.
+    // For keys ≤32B (common case): identical hot path to the 2×16B baseline.
+    if (BEAST_LIKELY(s + 48 <= end_)) {
+      const uint8x16_t vq = vdupq_n_u8('"');
+      const uint8x16_t vbs = vdupq_n_u8('\\');
+
+      uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
+      uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
+        e = s;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v2 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
+      uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
+        e = s + 16;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v3 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 32));
+      uint8x16_t m3 = vorrq_u8(vceqq_u8(v3, vq), vceqq_u8(v3, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m3)) != 0)) {
+        e = s + 32;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      // [s, s+48) confirmed clean — skip_string(s+48) bypasses rescanning
+      e = skip_string(s + 48);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
+    }
+    // 32 ≤ remaining < 48: 2×16B with skip_string(s+32) bypass
     if (BEAST_LIKELY(s + 32 <= end_)) {
       const uint8x16_t vq = vdupq_n_u8('"');
       const uint8x16_t vbs = vdupq_n_u8('\\');
@@ -6636,11 +6748,69 @@ class Parser {
           goto skn_found;
         goto skn_slow;
       }
-      goto skn_slow;
+
+      // [s, s+32) clean → continue from s+32 (avoids rescanning via skn_slow)
+      e = skip_string(s + 32);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
     }
     goto skn_slow;
 #else
-    // ── SWAR-24 (Apple Silicon M-Series / non-AVX2 fallback) ────────────────
+    // ── Phase 57: Generic AArch64 Pure NEON 2×16B ────────────────────────────
+    // NEON vectorization outperforms scalar SWAR-24 globally across all AArch64
+    // (Graviton, Cortex-X, Neoverse) due to wide vector pipelines.
+    //
+    // Cycle Latency & ILP Analysis vs SWAR:
+    // 1. SWAR GPR: ldr(8B) -> eor -> sub -> bic -> and
+    //    Dependencies: 4 serial Integer ALU ops. Critical path: ~4-5 cycles/8B.
+    // 2. NEON SIMD: vld1q(16B) -> vceqq -> vmaxvq
+    //    Dependencies: 2 Vector ALU ops. Critical path: ~5-6 cycles/16B.
+    //
+    // Phase 60-B result (Cortex-X3 pinned, 500 iter):
+    //   Pure NEON baseline: 243.7 μs
+    //   + 8B scalar while pre-scan: 257.5 μs (+5.6% regression)
+    //   Root cause: branch dependency stalls NEON pipeline in ~200-entry ROB.
+    //   → Do NOT add scalar pre-gates here; keep purely vectorised.
+    //
+    // Phase 65-M1: when both 16B checks are clean (key >32B), call
+    // skip_string(s+32) instead of goto skn_slow to avoid rescanning [s,s+32).
+    if (BEAST_LIKELY(s + 32 <= end_)) {
+      const uint8x16_t vq = vdupq_n_u8('"');
+      const uint8x16_t vbs = vdupq_n_u8('\\');
+
+      uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
+      uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
+        e = s;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      uint8x16_t v2 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
+      uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
+      if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
+        e = s + 16;
+        while (*e != '"' && *e != '\\')
+          ++e;
+        if (BEAST_LIKELY(*e == '"'))
+          goto skn_found;
+        goto skn_slow;
+      }
+
+      // [s, s+32) confirmed clean — skip_string(s+32) avoids rescanning
+      e = skip_string(s + 32);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0; // malformed
+      goto skn_found;
+    }
+    goto skn_slow;
+#endif // BEAST_ARCH_APPLE_SILICON vs generic AArch64
+#else
+    // ── SWAR-24 (non-SIMD fallback: no AVX2, no NEON) ───────────────────────
     // Phase 56-5 finding: On Apple Silicon, this scalar SWAR path is faster
     // than NEON for short keys due to massive OoO windows and fast predictors.
     // Phase D2: load v0 first; exit immediately for ≤8-char keys (most common
@@ -7229,6 +7399,31 @@ class Parser {
             const char *s = p_;
             if (*p_ == '-')
               ++p_;
+            // ── Phase 66-M1: NEON 16B integer scanner ──────────────────────
+            // Replaces SWAR-8 (8B/iter) with NEON (16B/iter) on AArch64.
+            // canada.json: integer parts are short (1-5 digits) → minimal gain
+            //   but consistent with the fractional-part NEON approach below.
+            // twitter.json: tweet ID integers (18 digits) → 1 NEON iter vs 3
+            //   SWAR-8 iterations → saves ~2 SWAR overhead per ID.
+            // Pure NEON: no scalar pre-gate inside the loop; vmaxvq_u32 result
+            // drives a single branch identical to scan_string_end's pattern.
+#if BEAST_HAS_NEON
+            {
+              const uint8x16_t vzero = vdupq_n_u8('0');
+              const uint8x16_t vnine = vdupq_n_u8(9);
+              while (p_ + 16 <= end_) {
+                uint8x16_t vv = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));
+                uint8x16_t sub = vsubq_u8(vv, vzero);   // [0..9]=digit; else wraps ≥10
+                uint8x16_t nd  = vcgtq_u8(sub, vnine);  // 0xFF where non-digit
+                if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(nd)) != 0)) {
+                  while (static_cast<unsigned>(*p_ - '0') < 10u)
+                    ++p_;
+                  goto num_done;
+                }
+                p_ += 16;
+              }
+            }
+#else
             while (p_ + 8 <= end_) {
               uint64_t v;
               std::memcpy(&v, p_, 8);
@@ -7243,6 +7438,7 @@ class Parser {
               }
               p_ += 8;
             }
+#endif
             while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)
               ++p_;
           num_done:;
@@ -7253,19 +7449,53 @@ class Parser {
               ++p_;
               if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
                 ++p_;
-              // ── Phase 33: SWAR-8 float digit scanner (fractional part) ──
-              // canada.json has 2.32M floats: scalar was 1 byte/iter.
-              // SWAR-8 processes 8 digits in a single 64-bit operation.
-              // Architecture-agnostic pure SWAR — fully inlined, zero call
-              // overhead.
-#define BEAST_SWAR_SKIP_DIGITS()                                               \
+              // ── Phase 66-M1: NEON 16B float digit scanner (fractional) ─
+              // canada.json: 2.32M floats, avg ~14 fractional digits.
+              //   SWAR-8: 2 iterations/float (8B + 6B tail) = 16 ops/float.
+              //   NEON-16: 1 iteration/float (14B in 16B chunk) = 8 ops/float.
+              // twitter.json: small floats → mostly scalar tail (no change).
+              //
+              // Correctness: vsubq_u8 wraps (uint8) so bytes < '0' produce
+              // values ≥ 246 > 9, correctly flagged as non-digit by vcgtq_u8.
+              //
+              // Pure NEON: vmaxvq_u32 → branch → scalar pinpoint (identical
+              // pattern to scan_string_end NEON; proven safe on all AArch64).
+              //
+              // Phase 70-M1 FAILED: vgetq_lane_u64 + ctzll in exit path
+              // improved canada +8.8% but caused twitter +128% regression
+              // even with fresh profdata. Root cause: additional basic blocks
+              // in parse() change PGO+LTO code layout → twitter L1 I-cache
+              // pressure. Any new code in parse() is forbidden.
+#if BEAST_HAS_NEON
+#define BEAST_SKIP_DIGITS()                                                    \
+  do {                                                                         \
+    {                                                                          \
+      const uint8x16_t _vzero = vdupq_n_u8('0');                              \
+      const uint8x16_t _vnine = vdupq_n_u8(9);                                \
+      while (p_ + 16 <= end_) {                                                \
+        uint8x16_t _vv  = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));    \
+        uint8x16_t _sub = vsubq_u8(_vv, _vzero);                              \
+        uint8x16_t _nd  = vcgtq_u8(_sub, _vnine);                             \
+        if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(_nd)) != 0)) {     \
+          while (static_cast<unsigned>(*p_ - '0') < 10u)                      \
+            ++p_;                                                              \
+          break;                                                               \
+        }                                                                      \
+        p_ += 16;                                                              \
+      }                                                                        \
+    }                                                                          \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
+      ++p_;                                                                    \
+  } while (0)
+#else
+#define BEAST_SKIP_DIGITS()                                                    \
   do {                                                                         \
     while (p_ + 8 <= end_) {                                                   \
       uint64_t _v;                                                             \
       std::memcpy(&_v, p_, 8);                                                 \
       uint64_t _s = _v - 0x3030303030303030ULL;                                \
       uint64_t _nd =                                                           \
-          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &      \
+          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &     \
           0x8080808080808080ULL;                                               \
       if (_nd) {                                                               \
         p_ += BEAST_CTZ(_nd) >> 3;                                             \
@@ -7273,17 +7503,18 @@ class Parser {
       }                                                                        \
       p_ += 8;                                                                 \
     }                                                                          \
-    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)                \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
       ++p_;                                                                    \
   } while (0)
-              BEAST_SWAR_SKIP_DIGITS(); // fractional digits
+#endif
+              BEAST_SKIP_DIGITS(); // fractional digits
               if (p_ < end_ && (*p_ == 'e' || *p_ == 'E')) {
                 ++p_;
                 if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
                   ++p_;
-                BEAST_SWAR_SKIP_DIGITS(); // exponent digits
+                BEAST_SKIP_DIGITS(); // exponent digits
               }
-#undef BEAST_SWAR_SKIP_DIGITS
+#undef BEAST_SKIP_DIGITS
             }
             push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
                  static_cast<uint16_t>(p_ - s),
