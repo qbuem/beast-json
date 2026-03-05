@@ -1,7 +1,7 @@
 # Beast JSON — Roadmap
 
 > **최종 업데이트**: 2026-03-05
-> 최적화 3종 플랫폼 완료 · **Legacy DOM 제거 완료** (7,880→3,187 lines) · **The Ultimate API 1단계 완료** (ctest 223/223 PASS) → 다음 목표: **1줄 역직렬화 + RFC 8259 완전 준수 (v1.0)**
+> 최적화 3종 플랫폼 완료 · **Legacy DOM 제거 완료** (7,880→3,187 lines) · **The Ultimate API 완성** (ctest 272/272 PASS) → 다음 목표: **RFC 8259 완전 준수 + Foreign Language Bindings (v1.0)**
 
 ---
 
@@ -224,8 +224,69 @@
       std::cout << k << ": " << v.dump() << "\n";  // meta: {"v":2}
   ```
 
-- [ ] **1줄 메타 역직렬화** (독자적 방식): Beast 고유 설계, Glaze/nlohmann과 차별화
-- [ ] **Zero-Allocation Typed Views**: `for (int id : doc["ids"].as_array<int>())`
+- [x] **편의 API — The Ultimate Convenience Layer** (ctest 272/272 PASS, 2026-03-05):
+  - **`contains(key)`** — `root.contains("name")` (bool, sugar for `find(key).has_value()`)
+  - **`value(key/idx, default)`** — `root.value("age", 0)` (nlohmann 스타일 안전 추출)
+  - **`type_name()`** — `"null"/"bool"/"int"/"double"/"string"/"array"/"object"/"invalid"` 반환
+  - **`operator|` 파이프 폴백** — `int age = root["age"] | 42;` / `std::string s = root["name"] | "anon";`
+    - `Value`와 `SafeValue` 모두 지원
+    - 타입 불일치·누락 시 기본값 반환 (never throws)
+  - **`keys()` / `values()`** — 객체 키·값 lazy 범위 (`std::views::transform` 기반)
+  - **`as_array<T>()` / `try_as_array<T>()`** — 타입 변환 lazy 뷰
+    - `for (int id : doc["ids"].as_array<int>())` — 원소별 as<T>() 변환
+    - `try_as_array<T>()` — optional<T> 뷰, never throws
+  - **Runtime JSON Pointer `at(path)`** — RFC 6901 준수: `root.at("/users/0/name")`
+    - `~0` → `~`, `~1` → `/` 이스케이프 처리
+    - 경로 누락 시 invalid `Value{}` 반환 (never throws)
+  - **컴파일타임 JSON Pointer `at<Path>()`** — `root.at<"/config/timeout">()`
+    - NTTP로 경로 검증: `'/'`로 시작하지 않으면 컴파일 에러
+  - **`merge(other)`** — 다른 객체의 키-값 전체를 현재 객체로 병합
+  - **`merge_patch(json)`** — RFC 7396 JSON Merge Patch 적용
+    - null 값 → 키 삭제, 객체 값 → 재귀 패치, 기타 → 덮어쓰기
+  - **`beast::read<T>(json)`** / **`beast::write(obj)`** — ADL 기반 구조체 역직렬화
+    - 사용자 정의: `from_beast_json(const Value&, T&)` / `to_beast_json(Value&, const T&)`
+  - **`beast::SafeValue`** — 공개 타입 별칭 (`beast::json::lazy::SafeValue`)
+  - **`as<T>()` null 가드** — invalid `Value{}` 접근 시 `std::runtime_error` (기존: UB/segfault)
+
+  ```cpp
+  beast::Document doc;
+  auto root = beast::parse(doc, R"({"user":{"id":7,"tags":["go","cpp"]},"score":3.14})");
+
+  // contains + value() — 안전 추출
+  if (root.contains("user"))
+      std::cout << root["user"]["id"].type_name() << "\n";  // "int"
+  int id    = root.value("user", std::string{}).empty() ? -1 : root["user"]["id"] | -1;
+  double sc = root["score"] | 0.0;
+
+  // keys() / values() — 객체 범위
+  for (std::string_view k : root.keys())
+      std::cout << k << "\n";  // user, score
+
+  // as_array<T>() — 타입 뷰
+  for (std::string tag : root["user"]["tags"].as_array<std::string>())
+      std::cout << tag << "\n";  // go, cpp
+
+  // Runtime JSON Pointer
+  std::cout << root.at("/user/tags/0").as<std::string>() << "\n";  // go
+
+  // Compile-time JSON Pointer (path validated at compile time)
+  std::cout << root.at<"/user/id">().as<int>() << "\n";  // 7
+
+  // merge_patch (RFC 7396)
+  root.merge_patch(R"({"score":null,"extra":42})");
+  // score deleted, extra added → visible via dump()
+
+  // ADL 구조체 바인딩
+  struct Config { int timeout; std::string mode; };
+  void from_beast_json(const beast::Value& v, Config& c) {
+      c.timeout = v["timeout"] | 5000;
+      c.mode    = v["mode"]    | "default";
+  }
+  auto cfg = beast::read<Config>(R"({"timeout":10000,"mode":"fast"})");
+  ```
+
+- [ ] **1줄 메타 역직렬화** — 리플렉션 기반 자동 바인딩 (현재 ADL 방식과 별개로 연구 중)
+- [ ] **Zero-Allocation Typed Views** (현재 `as_array<T>()`로 커버, views 최적화 연구 중)
 
 ### 에러 처리 · 안전성
 
@@ -287,7 +348,7 @@
 
 ## 불변 원칙
 
-- **모든 변경은 `ctest PASS` 후 커밋** — 예외 없음 (현재 223개)
+- **모든 변경은 `ctest PASS` 후 커밋** — 예외 없음 (현재 272개)
 - **회귀 즉시 revert** — 원인 분석 선행
 - **Phase 65 리스크**: `s[cl+1]==':'` 단독 가드는 값이 `":"` 형태인 JSON에서 false-positive 가능. 표준 4종 벤치마크 파일 안전 확인됨.
 - **SVE 절대 금기** (Snapdragon): Android 커널 비활성화 → SIGILL.

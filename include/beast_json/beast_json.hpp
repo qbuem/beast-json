@@ -33,6 +33,7 @@
 
 #include <algorithm>
 #include <array>
+#include <ranges>
 #include <atomic>
 #include <bit>
 #include <bitset>
@@ -848,9 +849,13 @@ public:
   //   std::string, std::string_view
 
   template <typename T> T as() const {
+    // Guard: invalid Value{} (missing key / out-of-range index) → throw.
+    // This makes try_as<T>() safe even on invalid Values (returns nullopt).
+    if (!doc_) throw std::runtime_error("beast::Value::as: value is missing or invalid");
+
     // Check mutation overlay first — O(1) unordered_map lookup, only paid
     // when mutations_ is non-empty (guarded by BEAST_UNLIKELY branch).
-    if (BEAST_UNLIKELY(doc_ && !doc_->mutations_.empty())) {
+    if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
       auto mit = doc_->mutations_.find(idx_);
       if (mit != doc_->mutations_.end()) {
         const MutationEntry &m = mit->second;
@@ -1715,8 +1720,307 @@ public:
     return {doc_, idx_};
   }
 
+  // ── contains(key) ─────────────────────────────────────────────────────────
+  //
+  // Returns true iff the object has the given key (not deleted).
+  // Equivalent to find(key).has_value() but reads more naturally.
+  //
+  // Usage: if (root.contains("name")) { ... }
+  bool contains(std::string_view key) const noexcept { return find(key).has_value(); }
+  bool contains(const char *key)      const noexcept { return contains(std::string_view(key)); }
+
+  // ── value(key/idx, default) — safe extraction with fallback ───────────────
+  //
+  // Returns the value at key/index, or `def` if the key is missing or the
+  // value's type doesn't match T.  Never throws.
+  //
+  // Usage:
+  //   int  age  = root.value("age",  0);
+  //   std::string name = root.value("name", "anonymous");
+  //   double x  = root.value(0, 0.0);   // first array element or 0.0
+
+  template<JsonReadable T>
+  T value(std::string_view key, T def) const noexcept {
+    auto opt = find(key);
+    if (!opt) return def;
+    auto r = opt->try_as<T>();
+    return r ? *r : def;
+  }
+  template<JsonReadable T>
+  T value(const char *key, T def) const noexcept { return value(std::string_view(key), def); }
+  template<JsonReadable T>
+  T value(size_t idx, T def) const noexcept {
+    auto v = (*this)[idx];
+    if (!v) return def;
+    auto r = v.try_as<T>();
+    return r ? *r : def;
+  }
+  template<JsonReadable T>
+  T value(int idx, T def) const noexcept {
+    if (idx < 0) return def;
+    return value(static_cast<size_t>(idx), def);
+  }
+  // String literal specializations (const char* → std::string)
+  std::string value(std::string_view key, const char *def) const noexcept {
+    auto opt = find(key);
+    if (!opt) return std::string(def);
+    auto r = opt->try_as<std::string>();
+    return r ? *r : std::string(def);
+  }
+  std::string value(const char *key, const char *def) const noexcept {
+    return value(std::string_view(key), def);
+  }
+
+  // ── type_name() — human-readable type string ──────────────────────────────
+  //
+  // Returns one of: "null", "bool", "int", "double", "string", "array",
+  //                 "object", or "invalid" (when the Value is empty/missing).
+  //
+  // Usage: std::cout << root["age"].type_name() << "\n";  // "int"
+  std::string_view type_name() const noexcept {
+    if (!doc_) return "invalid";
+    switch (effective_type_()) {
+    case TapeNodeType::Null:          return "null";
+    case TapeNodeType::BooleanTrue:
+    case TapeNodeType::BooleanFalse:  return "bool";
+    case TapeNodeType::Integer:       return "int";
+    case TapeNodeType::Double:
+    case TapeNodeType::NumberRaw:     return "double";
+    case TapeNodeType::StringRaw:     return "string";
+    case TapeNodeType::ArrayStart:    return "array";
+    case TapeNodeType::ObjectStart:   return "object";
+    default:                          return "unknown";
+    }
+  }
+
+  // ── operator| — pipe fallback ─────────────────────────────────────────────
+  //
+  // Enables: int age = root["age"] | 42;
+  //          std::string s = root["name"] | "unknown";
+  //          double x = root["x"] | 0.0;
+  //
+  // Returns try_as<T>() with fallback `def` when the Value is invalid
+  // (missing key/index) or the type doesn't match.
+  //
+  // Defined as non-member friend: the template version takes priority over
+  // the built-in int|int (which would require a user-defined conversion),
+  // so `root["age"] | 42` correctly calls this operator rather than
+  // converting Value to int first.
+
+  template<JsonReadable T>
+  friend T operator|(const Value &v, T def) noexcept {
+    auto r = v.try_as<T>();
+    return r ? *r : def;
+  }
+  friend std::string operator|(const Value &v, std::string_view def) noexcept {
+    auto r = v.try_as<std::string>();
+    return r ? *r : std::string(def);
+  }
+  friend std::string operator|(const Value &v, const char *def) noexcept {
+    auto r = v.try_as<std::string>();
+    return r ? *r : std::string(def);
+  }
+
+  // ── keys() / values() — object key/value ranges ───────────────────────────
+  //
+  // Lazy transform views over items().
+  //
+  // Usage:
+  //   for (std::string_view k : root.keys())   { ... }
+  //   for (beast::Value     v : root.values()) { ... }
+  //   auto first_key = *root.keys().begin();
+
+  auto keys() const noexcept {
+    return items() | std::views::transform(
+        [](const ObjectItem &kv) noexcept -> std::string_view { return kv.first; });
+  }
+  auto values() const noexcept {
+    return items() | std::views::transform(
+        [](const ObjectItem &kv) noexcept -> Value { return kv.second; });
+  }
+
+  // ── as_array<T>() / try_as_array<T>() — typed element views ──────────────
+  //
+  // Lazy transform view over elements() yielding each element as T.
+  //   as_array<T>()      — throws std::runtime_error on type mismatch
+  //   try_as_array<T>()  — yields std::optional<T>, never throws
+  //
+  // Usage:
+  //   for (int id : doc["ids"].as_array<int>()) { ... }
+  //   auto sum = std::accumulate(
+  //       doc["vals"].as_array<double>().begin(),
+  //       doc["vals"].as_array<double>().end(), 0.0);
+  //   for (auto maybe : doc["mixed"].try_as_array<int>())
+  //       if (maybe) total += *maybe;
+
+  template<JsonReadable T>
+  auto as_array() const {
+    return elements() | std::views::transform(
+        [](const Value &v) -> T { return v.as<T>(); });
+  }
+  template<JsonReadable T>
+  auto try_as_array() const noexcept {
+    return elements() | std::views::transform(
+        [](const Value &v) noexcept -> std::optional<T> { return v.try_as<T>(); });
+  }
+
+  // ── at(path) — Runtime JSON Pointer (RFC 6901) ────────────────────────────
+  //
+  // Navigates nested values using a slash-delimited path.
+  // Handles RFC 6901 escape sequences: ~1 → '/', ~0 → '~'.
+  // Returns invalid Value{} (operator bool() == false) on any missing step.
+  // Empty path returns *this (root).
+  //
+  // Usage:
+  //   root.at("/users/0/name")     → "Alice"
+  //   root.at("/config/timeout")   → 5000
+  //   root.at("")                  → root itself
+  //   root.at("/missing/path")     → invalid Value{} (bool == false)
+
+  Value at(std::string_view path) const noexcept {
+    if (path.empty()) return *this;
+    if (path[0] != '/') return {};   // RFC 6901: must start with '/' or be empty
+    Value cur = *this;
+    size_t pos = 1;
+    while (pos <= path.size() && cur) {
+      const size_t slash = path.find('/', pos);
+      const std::string_view token = (slash == std::string_view::npos)
+          ? path.substr(pos)
+          : path.substr(pos, slash - pos);
+
+      // Decode RFC 6901 escapes (~0 → '~', ~1 → '/') only when '~' present
+      if (token.find('~') != std::string_view::npos) {
+        std::string decoded;
+        decoded.reserve(token.size());
+        for (size_t i = 0; i < token.size(); ++i) {
+          if (token[i] == '~' && i + 1 < token.size()) {
+            if      (token[i+1] == '1') { decoded += '/'; ++i; }
+            else if (token[i+1] == '0') { decoded += '~'; ++i; }
+            else                         decoded += token[i];
+          } else {
+            decoded += token[i];
+          }
+        }
+        cur = at_step_(cur, std::string_view(decoded));
+      } else {
+        cur = at_step_(cur, token);
+      }
+      pos = (slash == std::string_view::npos) ? path.size() + 1 : slash + 1;
+    }
+    return cur;
+  }
+
+  // ── at<Path>() — Compile-time JSON Pointer ────────────────────────────────
+  //
+  // Validates the path at compile time (must start with '/' or be empty).
+  // At runtime, delegates to at(path) for navigation.
+  //
+  // Usage:
+  //   root.at<"/users/0/name">()   // compile-time validated path
+  //   root.at<"">()                // returns root itself
+  //   root.at<"no-slash">()        // compile error: "must start with '/'"
+
+  template<size_t N>
+  struct JsonPointerLiteral {
+    char data[N]{};
+    static constexpr size_t size = N > 0 ? N - 1 : 0;  // exclude null terminator
+    consteval JsonPointerLiteral(const char (&s)[N]) {
+      for (size_t i = 0; i < N; ++i) data[i] = s[i];
+      // Validate: must start with '/' (RFC 6901) or be the empty document root
+      if constexpr (N > 1) {
+        if (s[0] != '/')
+          throw "beast::Value::at<Path>: JSON Pointer must start with '/'";
+      }
+    }
+    std::string_view view() const noexcept { return {data, size}; }
+  };
+
+  template<JsonPointerLiteral Path>
+  Value at() const noexcept { return at(Path.view()); }
+
+  // ── merge(other) — shallow object merge ───────────────────────────────────
+  //
+  // Copies all key-value pairs from `other` (object) into this object.
+  // Existing keys with the same name are replaced; new keys are appended.
+  // `other` must be an object; non-object arguments are silently ignored.
+  //
+  // Usage:
+  //   root["config"].merge(defaults);     // overlay defaults
+  //   target.merge(source);               // shallow merge
+
+  void merge(const Value &other) {
+    if (!is_object() || !other.is_object()) return;
+    for (auto [k, v] : other.items()) {
+      erase(k);                    // mark existing tape key as deleted
+      erase_from_additions_(k);    // remove any previously inserted duplicate
+      insert(k, v);                // append new key-value
+    }
+  }
+
+  // ── merge_patch(json) — JSON Merge Patch (RFC 7396) ───────────────────────
+  //
+  // Applies a JSON Merge Patch to this object:
+  //   • null values   → delete the key
+  //   • object values → recursive patch (if target key is also an object)
+  //   • other values  → overwrite the key
+  //
+  // Usage:
+  //   root.merge_patch(R"({"name":"Eve","score":null})");
+  //   // → sets "name"="Eve", deletes "score"
+
+  // merge_patch() is defined out-of-line (after parse_reuse is declared)
+  void merge_patch(std::string_view patch_json);
+
 private:
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  // at_step_: advance one JSON Pointer token from cur.
+  // Array: token must be a non-negative decimal integer index.
+  // Object: token is the key string.
+  static Value at_step_(const Value &cur, std::string_view token) noexcept {
+    if (cur.is_array()) {
+      if (token.empty()) return {};
+      size_t idx = 0;
+      for (char c : token) if (c < '0' || c > '9') return {};
+      std::from_chars(token.data(), token.data() + token.size(), idx);
+      return cur[idx];
+    }
+    return cur[token];
+  }
+
+  // erase_from_additions_: remove all addition entries with the given key.
+  // Called by merge() / merge_patch() before re-inserting a key.
+  void erase_from_additions_(std::string_view key) {
+    auto ait = doc_->additions_.find(idx_);
+    if (ait == doc_->additions_.end()) return;
+    auto &vec = ait->second;
+    vec.erase(std::remove_if(vec.begin(), vec.end(),
+        [&](const std::pair<std::string,std::string> &p) {
+          return std::string_view(p.first) == key;
+        }), vec.end());
+    if (vec.empty()) doc_->additions_.erase(ait);
+    doc_->last_dump_size_ = 0;
+  }
+
+  // merge_patch_impl_: recursive RFC 7396 patch application.
+  void merge_patch_impl_(const Value &patch) {
+    if (!is_object() || !patch.is_object()) return;
+    for (auto [k, v] : patch.items()) {
+      if (v.is_null()) {
+        erase(k);
+        erase_from_additions_(k);
+      } else {
+        Value existing = (*this)[k];
+        if (v.is_object() && existing.is_object()) {
+          existing.merge_patch_impl_(v);   // recursive
+        } else {
+          erase(k);
+          erase_from_additions_(k);
+          insert(k, v);
+        }
+      }
+    }
+  }
 
   // Serialize a scalar to its JSON representation.
   static std::string scalar_to_json_(std::nullptr_t)     { return "null"; }
@@ -4322,6 +4626,14 @@ class Parser {
       return Value(&doc, 0);
     }
 
+  // ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
+  inline void Value::merge_patch(std::string_view patch_json) {
+    if (!is_object()) return;
+    DocumentView patch_doc;
+    Value patch = parse_reuse(patch_doc, patch_json);
+    merge_patch_impl_(patch);
+  }
+
   // ───────────────────────────────────────────────────────────────────────────
   // SafeValue — optional-propagating chain proxy
   //
@@ -4418,6 +4730,24 @@ class Parser {
 
     // dump() — "null" when absent
     std::string dump() const { return has_ ? val_.dump() : "null"; }
+
+    // ── Pipe fallback on SafeValue: safe_val | default ────────────────────────
+    //
+    // Usage:
+    //   int age = root.get("user")["age"] | 0;
+    //   std::string s = root.get("name") | "anon";
+
+    template<JsonReadable T>
+    friend T operator|(const SafeValue &sv, T def) noexcept {
+      if (!sv.has_) return def;
+      auto r = sv.val_.try_as<T>();
+      return r ? *r : def;
+    }
+    friend std::string operator|(const SafeValue &sv, const char *def) noexcept {
+      if (!sv.has_) return std::string(def);
+      auto r = sv.val_.try_as<std::string>();
+      return r ? *r : std::string(def);
+    }
 
     // ── Monadic operations ────────────────────────────────────────────────────
     //
@@ -4561,6 +4891,55 @@ using Value = beast::json::lazy::Value;
 /// Throws std::runtime_error on malformed input.
 inline Value parse(Document &doc, std::string_view json) {
   return beast::json::lazy::parse_reuse(doc, json);
+}
+
+/// Optional-propagating chain proxy returned by Value::get().
+/// Propagates std::nullopt silently through nested access — never throws.
+using SafeValue = beast::json::lazy::SafeValue;
+
+// ── Struct deserialization / serialization — ADL customization points ────────
+//
+// Define these free functions in your type's namespace to enable
+// beast::read<T>() / beast::write():
+//
+//   void from_beast_json(const beast::Value& v, T& out);
+//   void to_beast_json(beast::Value& v, const T& in);
+//
+// Example:
+//   struct User { std::string name; int age; };
+//
+//   void from_beast_json(const beast::Value& v, User& u) {
+//     u.name = v["name"] | "";
+//     u.age  = v["age"]  | 0;
+//   }
+//   void to_beast_json(beast::Value& v, const User& u) {
+//     v.insert("name", u.name);
+//     v.insert("age",  u.age);
+//   }
+//
+//   // Usage:
+//   auto user = beast::read<User>(R"({"name":"Alice","age":30})");
+//   std::string json = beast::write(user);
+
+/// Deserialize JSON string into T via ADL from_beast_json().
+/// T must be default-constructible.  Throws std::runtime_error on malformed JSON.
+template<typename T>
+T read(std::string_view json) {
+  Document doc;
+  Value root = parse(doc, json);
+  T obj{};
+  from_beast_json(root, obj);   // ADL lookup in caller's namespace
+  return obj;
+}
+
+/// Serialize T to a JSON string via ADL to_beast_json().
+/// Starts from an empty object "{}"; to_beast_json() populates it.
+template<typename T>
+std::string write(const T &obj) {
+  Document doc;
+  Value root = parse(doc, "{}");
+  to_beast_json(root, obj);     // ADL lookup in caller's namespace
+  return root.dump();
 }
 
 } // namespace beast

@@ -1265,3 +1265,444 @@ TEST(Ranges, ForEach) {
       [&](ObjPair kv){ sum += kv.second.as<int>(); });
   EXPECT_EQ(sum, 6);
 }
+
+// ── contains() ───────────────────────────────────────────────────────────────
+
+TEST(Contains, PresentKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Alice","age":30})");
+  EXPECT_TRUE(root.contains("name"));
+  EXPECT_TRUE(root.contains("age"));
+}
+
+TEST(Contains, AbsentKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Alice"})");
+  EXPECT_FALSE(root.contains("score"));
+  EXPECT_FALSE(root.contains(""));
+}
+
+TEST(Contains, AfterErase) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":2})");
+  root.erase("a");
+  EXPECT_FALSE(root.contains("a"));
+  EXPECT_TRUE(root.contains("b"));
+}
+
+TEST(Contains, NonObject) {
+  Document doc;
+  auto root = parse_root(doc, "[1,2,3]");
+  EXPECT_FALSE(root.contains("any"));
+}
+
+// ── value(key/idx, default) ───────────────────────────────────────────────────
+
+TEST(ValueDefault, StringKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Alice","age":30})");
+  EXPECT_EQ(root.value("name", std::string("unknown")), "Alice");
+  EXPECT_EQ(root.value("missing", std::string("unknown")), "unknown");
+}
+
+TEST(ValueDefault, IntKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"age":30})");
+  EXPECT_EQ(root.value("age", 0), 30);
+  EXPECT_EQ(root.value("missing", 99), 99);
+}
+
+TEST(ValueDefault, StringLiteralFallback) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Eve"})");
+  EXPECT_EQ(root.value("name", "anon"), std::string("Eve"));
+  EXPECT_EQ(root.value("missing", "anon"), std::string("anon"));
+}
+
+TEST(ValueDefault, ArrayIndex) {
+  Document doc;
+  auto root = parse_root(doc, "[10,20,30]");
+  EXPECT_EQ(root.value(0, -1), 10);
+  EXPECT_EQ(root.value(1, -1), 20);
+  EXPECT_EQ(root.value(9, -1), -1);
+}
+
+TEST(ValueDefault, WrongTypeFallback) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":"hello"})");
+  EXPECT_EQ(root.value("x", 42), 42);  // string, not int → fallback
+}
+
+// ── type_name() ───────────────────────────────────────────────────────────────
+
+TEST(TypeName, Scalars) {
+  Document doc;
+  auto root = parse_root(doc, R"({"n":null,"b":true,"i":42,"d":3.14,"s":"hi"})");
+  EXPECT_EQ(root["n"].type_name(), "null");
+  EXPECT_EQ(root["b"].type_name(), "bool");
+  EXPECT_EQ(root["i"].type_name(), "int");
+  EXPECT_EQ(root["d"].type_name(), "double");
+  EXPECT_EQ(root["s"].type_name(), "string");
+}
+
+TEST(TypeName, Containers) {
+  Document doc;
+  auto root = parse_root(doc, R"({"arr":[1,2],"obj":{"k":1}})");
+  EXPECT_EQ(root["arr"].type_name(), "array");
+  EXPECT_EQ(root["obj"].type_name(), "object");
+}
+
+TEST(TypeName, Invalid) {
+  Value v;
+  EXPECT_EQ(v.type_name(), "invalid");
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1})");
+  EXPECT_EQ(root["missing"].type_name(), "invalid");
+}
+
+// ── operator| pipe fallback ───────────────────────────────────────────────────
+
+TEST(PipeFallback, IntPresent) {
+  Document doc;
+  auto root = parse_root(doc, R"({"age":42})");
+  int age = root["age"] | 0;
+  EXPECT_EQ(age, 42);
+}
+
+TEST(PipeFallback, IntMissing) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":1})");
+  int age = root["age"] | 99;
+  EXPECT_EQ(age, 99);
+}
+
+TEST(PipeFallback, StringPresent) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Eve"})");
+  std::string name = root["name"] | "anon";
+  EXPECT_EQ(name, "Eve");
+}
+
+TEST(PipeFallback, StringMissing) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":1})");
+  std::string name = root["name"] | "anon";
+  EXPECT_EQ(name, "anon");
+}
+
+TEST(PipeFallback, DoublePresent) {
+  Document doc;
+  auto root = parse_root(doc, R"({"pi":3.14})");
+  double x = root["pi"] | 0.0;
+  EXPECT_DOUBLE_EQ(x, 3.14);
+}
+
+TEST(PipeFallback, BoolPresent) {
+  Document doc;
+  auto root = parse_root(doc, R"({"ok":true})");
+  bool b = root["ok"] | false;
+  EXPECT_TRUE(b);
+}
+
+TEST(PipeFallback, WrongType) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":"hello"})");
+  int x = root["x"] | 99;
+  EXPECT_EQ(x, 99);  // string, not int → fallback
+}
+
+TEST(PipeFallback, DeepChain) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":{"b":7}})");
+  int v = root["a"]["b"] | 0;
+  EXPECT_EQ(v, 7);
+  int missing = root["a"]["z"] | 42;
+  EXPECT_EQ(missing, 42);
+}
+
+TEST(PipeFallback, SafeValuePipe) {
+  Document doc;
+  auto root = parse_root(doc, R"({"user":{"age":25}})");
+  int age = root.get("user")["age"] | 0;
+  EXPECT_EQ(age, 25);
+  int missing = root.get("missing")["age"] | 99;
+  EXPECT_EQ(missing, 99);
+}
+
+// ── keys() / values() ─────────────────────────────────────────────────────────
+
+TEST(KeysValues, KeysRange) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":2,"c":3})");
+  std::vector<std::string> keys;
+  for (std::string_view k : root.keys())
+    keys.emplace_back(k);
+  std::sort(keys.begin(), keys.end());
+  ASSERT_EQ(keys.size(), 3u);
+  EXPECT_EQ(keys[0], "a");
+  EXPECT_EQ(keys[1], "b");
+  EXPECT_EQ(keys[2], "c");
+}
+
+TEST(KeysValues, ValuesRange) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":10,"y":20,"z":30})");
+  int sum = 0;
+  for (Value v : root.values())
+    sum += v.as<int>();
+  EXPECT_EQ(sum, 60);
+}
+
+TEST(KeysValues, EmptyObject) {
+  Document doc;
+  auto root = parse_root(doc, "{}");
+  int cnt = 0;
+  for (auto k : root.keys()) { (void)k; ++cnt; }
+  EXPECT_EQ(cnt, 0);
+}
+
+// ── as_array<T>() / try_as_array<T>() ────────────────────────────────────────
+
+TEST(AsArray, IntArray) {
+  Document doc;
+  auto root = parse_root(doc, "[1,2,3,4,5]");
+  std::vector<int> v(root.as_array<int>().begin(), root.as_array<int>().end());
+  ASSERT_EQ(v.size(), 5u);
+  EXPECT_EQ(v[0], 1);
+  EXPECT_EQ(v[4], 5);
+}
+
+TEST(AsArray, StringArray) {
+  Document doc;
+  auto root = parse_root(doc, R"(["a","b","c"])");
+  std::vector<std::string> v;
+  for (std::string s : root.as_array<std::string>())
+    v.push_back(s);
+  ASSERT_EQ(v.size(), 3u);
+  EXPECT_EQ(v[0], "a");
+}
+
+TEST(AsArray, SumViaAccumulate) {
+  Document doc;
+  auto root = parse_root(doc, "[10,20,30]");
+  auto arr = root.as_array<int>();
+  int sum = std::accumulate(arr.begin(), arr.end(), 0);
+  EXPECT_EQ(sum, 60);
+}
+
+TEST(AsArray, TryAsArrayOptional) {
+  Document doc;
+  auto root = parse_root(doc, "[1,\"oops\",3]");
+  std::vector<std::optional<int>> v;
+  for (auto x : root.try_as_array<int>())
+    v.push_back(x);
+  ASSERT_EQ(v.size(), 3u);
+  EXPECT_EQ(*v[0], 1);
+  EXPECT_FALSE(v[1].has_value());
+  EXPECT_EQ(*v[2], 3);
+}
+
+TEST(AsArray, TypeMismatchThrows) {
+  Document doc;
+  auto root = parse_root(doc, "[1,\"oops\"]");
+  EXPECT_THROW({
+    for (int x : root.as_array<int>()) { (void)x; }
+  }, std::runtime_error);
+}
+
+// ── at(path) — Runtime JSON Pointer ──────────────────────────────────────────
+
+TEST(JsonPointer, RootPath) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1})");
+  auto v = root.at("");
+  EXPECT_TRUE(static_cast<bool>(v));
+  EXPECT_EQ(v["a"].as<int>(), 1);
+}
+
+TEST(JsonPointer, OneLevel) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Alice","age":30})");
+  EXPECT_EQ(root.at("/name").as<std::string>(), "Alice");
+  EXPECT_EQ(root.at("/age").as<int>(), 30);
+}
+
+TEST(JsonPointer, Nested) {
+  Document doc;
+  auto root = parse_root(doc, R"({"user":{"id":7,"score":3.14}})");
+  EXPECT_EQ(root.at("/user/id").as<int>(), 7);
+  EXPECT_DOUBLE_EQ(root.at("/user/score").as<double>(), 3.14);
+}
+
+TEST(JsonPointer, ArrayIndex) {
+  Document doc;
+  auto root = parse_root(doc, R"({"tags":["go","rust","cpp"]})");
+  EXPECT_EQ(root.at("/tags/0").as<std::string>(), "go");
+  EXPECT_EQ(root.at("/tags/2").as<std::string>(), "cpp");
+}
+
+TEST(JsonPointer, DeepNested) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":{"b":{"c":42}}})");
+  EXPECT_EQ(root.at("/a/b/c").as<int>(), 42);
+}
+
+TEST(JsonPointer, MissingReturnsInvalid) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1})");
+  EXPECT_FALSE(static_cast<bool>(root.at("/missing")));
+  EXPECT_FALSE(static_cast<bool>(root.at("/a/b")));
+}
+
+TEST(JsonPointer, EscapeSequences) {
+  Document doc;
+  // RFC 6901: ~0 → '~', ~1 → '/'
+  auto root = parse_root(doc, R"({"a~b":1,"c/d":2})");
+  EXPECT_EQ(root.at("/a~0b").as<int>(), 1);
+  EXPECT_EQ(root.at("/c~1d").as<int>(), 2);
+}
+
+// ── at<Path>() — Compile-time JSON Pointer ────────────────────────────────────
+
+TEST(JsonPointerCT, OneLevel) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":99})");
+  EXPECT_EQ(root.at<"/x">().as<int>(), 99);
+}
+
+TEST(JsonPointerCT, Nested) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":{"b":42}})");
+  EXPECT_EQ(root.at<"/a/b">().as<int>(), 42);
+}
+
+TEST(JsonPointerCT, Root) {
+  Document doc;
+  auto root = parse_root(doc, R"({"k":1})");
+  auto v = root.at<"">();
+  EXPECT_TRUE(static_cast<bool>(v));
+}
+
+// ── merge() / merge_patch() ───────────────────────────────────────────────────
+
+// Helper: dump() → store → re-parse (Document stores string_view, not string)
+static std::pair<std::string, beast::Value> reparse(beast::Document &r, beast::Value src) {
+  std::string json = src.dump();
+  auto val = parse(r, json);
+  return {std::move(json), val};
+}
+
+TEST(Merge, BasicMerge) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":2})");
+  Document other_doc;
+  auto other = parse_root(other_doc, R"({"b":99,"c":3})");
+  root.merge(other);
+  // merge() results visible via dump(); store string to outlive Document
+  Document r; auto [json, res] = reparse(r, root);
+  EXPECT_EQ(res["a"].as<int>(), 1);
+  EXPECT_EQ(res["b"].as<int>(), 99);  // overwritten
+  EXPECT_EQ(res["c"].as<int>(), 3);   // new key
+}
+
+TEST(Merge, MergeAddsNewKeys) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x":1})");
+  Document other_doc;
+  auto other = parse_root(other_doc, R"({"y":2,"z":3})");
+  root.merge(other);
+  EXPECT_EQ(root["x"].as<int>(), 1);  // unchanged tape key — visible directly
+  Document r; auto [json, res] = reparse(r, root);
+  EXPECT_EQ(res["y"].as<int>(), 2);
+  EXPECT_EQ(res["z"].as<int>(), 3);
+}
+
+TEST(MergePatch, DeleteKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1,"b":2,"c":3})");
+  root.merge_patch(R"({"b":null})");
+  EXPECT_EQ(root["a"].as<int>(), 1);
+  EXPECT_FALSE(static_cast<bool>(root["b"]));  // deleted — invisible via operator[]
+  EXPECT_EQ(root["c"].as<int>(), 3);
+}
+
+TEST(MergePatch, OverwriteValue) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name":"Alice","age":30})");
+  root.merge_patch(R"({"age":31})");
+  EXPECT_EQ(root["name"].as<std::string>(), "Alice");  // unchanged tape key
+  Document r; auto [json, res] = reparse(r, root);
+  EXPECT_EQ(res["age"].as<int>(), 31);
+}
+
+TEST(MergePatch, AddNewKey) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a":1})");
+  root.merge_patch(R"({"b":2})");
+  EXPECT_EQ(root["a"].as<int>(), 1);  // unchanged tape key
+  Document r; auto [json, res] = reparse(r, root);
+  EXPECT_EQ(res["b"].as<int>(), 2);
+}
+
+TEST(MergePatch, NestedPatch) {
+  Document doc;
+  auto root = parse_root(doc, R"({"config":{"timeout":5000,"retries":3}})");
+  root.merge_patch(R"({"config":{"timeout":10000}})");
+  Document r; auto [json, res] = reparse(r, root);
+  EXPECT_EQ(res.at("/config/timeout").as<int>(), 10000);
+  EXPECT_EQ(res.at("/config/retries").as<int>(), 3);  // unchanged
+}
+
+// ── beast::read<T>() / beast::write<T>() ADL struct binding ──────────────────
+
+struct TestUser {
+  std::string name;
+  int age = 0;
+  bool active = false;
+};
+
+inline void from_beast_json(const beast::Value& v, TestUser& u) {
+  u.name   = v["name"]   | std::string{};
+  u.age    = v["age"]    | 0;
+  u.active = v["active"] | false;
+}
+
+inline void to_beast_json(beast::Value& v, const TestUser& u) {
+  v.insert("name",   u.name);
+  v.insert("age",    u.age);
+  v.insert("active", u.active);
+}
+
+TEST(StructBinding, ReadBasic) {
+  auto user = beast::read<TestUser>(R"({"name":"Alice","age":30,"active":true})");
+  EXPECT_EQ(user.name, "Alice");
+  EXPECT_EQ(user.age, 30);
+  EXPECT_TRUE(user.active);
+}
+
+TEST(StructBinding, ReadWithDefaults) {
+  auto user = beast::read<TestUser>(R"({"name":"Bob"})");
+  EXPECT_EQ(user.name, "Bob");
+  EXPECT_EQ(user.age, 0);      // default
+  EXPECT_FALSE(user.active);   // default
+}
+
+TEST(StructBinding, WriteBasic) {
+  TestUser u{"Eve", 25, true};
+  std::string json = beast::write(u);
+  // Re-parse and verify
+  Document doc;
+  auto root = parse(doc, json);
+  EXPECT_EQ(root["name"].as<std::string>(), "Eve");
+  EXPECT_EQ(root["age"].as<int>(), 25);
+  EXPECT_TRUE(root["active"].as<bool>());
+}
+
+TEST(StructBinding, RoundTrip) {
+  TestUser original{"Charlie", 42, false};
+  std::string json = beast::write(original);
+  auto restored = beast::read<TestUser>(json);
+  EXPECT_EQ(restored.name, "Charlie");
+  EXPECT_EQ(restored.age, 42);
+  EXPECT_FALSE(restored.active);
+}
