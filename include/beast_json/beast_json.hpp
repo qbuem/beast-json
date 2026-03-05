@@ -1004,18 +1004,15 @@ public:
     // Delegate to structural dump when deletions/additions are present
     if (BEAST_UNLIKELY(!doc_->deleted_.empty() || !doc_->additions_.empty()))
       return dump_changes_();
+    // Subtree (non-root): use separate path to avoid polluting the hot loop
+    if (BEAST_UNLIKELY(idx_ != 0))
+      return dump_subtree_();
     const char *src = doc_->source.data();
     const size_t ntape = doc_->tape.size();
 
     // Phase E: separators pre-computed by parser into meta bits 23-16.
-    //   sep == 0x00 → no separator (root or first element)
-    //   sep == 0x01 → comma
-    //   sep == 0x02 → colon
-    // Subtree-aware: iterate [idx_, end) only; suppress sep for first node.
-    const uint32_t start_i = idx_;
-    const uint32_t end_i   = (idx_ == 0)
-        ? static_cast<uint32_t>(ntape) : skip_value_(idx_);
-
+    //   sep == 0x00 → no separator   sep == 0x01 → comma   sep == 0x02 → colon
+    // Hot path: root dump (idx_==0) — original loop, zero extra overhead.
     size_t mutation_extra = 0;
     for (const auto &[k, m] : doc_->mutations_)
       mutation_extra += m.data.size() + 16;
@@ -1025,13 +1022,11 @@ public:
     char *w = out.data();
     char *w0 = w;
 
-    for (uint32_t i = start_i; i < end_i; ++i) {
+    for (size_t i = 0; i < ntape; ++i) {
       const TapeNode &nd = doc_->tape[i];
       const uint32_t meta = nd.meta;
       const auto type = static_cast<TapeNodeType>((meta >> 24) & 0xFF);
-      // Suppress separator for the subtree root (it belongs to parent context)
-      const uint8_t sep = (i == start_i)
-          ? 0u : static_cast<uint8_t>((meta >> 16) & 0xFFu);
+      const uint8_t sep = (meta >> 16) & 0xFFu;
 
       // Write pre-computed separator (branch-free for common case)
       // Phase 67 attempt (sep-per-case + StringRaw batch write) REVERTED:
@@ -1272,6 +1267,8 @@ public:
     if (BEAST_UNLIKELY(!doc_->deleted_.empty() || !doc_->additions_.empty())) {
       out = dump_changes_(); return;
     }
+    // Subtree (non-root): last_dump_size_ is root-only; don't use cache here
+    if (BEAST_UNLIKELY(idx_ != 0)) { out = dump_subtree_(); return; }
     const char *src = doc_->source.data();
     const size_t ntape = doc_->tape.size();
     size_t mutation_extra2 = 0;
@@ -1279,21 +1276,19 @@ public:
       mutation_extra2 += m.data.size() + 16;
     const size_t buf_cap = doc_->source.size() + 16 + mutation_extra2;
 
-    const uint32_t start_i2 = idx_;
-    const uint32_t end_i2   = (idx_ == 0)
-        ? static_cast<uint32_t>(ntape) : skip_value_(idx_);
+    // Phase 75: last_dump_size_ cache — root-only (avoids cross-contamination
+    // with subtree dump sizes which would undersize the buffer and overflow).
     const size_t target =
         (doc_->last_dump_size_ > 0) ? doc_->last_dump_size_ : buf_cap;
     out.resize(target);
     char *w = out.data();
     char *w0 = w;
 
-    for (uint32_t i = start_i2; i < end_i2; ++i) {
+    for (size_t i = 0; i < ntape; ++i) {
       const TapeNode &nd = doc_->tape[i];
       const uint32_t meta = nd.meta;
       const auto type = static_cast<TapeNodeType>((meta >> 24) & 0xFF);
-      const uint8_t sep = (i == start_i2)
-          ? 0u : static_cast<uint8_t>((meta >> 16) & 0xFFu);
+      const uint8_t sep = (meta >> 16) & 0xFFu;
 
 #if BEAST_ARCH_APPLE_SILICON
       {
@@ -1589,20 +1584,11 @@ public:
   //   for (auto elem : root["arr"].elements())
   //       std::cout << elem.as<int>() << "\n";
 
-  // Shared skip helper — used by iterators (avoids duplicating logic)
+  // Shared skip helper — delegates to the canonical skip_value_() instance method.
+  // Static so iterator classes (defined before their parent Value closes) can call it.
   static uint32_t skip_val_s_(const DocumentView *doc, uint32_t i) noexcept {
-    const auto t = doc->tape[i].type();
-    if (t == TapeNodeType::ObjectStart || t == TapeNodeType::ArrayStart) {
-      int depth = 1; ++i;
-      while (depth > 0) {
-        const auto nt = doc->tape[i].type();
-        if (nt == TapeNodeType::ObjectStart || nt == TapeNodeType::ArrayStart) ++depth;
-        else if (nt == TapeNodeType::ObjectEnd || nt == TapeNodeType::ArrayEnd) --depth;
-        ++i;
-      }
-      return i;
-    }
-    return i + 1;
+    Value tmp(const_cast<DocumentView *>(doc), i);
+    return tmp.skip_value_(i);
   }
 
   // Forward iterator over object key-value pairs.
@@ -1742,6 +1728,73 @@ private:
   }
   static std::string scalar_to_json_(const std::string &s) { return scalar_to_json_(std::string_view(s)); }
   static std::string scalar_to_json_(const char *s)         { return scalar_to_json_(std::string_view(s)); }
+
+  // Subtree dump for non-root Values (idx_ != 0).
+  // Iterates tape[idx_..skip_value_(idx_)) and suppresses the first node's
+  // separator (which encodes position in the parent, not within this subtree).
+  // Kept out of the main dump() loop so the root hot-path has zero extra branches.
+  std::string dump_subtree_() const {
+    const char *src = doc_->source.data();
+    const uint32_t end_i = skip_value_(idx_);
+
+    size_t mutation_extra = 0;
+    for (const auto &[k, m] : doc_->mutations_)
+      mutation_extra += m.data.size() + 16;
+    // Conservative upper bound: subtree ≤ full source
+    std::string out;
+    out.resize(doc_->source.size() + 16 + mutation_extra);
+    char *w = out.data();
+    char *w0 = w;
+
+    for (uint32_t i = idx_; i < end_i; ++i) {
+      const TapeNode &nd = doc_->tape[i];
+      const uint32_t meta = nd.meta;
+      const auto type = static_cast<TapeNodeType>((meta >> 24) & 0xFF);
+      // sep for the first node (idx_) is suppressed — it belongs to parent context
+      const uint8_t sep = (i == idx_) ? 0u : static_cast<uint8_t>((meta >> 16) & 0xFFu);
+      if (sep) *w++ = (sep == 0x02u) ? ':' : ',';
+
+      if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
+        auto mit = doc_->mutations_.find(i);
+        if (mit != doc_->mutations_.end()) {
+          const MutationEntry &m = mit->second;
+          switch (m.type) {
+          case TapeNodeType::Null:         std::memcpy(w,"null",4);  w+=4; break;
+          case TapeNodeType::BooleanTrue:  std::memcpy(w,"true",4);  w+=4; break;
+          case TapeNodeType::BooleanFalse: std::memcpy(w,"false",5); w+=5; break;
+          case TapeNodeType::StringRaw:
+            *w++='"'; std::memcpy(w,m.data.data(),m.data.size()); w+=m.data.size(); *w++='"'; break;
+          default:
+            std::memcpy(w,m.data.data(),m.data.size()); w+=m.data.size(); break;
+          }
+          continue;
+        }
+      }
+
+      switch (type) {
+      case TapeNodeType::ObjectStart: *w++ = '{'; break;
+      case TapeNodeType::ObjectEnd:   *w++ = '}'; break;
+      case TapeNodeType::ArrayStart:  *w++ = '['; break;
+      case TapeNodeType::ArrayEnd:    *w++ = ']'; break;
+      case TapeNodeType::StringRaw: {
+        const uint16_t slen = static_cast<uint16_t>(meta & 0xFFFFu);
+        *w++ = '"';
+        std::memcpy(w, src + nd.offset, slen); w += slen;
+        *w++ = '"'; break;
+      }
+      case TapeNodeType::Integer: case TapeNodeType::NumberRaw: case TapeNodeType::Double: {
+        const uint16_t nlen = static_cast<uint16_t>(meta & 0xFFFFu);
+        std::memcpy(w, src + nd.offset, nlen); w += nlen; break;
+      }
+      case TapeNodeType::BooleanTrue:  std::memcpy(w,"true",4);  w+=4; break;
+      case TapeNodeType::BooleanFalse: std::memcpy(w,"false",5); w+=5; break;
+      case TapeNodeType::Null:         std::memcpy(w,"null",4);  w+=4; break;
+      default: break;
+      }
+    }
+    out.resize(static_cast<size_t>(w - w0));
+    return out;
+  }
 
   // Write a single mutation entry into a std::string
   static void write_mutation_(std::string &out, const MutationEntry &m) {
