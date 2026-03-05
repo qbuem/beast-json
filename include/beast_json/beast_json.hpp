@@ -465,14 +465,270 @@ public:
   Value() = default;
   Value(DocumentView *doc, uint32_t idx) : doc_(doc), idx_(idx) {}
 
-  bool is_object() const {
-    return doc_->tape[idx_].type() == TapeNodeType::ObjectStart;
+  // ── Type checkers ───────────────────────────────────────────────────────────
+
+  bool is_null() const noexcept {
+    return doc_ && doc_->tape[idx_].type() == TapeNodeType::Null;
   }
-  bool is_array() const {
-    return doc_->tape[idx_].type() == TapeNodeType::ArrayStart;
+  bool is_bool() const noexcept {
+    if (!doc_) return false;
+    const auto t = doc_->tape[idx_].type();
+    return t == TapeNodeType::BooleanTrue || t == TapeNodeType::BooleanFalse;
+  }
+  bool is_int() const noexcept {
+    if (!doc_) return false;
+    return doc_->tape[idx_].type() == TapeNodeType::Integer;
+  }
+  bool is_double() const noexcept {
+    if (!doc_) return false;
+    const auto t = doc_->tape[idx_].type();
+    return t == TapeNodeType::Double || t == TapeNodeType::NumberRaw;
+  }
+  bool is_number() const noexcept {
+    if (!doc_) return false;
+    const auto t = doc_->tape[idx_].type();
+    return t == TapeNodeType::Integer || t == TapeNodeType::Double ||
+           t == TapeNodeType::NumberRaw;
+  }
+  bool is_string() const noexcept {
+    return doc_ && doc_->tape[idx_].type() == TapeNodeType::StringRaw;
+  }
+  bool is_object() const noexcept {
+    return doc_ && doc_->tape[idx_].type() == TapeNodeType::ObjectStart;
+  }
+  bool is_array() const noexcept {
+    return doc_ && doc_->tape[idx_].type() == TapeNodeType::ArrayStart;
   }
 
-  // Zero-copy serialization: context stack tracks object/array nesting.
+  // ── Internal: skip past the value at tape[idx], return next tape index ─────
+  // O(n) walk for nested objects/arrays; O(1) for scalar types.
+
+private:
+  uint32_t skip_value_(uint32_t idx) const noexcept {
+    const auto t = doc_->tape[idx].type();
+    if (t == TapeNodeType::ObjectStart || t == TapeNodeType::ArrayStart) {
+      int depth = 1;
+      ++idx;
+      while (depth > 0) {
+        const auto nt = doc_->tape[idx].type();
+        if (nt == TapeNodeType::ObjectStart || nt == TapeNodeType::ArrayStart)
+          ++depth;
+        else if (nt == TapeNodeType::ObjectEnd || nt == TapeNodeType::ArrayEnd)
+          --depth;
+        ++idx;
+      }
+      return idx;
+    }
+    return idx + 1;
+  }
+
+public:
+  // ── Navigation: operator[] and find ─────────────────────────────────────────
+  //
+  // Beast API philosophy:
+  //   operator[](key/idx)   — throws on miss (like STL at())
+  //   find(key)             — returns std::optional<Value> (no-throw)
+  //
+  // This is our own pattern: subscript for confident access, find() for
+  // conditional access — both composable and explicit about failure mode.
+
+  // const char* overload — exact match for string literals, avoids ambiguity
+  // with built-in operator[](long, const char*) that would otherwise be
+  // considered when Value has an implicit arithmetic conversion.
+  Value operator[](const char *key) const {
+    return (*this)[std::string_view(key)];
+  }
+
+  Value operator[](std::string_view key) const {
+    if (!is_object())
+      throw std::runtime_error("beast::Value: not an object");
+    uint32_t i = idx_ + 1;
+    const size_t ntape = doc_->tape.size();
+    while (i < ntape) {
+      const auto t = doc_->tape[i].type();
+      if (t == TapeNodeType::ObjectEnd)
+        throw std::out_of_range("beast::Value: key not found: " +
+                                std::string(key));
+      // i = key (StringRaw), i+1 = value
+      const TapeNode &kn = doc_->tape[i];
+      const char *kdata = doc_->source.data() + kn.offset;
+      const size_t klen = kn.length();
+      if (klen == key.size() && std::memcmp(kdata, key.data(), klen) == 0)
+        return Value(doc_, i + 1);
+      i = skip_value_(i + 1); // skip value, land on next key
+    }
+    throw std::out_of_range("beast::Value: key not found: " +
+                            std::string(key));
+  }
+
+  // int overload — prevents implicit conversion of int literals through
+  // arithmetic operator T() to ambiguous built-in subscript.
+  Value operator[](int index) const {
+    return (*this)[static_cast<size_t>(index)];
+  }
+
+  Value operator[](size_t index) const {
+    if (!is_array())
+      throw std::runtime_error("beast::Value: not an array");
+    uint32_t i = idx_ + 1;
+    const size_t ntape = doc_->tape.size();
+    size_t count = 0;
+    while (i < ntape) {
+      const auto t = doc_->tape[i].type();
+      if (t == TapeNodeType::ArrayEnd)
+        throw std::out_of_range("beast::Value: array index out of range");
+      if (count == index)
+        return Value(doc_, i);
+      i = skip_value_(i);
+      ++count;
+    }
+    throw std::out_of_range("beast::Value: array index out of range");
+  }
+
+  std::optional<Value> find(std::string_view key) const noexcept {
+    if (!is_object()) return std::nullopt;
+    uint32_t i = idx_ + 1;
+    const size_t ntape = doc_->tape.size();
+    while (i < ntape) {
+      const auto t = doc_->tape[i].type();
+      if (t == TapeNodeType::ObjectEnd) return std::nullopt;
+      const TapeNode &kn = doc_->tape[i];
+      const char *kdata = doc_->source.data() + kn.offset;
+      const size_t klen = kn.length();
+      if (klen == key.size() && std::memcmp(kdata, key.data(), klen) == 0)
+        return Value(doc_, i + 1);
+      i = skip_value_(i + 1);
+    }
+    return std::nullopt;
+  }
+
+  // ── Size ─────────────────────────────────────────────────────────────────────
+
+  size_t size() const noexcept {
+    if (!doc_) return 0;
+    const auto t = doc_->tape[idx_].type();
+    if (t == TapeNodeType::ArrayStart) {
+      uint32_t i = idx_ + 1;
+      const size_t ntape = doc_->tape.size();
+      size_t count = 0;
+      while (i < ntape && doc_->tape[i].type() != TapeNodeType::ArrayEnd) {
+        i = skip_value_(i);
+        ++count;
+      }
+      return count;
+    }
+    if (t == TapeNodeType::ObjectStart) {
+      uint32_t i = idx_ + 1;
+      const size_t ntape = doc_->tape.size();
+      size_t count = 0;
+      while (i < ntape && doc_->tape[i].type() != TapeNodeType::ObjectEnd) {
+        i = skip_value_(i + 1); // skip key then value
+        ++count;
+      }
+      return count;
+    }
+    return 0;
+  }
+
+  bool empty() const noexcept { return size() == 0; }
+
+  // ── as<T>(): typed value extraction ─────────────────────────────────────────
+  //
+  // Beast unique pattern: as<T>() is the single canonical accessor.
+  // Throws std::runtime_error on type mismatch.
+  // try_as<T>() is the non-throwing variant, returning std::optional<T>.
+  //
+  // Supported types:
+  //   bool, int64_t (+ all integral types via cast), double (+ float),
+  //   std::string, std::string_view
+
+  template <typename T> T as() const {
+    if constexpr (std::is_same_v<T, bool>) {
+      const auto t = doc_->tape[idx_].type();
+      if (t == TapeNodeType::BooleanTrue) return true;
+      if (t == TapeNodeType::BooleanFalse) return false;
+      throw std::runtime_error("beast::Value::as<bool>: not a boolean");
+    } else if constexpr (std::is_integral_v<T>) {
+      const auto t = doc_->tape[idx_].type();
+      if (t != TapeNodeType::Integer && t != TapeNodeType::NumberRaw)
+        throw std::runtime_error("beast::Value::as<integral>: not an integer");
+      const TapeNode &nd = doc_->tape[idx_];
+      int64_t val = 0;
+      const char *beg = doc_->source.data() + nd.offset;
+      const char *end = beg + nd.length();
+      auto [ptr, ec] = std::from_chars(beg, end, val);
+      if (ec != std::errc{})
+        throw std::runtime_error("beast::Value::as<integral>: parse error");
+      return static_cast<T>(val);
+    } else if constexpr (std::is_floating_point_v<T>) {
+      const auto t = doc_->tape[idx_].type();
+      if (t != TapeNodeType::Double && t != TapeNodeType::NumberRaw &&
+          t != TapeNodeType::Integer)
+        throw std::runtime_error("beast::Value::as<float>: not a number");
+      const TapeNode &nd = doc_->tape[idx_];
+      double val = 0.0;
+      const char *beg = doc_->source.data() + nd.offset;
+      const char *end = beg + nd.length();
+#if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
+      auto [ptr, ec] = std::from_chars(beg, end, val);
+      if (ec != std::errc{})
+        throw std::runtime_error("beast::Value::as<float>: parse error");
+#else
+      // Fallback for platforms lacking from_chars for floating-point
+      char buf[64];
+      size_t len = nd.length();
+      if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+      std::memcpy(buf, beg, len);
+      buf[len] = '\0';
+      char *endp = nullptr;
+      val = std::strtod(buf, &endp);
+      if (endp == buf)
+        throw std::runtime_error("beast::Value::as<float>: parse error");
+#endif
+      return static_cast<T>(val);
+    } else if constexpr (std::is_same_v<T, std::string_view>) {
+      if (doc_->tape[idx_].type() != TapeNodeType::StringRaw)
+        throw std::runtime_error("beast::Value::as<string_view>: not a string");
+      const TapeNode &nd = doc_->tape[idx_];
+      return std::string_view(doc_->source.data() + nd.offset, nd.length());
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      return std::string(as<std::string_view>());
+    } else {
+      static_assert(sizeof(T) == 0, "beast::Value::as<T>: unsupported type");
+    }
+  }
+
+  // try_as<T>(): non-throwing variant — returns std::nullopt on any error.
+  template <typename T> std::optional<T> try_as() const noexcept {
+    try {
+      return as<T>();
+    } catch (...) {
+      return std::nullopt;
+    }
+  }
+
+  // ── Implicit conversion ───────────────────────────────────────────────────────
+  //
+  // Enables: int age = doc["age"];  std::string name = doc["name"];
+  // Restricted to arithmetic types and std::string/string_view to prevent
+  // accidental conversions.
+
+  template <typename T,
+            std::enable_if_t<std::is_arithmetic_v<T> ||
+                                 std::is_same_v<T, std::string> ||
+                                 std::is_same_v<T, std::string_view>,
+                             int> = 0>
+  operator T() const {
+    return as<T>();
+  }
+
+  // ── Null / validity check ─────────────────────────────────────────────────────
+
+  explicit operator bool() const noexcept {
+    return doc_ != nullptr;
+  }
+
+  // ── Zero-copy serialization: context stack tracks object/array nesting.
   // Object: even elem_idx = key (emit ',' before all except first key)
   //         odd  elem_idx = value (emit ':' after key)
   // Array:  emit ',' before every element except the first

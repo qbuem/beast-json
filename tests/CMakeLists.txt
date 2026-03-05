@@ -56,6 +56,7 @@ add_beast_gtest(test_errors)
 # ── New: lazy API type coverage and round-trip fidelity ────────────────────
 add_beast_gtest(test_lazy_types)
 add_beast_gtest(test_lazy_roundtrip)
+add_beast_gtest(test_value_accessors)
 # Download benchmark data
 set(BENCHMARK_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR})
 if(NOT EXISTS ${BENCHMARK_DATA_DIR}/twitter.json)
