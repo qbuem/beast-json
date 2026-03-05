@@ -53,6 +53,7 @@
 #include <limits>
 #include <list>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <memory_resource>
 #include <mutex>
@@ -401,6 +402,15 @@ struct Stage1Index {
 // DocumentView
 // ─────────────────────────────────────────────────────────────
 
+// Mutation overlay entry: stores the new type + serialized content for a
+// value that has been set() since parse.  Keyed by tape index.
+struct MutationEntry {
+  TapeNodeType type;
+  std::string  data; // string content (no quotes) for StringRaw;
+                     // decimal text for Integer/Double;
+                     // empty for Null/BooleanTrue/BooleanFalse
+};
+
 class DocumentView {
 public:
   std::string_view source;
@@ -411,6 +421,11 @@ public:
   // On repeated calls with the same document, resize(last_dump_size_) is a
   // no-op (out.size() already equals last_dump_size_) → zero zero-fill cost.
   mutable size_t last_dump_size_ = 0;
+  // Mutation overlay: non-empty only when set<T>() has been called.
+  // Checked AFTER write separator, BEFORE the main switch — zero overhead
+  // for the common (read-only) path because the map is checked only when
+  // !mutations_.empty() which is guarded by BEAST_UNLIKELY.
+  std::unordered_map<uint32_t, MutationEntry> mutations_;
 
   DocumentView() = default;
   explicit DocumentView(std::string_view json) : source(json) {}
@@ -465,39 +480,118 @@ public:
   Value() = default;
   Value(DocumentView *doc, uint32_t idx) : doc_(doc), idx_(idx) {}
 
+  // ── Internal: effective type after mutations ──────────────────────────────
+
+private:
+  TapeNodeType effective_type_() const noexcept {
+    if (BEAST_UNLIKELY(doc_ && !doc_->mutations_.empty())) {
+      auto it = doc_->mutations_.find(idx_);
+      if (it != doc_->mutations_.end())
+        return it->second.type;
+    }
+    return doc_->tape[idx_].type();
+  }
+
+public:
   // ── Type checkers ───────────────────────────────────────────────────────────
 
   bool is_null() const noexcept {
-    return doc_ && doc_->tape[idx_].type() == TapeNodeType::Null;
+    if (!doc_) return false;
+    return effective_type_() == TapeNodeType::Null;
   }
   bool is_bool() const noexcept {
     if (!doc_) return false;
-    const auto t = doc_->tape[idx_].type();
+    const auto t = effective_type_();
     return t == TapeNodeType::BooleanTrue || t == TapeNodeType::BooleanFalse;
   }
   bool is_int() const noexcept {
     if (!doc_) return false;
-    return doc_->tape[idx_].type() == TapeNodeType::Integer;
+    return effective_type_() == TapeNodeType::Integer;
   }
   bool is_double() const noexcept {
     if (!doc_) return false;
-    const auto t = doc_->tape[idx_].type();
+    const auto t = effective_type_();
     return t == TapeNodeType::Double || t == TapeNodeType::NumberRaw;
   }
   bool is_number() const noexcept {
     if (!doc_) return false;
-    const auto t = doc_->tape[idx_].type();
+    const auto t = effective_type_();
     return t == TapeNodeType::Integer || t == TapeNodeType::Double ||
            t == TapeNodeType::NumberRaw;
   }
   bool is_string() const noexcept {
-    return doc_ && doc_->tape[idx_].type() == TapeNodeType::StringRaw;
+    if (!doc_) return false;
+    return effective_type_() == TapeNodeType::StringRaw;
   }
   bool is_object() const noexcept {
-    return doc_ && doc_->tape[idx_].type() == TapeNodeType::ObjectStart;
+    if (!doc_) return false;
+    return effective_type_() == TapeNodeType::ObjectStart;
   }
   bool is_array() const noexcept {
-    return doc_ && doc_->tape[idx_].type() == TapeNodeType::ArrayStart;
+    if (!doc_) return false;
+    return effective_type_() == TapeNodeType::ArrayStart;
+  }
+
+  // ── set<T>(): write / mutate a value ─────────────────────────────────────────
+  //
+  // Replaces the value at this tape position with a new value.
+  // The mutation is stored in doc_->mutations_ (overlay map).
+  // Subsequent as<T>(), type checkers, and dump() reflect the mutation.
+  //
+  // Structural mutations (object keys, array elements) are not supported here
+  // — set() targets scalar replacement at an existing tape position.
+
+  void set(std::nullptr_t) {
+    doc_->mutations_[idx_] = {TapeNodeType::Null, {}};
+    doc_->last_dump_size_ = 0; // invalidate size cache
+  }
+
+  void set(bool b) {
+    doc_->mutations_[idx_] = {b ? TapeNodeType::BooleanTrue
+                                : TapeNodeType::BooleanFalse, {}};
+    doc_->last_dump_size_ = 0;
+  }
+
+  template <typename T, std::enable_if_t<std::is_integral_v<T> &&
+                                             !std::is_same_v<T, bool>,
+                                         int> = 0>
+  void set(T val) {
+    char buf[32];
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf),
+                                   static_cast<int64_t>(val));
+    doc_->mutations_[idx_] = {TapeNodeType::Integer,
+                               std::string(buf, ptr)};
+    doc_->last_dump_size_ = 0;
+  }
+
+  template <typename T,
+            std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+  void set(T val) {
+    char buf[64];
+#if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
+    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf),
+                                   static_cast<double>(val));
+    std::string s(buf, ptr);
+#else
+    int n = std::snprintf(buf, sizeof(buf), "%.17g",
+                          static_cast<double>(val));
+    std::string s(buf, static_cast<size_t>(n > 0 ? n : 0));
+#endif
+    doc_->mutations_[idx_] = {TapeNodeType::Double, std::move(s)};
+    doc_->last_dump_size_ = 0;
+  }
+
+  void set(std::string_view s) {
+    doc_->mutations_[idx_] = {TapeNodeType::StringRaw, std::string(s)};
+    doc_->last_dump_size_ = 0;
+  }
+  void set(const std::string &s) { set(std::string_view(s)); }
+  void set(const char *s) { set(std::string_view(s)); }
+
+  // Erase a previously set() mutation, restoring the original parsed value.
+  void unset() {
+    doc_->mutations_.erase(idx_);
+    doc_->last_dump_size_ = 0;
   }
 
   // ── Internal: skip past the value at tape[idx], return next tape index ─────
@@ -643,6 +737,55 @@ public:
   //   std::string, std::string_view
 
   template <typename T> T as() const {
+    // Check mutation overlay first — O(1) unordered_map lookup, only paid
+    // when mutations_ is non-empty (guarded by BEAST_UNLIKELY branch).
+    if (BEAST_UNLIKELY(doc_ && !doc_->mutations_.empty())) {
+      auto mit = doc_->mutations_.find(idx_);
+      if (mit != doc_->mutations_.end()) {
+        const MutationEntry &m = mit->second;
+        if constexpr (std::is_same_v<T, bool>) {
+          if (m.type == TapeNodeType::BooleanTrue) return true;
+          if (m.type == TapeNodeType::BooleanFalse) return false;
+          throw std::runtime_error("beast::Value::as<bool>: not a boolean");
+        } else if constexpr (std::is_integral_v<T>) {
+          if (m.type != TapeNodeType::Integer)
+            throw std::runtime_error(
+                "beast::Value::as<integral>: not an integer");
+          int64_t val = 0;
+          std::from_chars(m.data.data(), m.data.data() + m.data.size(), val);
+          return static_cast<T>(val);
+        } else if constexpr (std::is_floating_point_v<T>) {
+          if (m.type != TapeNodeType::Double && m.type != TapeNodeType::Integer)
+            throw std::runtime_error("beast::Value::as<float>: not a number");
+          double val = 0.0;
+          const char *beg = m.data.data();
+          const char *end = beg + m.data.size();
+#if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
+          std::from_chars(beg, end, val);
+#else
+          char buf[64];
+          size_t len = m.data.size();
+          if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+          std::memcpy(buf, beg, len);
+          buf[len] = '\0';
+          val = std::strtod(buf, nullptr);
+#endif
+          return static_cast<T>(val);
+        } else if constexpr (std::is_same_v<T, std::string_view>) {
+          if (m.type != TapeNodeType::StringRaw)
+            throw std::runtime_error(
+                "beast::Value::as<string_view>: not a string");
+          return std::string_view(m.data);
+        } else if constexpr (std::is_same_v<T, std::string>) {
+          if (m.type != TapeNodeType::StringRaw)
+            throw std::runtime_error(
+                "beast::Value::as<string>: not a string");
+          return m.data;
+        }
+      }
+    }
+
+    // No mutation — read from tape (original fast path)
     if constexpr (std::is_same_v<T, bool>) {
       const auto t = doc_->tape[idx_].type();
       if (t == TapeNodeType::BooleanTrue) return true;
@@ -674,7 +817,6 @@ public:
       if (ec != std::errc{})
         throw std::runtime_error("beast::Value::as<float>: parse error");
 #else
-      // Fallback for platforms lacking from_chars for floating-point
       char buf[64];
       size_t len = nd.length();
       if (len >= sizeof(buf)) len = sizeof(buf) - 1;
@@ -758,7 +900,10 @@ public:
     //   sep == 0x00 → no separator (root or first element)
     //   sep == 0x01 → comma
     //   sep == 0x02 → colon
-    const size_t buf_cap = doc_->source.size() + 16;
+    size_t mutation_extra = 0;
+    for (const auto &[k, m] : doc_->mutations_)
+      mutation_extra += m.data.size() + 16;
+    const size_t buf_cap = doc_->source.size() + 16 + mutation_extra;
     std::string out;
     out.resize(buf_cap);
     char *w = out.data();
@@ -790,6 +935,32 @@ public:
       if (sep)
         *w++ = (sep == 0x02u) ? ':' : ',';
 #endif
+
+      // Mutation overlay — only paid when mutations_ non-empty (rare path).
+      // Separator already written above; write mutated scalar and skip switch.
+      if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
+        auto mit = doc_->mutations_.find(static_cast<uint32_t>(i));
+        if (mit != doc_->mutations_.end()) {
+          const MutationEntry &m = mit->second;
+          switch (m.type) {
+          case TapeNodeType::Null:
+            std::memcpy(w, "null", 4); w += 4; break;
+          case TapeNodeType::BooleanTrue:
+            std::memcpy(w, "true", 4); w += 4; break;
+          case TapeNodeType::BooleanFalse:
+            std::memcpy(w, "false", 5); w += 5; break;
+          case TapeNodeType::StringRaw:
+            *w++ = '"';
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size();
+            *w++ = '"'; break;
+          default: // Integer, Double
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size(); break;
+          }
+          continue;
+        }
+      }
 
       switch (type) {
 
@@ -982,9 +1153,13 @@ public:
     }
     const char *src = doc_->source.data();
     const size_t ntape = doc_->tape.size();
-    const size_t buf_cap = doc_->source.size() + 16;
+    size_t mutation_extra2 = 0;
+    for (const auto &[k, m] : doc_->mutations_)
+      mutation_extra2 += m.data.size() + 16;
+    const size_t buf_cap = doc_->source.size() + 16 + mutation_extra2;
 
     // Use cached exact size if available; fall back to buf_cap on first call.
+    // Invalidated (reset to 0) by set(), so mutations always get fresh sizing.
     const size_t target =
         (doc_->last_dump_size_ > 0) ? doc_->last_dump_size_ : buf_cap;
     out.resize(target);
@@ -1007,6 +1182,30 @@ public:
       if (sep)
         *w++ = (sep == 0x02u) ? ':' : ',';
 #endif
+
+      if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
+        auto mit = doc_->mutations_.find(static_cast<uint32_t>(i));
+        if (mit != doc_->mutations_.end()) {
+          const MutationEntry &m = mit->second;
+          switch (m.type) {
+          case TapeNodeType::Null:
+            std::memcpy(w, "null", 4); w += 4; break;
+          case TapeNodeType::BooleanTrue:
+            std::memcpy(w, "true", 4); w += 4; break;
+          case TapeNodeType::BooleanFalse:
+            std::memcpy(w, "false", 5); w += 5; break;
+          case TapeNodeType::StringRaw:
+            *w++ = '"';
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size();
+            *w++ = '"'; break;
+          default:
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size(); break;
+          }
+          continue;
+        }
+      }
 
       switch (type) {
 

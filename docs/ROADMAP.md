@@ -106,7 +106,7 @@
 
 ### 타입 변환 · 역직렬화
 
-- [x] **Beast Value Accessor API** (ctest 114/114 PASS, 2026-03-05):
+- [x] **Beast Value Accessor + Mutation API** (ctest 137/137 PASS, 2026-03-05):
   - **타입 체크**: `is_null()`, `is_bool()`, `is_int()`, `is_double()`, `is_number()`, `is_string()`
   - **`as<T>()`** — Beast 고유 패턴: 단일 정규 접근자, 타입 불일치 시 `std::runtime_error`
   - **`try_as<T>()`** — `std::optional<T>` 반환, 예외 없는 안전 접근
@@ -114,24 +114,33 @@
   - **`find(key)`** — `std::optional<Value>` 반환, 안전한 객체 키 탐색
   - **`size()`** / **`empty()`** — 배열·객체 원소 수
   - **암시적 변환** `operator T()` — `int age = doc["age"];`, `std::string name = doc["name"];`
-  - `const char*` / `int` 오버로드로 연산자 중의성 방지 (from `operator T()` arithmetic path)
+  - **`set(T)`** — 뮤테이션 overlay: `nullptr`/`bool`/`int64`/`double`/`string_view` 지원
+    - `unset()` — 원본 파싱 값 복원
+    - `dump()` / `dump(string&)` / `is_*()` / `as<T>()` / `try_as<T>()` 모두 뮤테이션 반영
+    - 뮤테이션 없는 경우 zero overhead (`BEAST_UNLIKELY`, map 미탐색)
+  - `const char*` / `int` 오버로드로 연산자 중의성 방지
 
   ```cpp
   beast::Document doc;
   auto root = beast::parse(doc, R"({"user": {"id": 7, "score": 3.14}})");
 
-  // as<T>() — 명시적, 타입 안전
+  // Read — as<T>(), 암시적 변환, try_as<T>(), find()
   int id       = root["user"]["id"].as<int>();
-  double score = root["user"]["score"].as<double>();
-
-  // 암시적 변환
-  int id2      = root["user"]["id"];
-
-  // try_as<T>() — std::optional, 예외 없음
+  int id2      = root["user"]["id"];             // 암시적 변환
   auto maybe   = root["user"]["id"].try_as<int>(); // std::optional<int>
-
-  // find() — 키 존재 여부 확인
   if (auto v = root.find("user")) { /* ... */ }
+
+  // Write — set()
+  root["user"]["id"].set(99);           // int
+  root["user"]["score"].set(9.9);       // double
+  root["user"].find("name")->set("Eve"); // string
+  root["user"]["id"].set(nullptr);      // null
+
+  // Reflected immediately in dump()
+  std::string json = root.dump(); // {"user":{"id":null,"score":9.9,...}}
+
+  // Restore original
+  root["user"]["id"].unset();
   ```
 
 - [ ] **1줄 메타 역직렬화** (독자적 방식): Beast 고유 설계, Glaze/nlohmann과 차별화

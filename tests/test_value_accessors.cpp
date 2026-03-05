@@ -300,3 +300,212 @@ TEST(ValueAccessors, ValidityCheck) {
   Value empty;
   EXPECT_FALSE(static_cast<bool>(empty));
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// set<T>(): mutation tests
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── set() scalar types ────────────────────────────────────────────────────────
+
+TEST(ValueMutation, SetInt) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x": 1})");
+  root["x"].set(42);
+  EXPECT_EQ(root["x"].as<int>(), 42);
+  EXPECT_TRUE(root["x"].is_int());
+}
+
+TEST(ValueMutation, SetNegativeInt) {
+  Document doc;
+  auto root = parse_root(doc, R"({"n": 0})");
+  root["n"].set(-99);
+  EXPECT_EQ(root["n"].as<int64_t>(), -99);
+}
+
+TEST(ValueMutation, SetDouble) {
+  Document doc;
+  auto root = parse_root(doc, R"({"pi": 0})");
+  root["pi"].set(3.14);
+  EXPECT_NEAR(root["pi"].as<double>(), 3.14, 1e-9);
+  EXPECT_TRUE(root["pi"].is_double());
+}
+
+TEST(ValueMutation, SetBoolTrue) {
+  Document doc;
+  auto root = parse_root(doc, R"({"flag": false})");
+  root["flag"].set(true);
+  EXPECT_TRUE(root["flag"].as<bool>());
+  EXPECT_TRUE(root["flag"].is_bool());
+}
+
+TEST(ValueMutation, SetBoolFalse) {
+  Document doc;
+  auto root = parse_root(doc, R"({"flag": true})");
+  root["flag"].set(false);
+  EXPECT_FALSE(root["flag"].as<bool>());
+}
+
+TEST(ValueMutation, SetNull) {
+  Document doc;
+  auto root = parse_root(doc, R"({"v": 42})");
+  root["v"].set(nullptr);
+  EXPECT_TRUE(root["v"].is_null());
+}
+
+TEST(ValueMutation, SetString) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name": "old"})");
+  root["name"].set("new");
+  EXPECT_EQ(root["name"].as<std::string>(), "new");
+  EXPECT_TRUE(root["name"].is_string());
+}
+
+TEST(ValueMutation, SetStringView) {
+  Document doc;
+  auto root = parse_root(doc, R"({"key": "before"})");
+  std::string_view sv = "after";
+  root["key"].set(sv);
+  EXPECT_EQ(root["key"].as<std::string>(), "after");
+}
+
+TEST(ValueMutation, SetStdString) {
+  Document doc;
+  auto root = parse_root(doc, R"({"msg": "hi"})");
+  std::string s = "hello world";
+  root["msg"].set(s);
+  EXPECT_EQ(root["msg"].as<std::string>(), "hello world");
+}
+
+// ── set() with type change ─────────────────────────────────────────────────
+
+TEST(ValueMutation, SetTypeChange_IntToString) {
+  Document doc;
+  auto root = parse_root(doc, R"({"v": 42})");
+  root["v"].set("text");
+  EXPECT_TRUE(root["v"].is_string());
+  EXPECT_FALSE(root["v"].is_int());
+  EXPECT_EQ(root["v"].as<std::string>(), "text");
+}
+
+TEST(ValueMutation, SetTypeChange_StringToInt) {
+  Document doc;
+  auto root = parse_root(doc, R"({"v": "old"})");
+  root["v"].set(7);
+  EXPECT_TRUE(root["v"].is_int());
+  EXPECT_EQ(root["v"].as<int>(), 7);
+}
+
+// ── set() reflected in dump() ──────────────────────────────────────────────
+
+TEST(ValueMutation, DumpAfterSetInt) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x": 1})");
+  root["x"].set(99);
+  EXPECT_EQ(root.dump(), R"({"x":99})");
+}
+
+TEST(ValueMutation, DumpAfterSetString) {
+  Document doc;
+  auto root = parse_root(doc, R"({"name": "Alice"})");
+  root["name"].set("Bob");
+  EXPECT_EQ(root.dump(), R"({"name":"Bob"})");
+}
+
+TEST(ValueMutation, DumpAfterSetNull) {
+  Document doc;
+  auto root = parse_root(doc, R"({"v": 1})");
+  root["v"].set(nullptr);
+  EXPECT_EQ(root.dump(), R"({"v":null})");
+}
+
+TEST(ValueMutation, DumpAfterSetBool) {
+  Document doc;
+  auto root = parse_root(doc, R"({"ok": false})");
+  root["ok"].set(true);
+  EXPECT_EQ(root.dump(), R"({"ok":true})");
+}
+
+TEST(ValueMutation, DumpAfterSetMultiple) {
+  Document doc;
+  auto root = parse_root(doc, R"({"a": 1, "b": 2, "c": 3})");
+  root["a"].set(10);
+  root["c"].set(30);
+  std::string out = root.dump();
+  EXPECT_EQ(out, R"({"a":10,"b":2,"c":30})");
+}
+
+TEST(ValueMutation, DumpStringBufferAfterSet) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x": 1})");
+  root["x"].set(42);
+  std::string buf;
+  root.dump(buf);
+  EXPECT_EQ(buf, R"({"x":42})");
+}
+
+// ── unset(): restore original value ──────────────────────────────────────────
+
+TEST(ValueMutation, Unset) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x": 1})");
+  root["x"].set(99);
+  EXPECT_EQ(root["x"].as<int>(), 99);
+  root["x"].unset();
+  EXPECT_EQ(root["x"].as<int>(), 1); // back to original
+}
+
+// ── set() on array element ────────────────────────────────────────────────────
+
+TEST(ValueMutation, SetArrayElement) {
+  Document doc;
+  auto root = parse_root(doc, "[10, 20, 30]");
+  root[1].set(200);
+  EXPECT_EQ(root[0].as<int>(), 10);
+  EXPECT_EQ(root[1].as<int>(), 200);
+  EXPECT_EQ(root[2].as<int>(), 30);
+  EXPECT_EQ(root.dump(), "[10,200,30]");
+}
+
+// ── set() overwrites previous set() ──────────────────────────────────────────
+
+TEST(ValueMutation, SetOverwrite) {
+  Document doc;
+  auto root = parse_root(doc, R"({"v": 0})");
+  root["v"].set(1);
+  root["v"].set(2);
+  root["v"].set(3);
+  EXPECT_EQ(root["v"].as<int>(), 3);
+  EXPECT_EQ(root.dump(), R"({"v":3})");
+}
+
+// ── set() on nested value ─────────────────────────────────────────────────────
+
+TEST(ValueMutation, SetNested) {
+  Document doc;
+  auto root = parse_root(doc, R"({"user": {"score": 0}})");
+  root["user"]["score"].set(100);
+  EXPECT_EQ(root["user"]["score"].as<int>(), 100);
+  EXPECT_EQ(root.dump(), R"({"user":{"score":100}})");
+}
+
+// ── try_as<T>() on mutated value ──────────────────────────────────────────────
+
+TEST(ValueMutation, TryAsAfterSet) {
+  Document doc;
+  auto root = parse_root(doc, R"({"x": 0})");
+  root["x"].set(55);
+  auto r = root["x"].try_as<int>();
+  ASSERT_TRUE(r.has_value());
+  EXPECT_EQ(*r, 55);
+}
+
+// ── larger mutation string than original ─────────────────────────────────────
+
+TEST(ValueMutation, LargerMutationNoOverflow) {
+  Document doc;
+  auto root = parse_root(doc, R"({"s": "x"})");
+  root["s"].set("a much longer string than the original");
+  EXPECT_EQ(root["s"].as<std::string>(), "a much longer string than the original");
+  std::string out = root.dump();
+  EXPECT_EQ(out, R"({"s":"a much longer string than the original"})");
+}
