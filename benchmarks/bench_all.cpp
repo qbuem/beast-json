@@ -76,22 +76,7 @@ static void run_file(const std::string &filename, size_t N, bool parse_only) {
     bench::Result{"beast::lazy", p_ns, s_ns, ok}.print();
   }
 
-  // ── 2. beast::json (rtsm path, parse-only timing) ───────────────────────
-  {
-    bench::Timer pt;
-    pt.start();
-    for (size_t i = 0; i < N; ++i) {
-      try {
-        beast::json::parse(content);
-      } catch (...) {
-      }
-    }
-    double p_ns = pt.elapsed_ns() / N;
-    // rtsm returns stub Value() — no serialize benchmark
-    bench::Result{"beast::rtsm (parse)", p_ns, 0.0, true}.print();
-  }
-
-  // ── 3. yyjson ────────────────────────────────────────────────────────────
+  // ── 2. yyjson ────────────────────────────────────────────────────────────
   {
     bench::Timer pt, st;
     pt.start();

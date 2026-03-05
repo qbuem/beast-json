@@ -4,22 +4,20 @@
 
 using namespace beast::json;
 
-// NOTE: rtsm::Parser consumes ',' as a separator token without validating
-// structural context. Trailing commas are always accepted regardless of
-// ParseOptions (allow_trailing_commas not enforced).
-
+// lazy::parse_reuse accepts trailing commas
 TEST(TrailingCommas, ArrayTrailingCommaAccepted) {
-  EXPECT_NO_THROW(parse("[1, 2, 3, ]"));
-  EXPECT_NO_THROW(parse("[\"a\", ]"));
-  EXPECT_NO_THROW(parse("[[], ]"));
+  lazy::DocumentView doc;
+  EXPECT_NO_THROW(lazy::parse_reuse(doc, "[1, 2, 3, ]"));
+  EXPECT_NO_THROW(lazy::parse_reuse(doc, "[\"a\", ]"));
+  EXPECT_NO_THROW(lazy::parse_reuse(doc, "[[], ]"));
 }
 
 TEST(TrailingCommas, ObjectTrailingCommaAccepted) {
-  EXPECT_NO_THROW(parse("{\"a\": 1, }"));
-  EXPECT_NO_THROW(parse("{\"a\": {\"b\": 1, }, }"));
+  lazy::DocumentView doc;
+  EXPECT_NO_THROW(lazy::parse_reuse(doc, "{\"a\": 1, }"));
+  EXPECT_NO_THROW(lazy::parse_reuse(doc, "{\"a\": {\"b\": 1, }, }"));
 }
 
-// lazy::parse_reuse also accepts trailing commas
 TEST(TrailingCommas, LazyParserAcceptsTrailingComma) {
   std::string arr = "[1, 2, ]";
   lazy::DocumentView doc;
@@ -29,13 +27,10 @@ TEST(TrailingCommas, LazyParserAcceptsTrailingComma) {
   EXPECT_NO_THROW(lazy::parse_reuse(doc, obj));
 }
 
-// Round-trip: trailing comma is preserved by dump()
+// Round-trip: dump() emits compact JSON without trailing commas
 TEST(TrailingCommas, RoundTripPreservesStructure) {
-  // lazy parser accepts "[1,2,]" and dump() re-serializes from tape
-  // Note: dump() emits compact JSON without trailing commas
   lazy::DocumentView doc;
   auto v = lazy::parse_reuse(doc, "[1,2,]");
   std::string out = v.dump();
-  // dump() does not emit trailing commas; re-serializes from tape nodes
   EXPECT_EQ(out, "[1,2]");
 }

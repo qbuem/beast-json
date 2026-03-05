@@ -1,7 +1,7 @@
 # Beast JSON — Roadmap
 
 > **최종 업데이트**: 2026-03-05
-> 최적화 3종 플랫폼 완료 (x86_64 / Snapdragon 8 Gen 2 / Apple M1 Pro) → 다음 목표: **The Ultimate API (v1.0)**
+> 최적화 3종 플랫폼 완료 · **Legacy DOM 제거 완료** (7,880→3,187 lines) → 다음 목표: **3-Tier 아키텍처 + The Ultimate API (v1.0)**
 
 ---
 
@@ -98,7 +98,7 @@
 
 ### API 계층 재구성
 
-- [ ] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array` 삭제 (바이너리 크기 감소)
+- [x] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array`, `rtsm::Parser` 삭제 완료 (7,880→3,187 lines, ctest 81/81 PASS)
 - [ ] **3-Tier 아키텍처 분리**:
   - `beast::core` — 파싱 엔진 (tape, scanner, SIMD)
   - `beast::utils` — 매크로 / 유틸리티
