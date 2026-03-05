@@ -1,7 +1,7 @@
 # Beast JSON — Roadmap
 
 > **최종 업데이트**: 2026-03-05
-> 최적화 3종 플랫폼 완료 (x86_64 / Snapdragon 8 Gen 2 / Apple M1 Pro) → 다음 목표: **The Ultimate API (v1.0)**
+> 최적화 3종 플랫폼 완료 · **Legacy DOM 제거 완료** (7,880→3,187 lines) · **The Ultimate API 1단계 완료** (ctest 223/223 PASS) → 다음 목표: **1줄 역직렬화 + RFC 8259 완전 준수 (v1.0)**
 
 ---
 
@@ -98,16 +98,133 @@
 
 ### API 계층 재구성
 
-- [ ] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array` 삭제 (바이너리 크기 감소)
-- [ ] **3-Tier 아키텍처 분리**:
-  - `beast::core` — 파싱 엔진 (tape, scanner, SIMD)
-  - `beast::utils` — 매크로 / 유틸리티
-  - `beast` — 공개 퍼사드 (사용자 API)
+- [x] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array`, `rtsm::Parser` 삭제 완료 (7,880→3,187 lines, ctest 81/81 PASS)
+- [x] **3-Tier 아키텍처 분리** 완료 (ctest 81/81 PASS):
+  - `beast::core` — 파싱 엔진 내부 타입 (TapeNode, TapeArena, Stage1Index, Parser)
+  - `beast::utils` — 플랫폼 매크로 (BEAST_INLINE, BEAST_HAS_*, BEAST_ARCH_*)
+  - `beast` — 공개 퍼사드: `beast::Document`, `beast::Value`, `beast::parse()`
 
 ### 타입 변환 · 역직렬화
 
-- [ ] **암시적 변환** (nlohmann 스타일): `int age = doc["age"];`
-- [ ] **1줄 메타 역직렬화** (Glaze 스타일): `auto user = beast::read<User>(json_str);` via `BEAST_DEFINE_STRUCT()`
+- [x] **Beast Value Accessor + Mutation + SafeValue API** (ctest 166/166 PASS, 2026-03-05):
+  - **타입 체크**: `is_null()`, `is_bool()`, `is_int()`, `is_double()`, `is_number()`, `is_string()`
+  - **`as<T>()`** — Beast 고유 패턴: 단일 정규 접근자, 타입 불일치 시 `std::runtime_error`
+  - **`try_as<T>()`** — `std::optional<T>` 반환, 예외 없는 안전 접근
+  - **`operator[](key)`** / **`operator[](idx)`** — 체인 가능 접근, 미스 시 `std::out_of_range`
+  - **`find(key)`** — `std::optional<Value>` 반환, 안전한 객체 키 탐색
+  - **`size()`** / **`empty()`** — 배열·객체 원소 수
+  - **암시적 변환** `operator T()` — `int age = doc["age"];`, `std::string name = doc["name"];`
+  - **`set(T)`** — 뮤테이션 overlay: `nullptr`/`bool`/`int64`/`double`/`string_view` 지원
+    - `unset()` — 원본 파싱 값 복원
+    - `dump()` / `dump(string&)` / `is_*()` / `as<T>()` / `try_as<T>()` 모두 뮤테이션 반영
+    - 뮤테이션 없는 경우 zero overhead (`BEAST_UNLIKELY`, map 미탐색)
+  - `const char*` / `int` 오버로드로 연산자 중의성 방지
+  - **`operator=(T)`** — `=` 구문 쓰기: `root["key"] = 42;`
+  - **`SafeValue`** — optional propagating proxy:
+    - `get(key/idx)` → `SafeValue` (throws 없이 optional 체인 시작)
+    - `SafeValue::operator[]` → 체인 전파 (absent 시 nullopt 전파)
+    - `SafeValue::as<T>()` → `std::optional<T>`
+    - `SafeValue::value_or(T)` → 기본값 폴백
+    - `has_value()` / `operator bool` / `operator*` / `operator->` 지원
+
+  ```cpp
+  beast::Document doc;
+  auto root = beast::parse(doc, R"({"user": {"id": 7, "score": 3.14}})");
+
+  // Read — throwing (fast path, 확신 있는 접근)
+  int id = root["user"]["id"].as<int>();
+  int id2 = root["user"]["id"];             // 암시적 변환
+
+  // Read — safe chain (never throws, std::optional 전파)
+  auto maybe = root.get("user")["id"].as<int>(); // std::optional<int>
+  int  safe  = root.get("user")["id"].value_or(-1); // 기본값
+  int  deep  = root.get("a")["b"]["c"].value_or(0); // 중간 missing → 0
+
+  // Write — set() 또는 = 구문
+  root["user"]["id"] = 99;
+  root["user"]["score"] = 9.9;
+  root["user"]["name"] = "Eve";
+  root["user"]["id"] = nullptr;
+
+  // Reflected immediately in dump()
+  std::string json = root.dump();
+
+  // Restore original
+  root["user"]["id"].unset();
+  ```
+
+- [x] **1등 사용성 — 전면 API 개선** (ctest 213/213 PASS, 2026-03-05):
+  - **`operator[]` non-throwing** — 누락 키/범위 초과 시 예외 대신 invalid `Value{}` 반환; `operator bool()`로 유효성 확인
+  - **`dump()` 서브트리 직렬화** — `root["user"].dump()` → `{"name":"..."}` (전체 문서 아님)
+  - **구조적 뮤테이션 API** — 원본 tape 불변, overlay 방식:
+    - `erase(key)` / `erase(idx)` — 키·배열 요소 삭제
+    - `insert(key, T)` / `insert_json(key, raw)` — 객체에 키-값 추가
+    - `push_back(T)` / `push_back_json(raw)` — 배열에 요소 추가
+    - `dump()` / `size()` / `find()` / `operator[]` / 이터레이션 즉시 반영
+  - **이터레이션 API**:
+    - `items()` — 객체 키-값 쌍 range-for: `for (auto [k, v] : root.items())`
+    - `elements()` — 배열 요소 range-for: `for (auto v : root["arr"].elements())`
+    - 삭제된 항목 자동 skip
+  - **Pretty-print** — `dump(int indent)`: `root.dump(2)` / `root.dump(4)`
+
+  ```cpp
+  beast::Document doc;
+  auto root = beast::parse(doc, R"({"users":[{"id":1},{"id":2}],"tags":["a","b"]})");
+
+  // AutoChain — 절대 throw 없음 (missing key → invalid Value{})
+  if (root["missing"]["deep"])  // false, no exception
+      std::cout << root["missing"]["deep"].as<int>() << "\n";
+
+  // Subtree dump
+  std::cout << root["users"].dump() << "\n";  // [{"id":1},{"id":2}]
+
+  // Structural mutation
+  root["users"].push_back_json(R"({"id":3})");
+  root["tags"].erase(0);          // "a" removed
+  root.insert("version", 1);
+
+  // Iteration
+  for (auto [key, val] : root.items())
+      std::cout << key << ": " << val.dump() << "\n";
+  for (auto elem : root["tags"].elements())
+      std::cout << elem.as<std::string>() << "\n";  // b
+
+  // Pretty-print
+  std::cout << root.dump(2) << "\n";
+  ```
+
+- [x] **C++20 Ranges/STL 완전 호환 + Concepts** (ctest 223/223 PASS, 2026-03-05):
+  - **`borrowed_range`** — `enable_borrowed_range<ObjectRange> = true` / `enable_borrowed_range<ArrayRange> = true`
+    - `std::ranges::find_if`, `count_if`, `max_element`, `transform`, `distance` 정상 동작
+    - `| std::views::filter(f)` / `| std::views::transform(f)` 파이프 문법 지원
+  - **`Value::ObjectItem`** 공개 타입 별칭 — `using ObjectItem = std::pair<string_view, Value>`; generic lambda에서 explicit 타입 명시 가능
+  - **C++20 Concepts** — 템플릿 인자 제약으로 컴파일 타임 타입 안전성 보장
+
+  ```cpp
+  beast::Document doc;
+  auto root = beast::parse(doc, R"({"scores":[3,1,4,1,5,9],"meta":{"v":2}})");
+
+  // std::ranges 알고리즘
+  auto arr = root["scores"].elements();
+  auto max_it = std::ranges::max_element(arr, [](auto a, auto b){
+      return a.as<int>() < b.as<int>();
+  });
+  std::cout << max_it->as<int>() << "\n";  // 9
+
+  // Views 파이프라인
+  auto big = root["scores"].elements()
+      | std::views::filter([](auto v){ return v.as<int>() > 3; });
+  for (auto v : big)
+      std::cout << v.as<int>() << " ";  // 4 5 9
+
+  // items() + filter
+  auto found = root.items()
+      | std::views::filter([](Value::ObjectItem kv){ return kv.first == "meta"; });
+  for (auto [k, v] : found)
+      std::cout << k << ": " << v.dump() << "\n";  // meta: {"v":2}
+  ```
+
+- [ ] **1줄 메타 역직렬화** (독자적 방식): Beast 고유 설계, Glaze/nlohmann과 차별화
 - [ ] **Zero-Allocation Typed Views**: `for (int id : doc["ids"].as_array<int>())`
 
 ### 에러 처리 · 안전성
@@ -170,7 +287,7 @@
 
 ## 불변 원칙
 
-- **모든 변경은 `ctest 81/81 PASS` 후 커밋** — 예외 없음
+- **모든 변경은 `ctest PASS` 후 커밋** — 예외 없음 (현재 223개)
 - **회귀 즉시 revert** — 원인 분석 선행
 - **Phase 65 리스크**: `s[cl+1]==':'` 단독 가드는 값이 `":"` 형태인 JSON에서 false-positive 가능. 표준 4종 벤치마크 파일 안전 확인됨.
 - **SVE 절대 금기** (Snapdragon): Android 커널 비활성화 → SIGILL.

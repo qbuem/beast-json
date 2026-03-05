@@ -411,9 +411,16 @@ kc_.lens[depth_][key_idx] = static_cast<uint16_t>(e - s);
 
 **핵심 목표 (v1.0):**
 - [x] **Core Engine**: x86_64 / Snapdragon 8 Gen 2 / M1 Pro 전 플랫폼 최적화 완료.
-- [ ] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array` 삭제.
-- [ ] **3-Tier 아키텍처**: `beast::core` · `beast::utils` · `beast` 퍼사드 분리.
-- [ ] **암시적 변환** (nlohmann 스타일): `int age = doc["age"];`
+- [x] **Legacy DOM 제거**: `beast::json::Value`, `Parser`, `Object`, `Array`, `rtsm::Parser` 삭제 완료.
+- [x] **3-Tier 아키텍처**: `beast::core` · `beast::utils` · `beast` 퍼사드 분리 완료.
+- [x] **암시적 변환** (nlohmann 스타일): `int age = doc["age"];`
+- [x] **안전 접근 체인** (SafeValue 모나드): `int t = doc.get("cfg")["timeout"].value_or(5000);`
+- [x] **AutoChain / operator[] non-throwing**: `root["a"]["b"]["c"]` — missing key → invalid `Value{}`, 예외 없음.
+- [x] **구조적 뮤테이션**: `erase(key/idx)`, `insert(key, T)`, `push_back(T)` — overlay, 원본 tape 불변.
+- [x] **이터레이션**: `items()` / `elements()` — range-for, structured bindings, 삭제 항목 자동 skip.
+- [x] **Pretty-print**: `dump(int indent)` — `root.dump(2)` / `root.dump(4)`.
+- [x] **C++20 Ranges/STL 완전 호환**: `borrowed_range`, `std::views::filter/transform` 파이프 지원.
+- [x] **C++20 Concepts**: 컴파일 타임 타입 안전성.
 - [ ] **1줄 역직렬화** (Glaze 스타일): `auto user = beast::read<User>(json_str);`
 - [ ] **Pipe Fallback `|`**: `int age = doc["users"][0]["age"] | 18;` (모나드 스타일)
 - [ ] **Zero-Allocation Typed Views**: `for (int id : doc["ids"].as_array<int>())`
@@ -428,32 +435,54 @@ kc_.lens[depth_][key_idx] = static_cast<uint16_t>(e - s);
 ```cpp
 #include <beast_json/beast_json.hpp>
 #include <iostream>
-
-using namespace beast::json;
+#include <ranges>
 
 int main() {
-    std::string_view json = R"({"name":"Beast","speed":340,"tags":["fast","zero-copy"]})";
+    std::string_view json = R"({
+        "name": "Beast",
+        "speed": 340,
+        "tags": ["fast", "zero-copy", "c++20"]
+    })";
 
-    lazy::DocumentView doc(json);
-    lazy::Value root = lazy::parse_reuse(doc, json);
+    beast::Document doc;
+    beast::Value root = beast::parse(doc, json);
 
-    if (doc.error_code != lazy::Error::Ok) {
-        std::cerr << "Parse failed\n";
-        return 1;
-    }
+    // Type-checked access (throws on mismatch)
+    std::cout << root["name"].as<std::string>() << "\n";  // Beast
+    std::cout << root["speed"].as<int>()        << "\n";  // 340
 
-    // Zero-copy key lookup
-    std::cout << root.find("name").get_string()  << "\n";  // Beast
-    std::cout << root.find("speed").get_int64()  << "\n";  // 340
+    // Implicit conversion (nlohmann-style)
+    std::string name = root["name"];
+    int speed = root["speed"];
 
-    // Array traversal
-    for (auto tag : root.find("tags").get_array()) {
-        std::cout << tag.get_string() << "\n";  // fast, zero-copy
-    }
+    // Safe access — never throws (SafeValue chain)
+    int timeout = root.get("config")["timeout"].value_or(5000);
 
-    // Serialize back to JSON
-    std::string out = root.dump();
-    std::cout << out << "\n";
+    // AutoChain — missing key returns invalid Value{}, not exception
+    if (root["missing"]["deep"])
+        std::cout << root["missing"]["deep"].as<int>() << "\n";
+
+    // Iteration
+    for (auto tag : root["tags"].elements())
+        std::cout << tag.as<std::string>() << "\n";  // fast, zero-copy, c++20
+
+    for (auto [key, val] : root.items())
+        std::cout << key << ": " << val.dump() << "\n";
+
+    // Structural mutation (overlay — original tape unchanged)
+    root["tags"].push_back("modern");
+    root.insert("version", 1);
+    root["tags"].erase(0);          // removes "fast"
+
+    // Subtree + pretty-print serialization
+    std::cout << root["tags"].dump()  << "\n";  // ["zero-copy","c++20","modern"]
+    std::cout << root.dump(2)         << "\n";  // indented JSON
+
+    // C++20 Ranges pipeline
+    auto big_tags = root["tags"].elements()
+        | std::views::filter([](auto v){ return v.as<std::string>().size() > 4; });
+    for (auto v : big_tags)
+        std::cout << v.as<std::string>() << "\n";
 
     return 0;
 }
@@ -503,4 +532,16 @@ Since beast-json is a single header library, you can also simply copy `include/b
 | Utf8Validation | 14 | ✅ PASS |
 | LazyTypes | 19 | ✅ PASS |
 | LazyRoundTrip | 11 | ✅ PASS |
-| **Total** | **81** | **100% PASS** |
+| ValueAccessors | 33 | ✅ PASS |
+| ValueMutation | 23 | ✅ PASS |
+| ValueAssign | 10 | ✅ PASS |
+| SafeValue | 19 | ✅ PASS |
+| Monadic | 10 | ✅ PASS |
+| Concepts | 4 | ✅ PASS |
+| StructuralMutation | 14 | ✅ PASS |
+| Iteration | 6 | ✅ PASS |
+| SubtreeDump | 4 | ✅ PASS |
+| PrettyPrint | 5 | ✅ PASS |
+| AutoChain | 4 | ✅ PASS |
+| Ranges | 10 | ✅ PASS |
+| **Total** | **223** | **100% PASS** |

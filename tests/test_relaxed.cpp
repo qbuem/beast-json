@@ -2,60 +2,46 @@
 #include <gtest/gtest.h>
 #include <string>
 
-using namespace beast::json;
+using namespace beast;
 
-// NOTE: ParseOptions are stored in rtsm::Parser but NOT enforced in its
-// parse() loop. All option-based tests document actual parser behavior.
+// Helper: attempt parse with lazy parser, return true if succeeded
+static bool lazy_ok(std::string_view json) {
+  try {
+    Document doc;
+    parse(doc, json);
+    return true;
+  } catch (const std::runtime_error &) {
+    return false;
+  }
+}
 
-// Single quotes: '\'' is not a recognized value-start in rtsm switch
-// -> default: return false -> always throws regardless of ParseOptions
+// Single quotes: not valid JSON, lazy parser rejects them
 TEST(RelaxedParsing, SingleQuotesNotSupported) {
-  std::string json = "{'a': 'b'}";
-  EXPECT_THROW(parse(json), std::runtime_error);
-
-  // Options not enforced in rtsm::Parser; still throws
-  ParseOptions opts;
-  opts.allow_single_quotes = true;
-  EXPECT_THROW(parse(json, {}, opts), std::runtime_error);
+  EXPECT_FALSE(lazy_ok("{'a': 'b'}"));
 }
 
-// Unquoted keys: identifier chars not in rtsm switch -> always throws
+// Unquoted keys: not valid JSON, lazy parser rejects them
 TEST(RelaxedParsing, UnquotedKeysNotSupported) {
-  std::string json = "{a: 1}";
-  EXPECT_THROW(parse(json), std::runtime_error);
-
-  ParseOptions opts;
-  opts.allow_unquoted_keys = true;
-  EXPECT_THROW(parse(json, {}, opts), std::runtime_error);
+  EXPECT_FALSE(lazy_ok("{a: 1}"));
 }
 
-// Trailing commas: rtsm consumes ',' as separator without context validation
-// -> trailing commas always accepted
+// Trailing commas: lazy parser accepts them
 TEST(RelaxedParsing, TrailingCommasAccepted) {
-  EXPECT_NO_THROW(parse("[1, 2, ]"));
-  EXPECT_NO_THROW(parse("{\"a\": 1, }"));
-
-  // Options not enforced; still accepted even when disabled
-  ParseOptions strict;
-  strict.allow_trailing_commas = false;
-  EXPECT_NO_THROW(parse("[1, 2, ]", {}, strict));
+  EXPECT_TRUE(lazy_ok("[1, 2, ]"));
+  EXPECT_TRUE(lazy_ok("{\"a\": 1, }"));
 }
 
-// Duplicate keys: always accepted (options not enforced)
+// Duplicate keys: lazy parser accepts them (tape preserves all entries)
 TEST(RelaxedParsing, DuplicateKeysAccepted) {
-  EXPECT_NO_THROW(parse(R"({"a": 1, "a": 2})"));
-
-  ParseOptions strict;
-  strict.allow_duplicate_keys = false;
-  EXPECT_NO_THROW(parse(R"({"a": 1, "a": 2})", {}, strict));
+  EXPECT_TRUE(lazy_ok(R"({"a": 1, "a": 2})"));
 }
 
 // Valid JSON: basic positive cases
 TEST(RelaxedParsing, ValidJsonAccepted) {
-  EXPECT_NO_THROW(parse(R"({"key": "value"})"));
-  EXPECT_NO_THROW(parse("[1, 2, 3]"));
-  EXPECT_NO_THROW(parse("null"));
-  EXPECT_NO_THROW(parse("true"));
-  EXPECT_NO_THROW(parse("false"));
-  EXPECT_NO_THROW(parse("42"));
+  EXPECT_TRUE(lazy_ok(R"({"key": "value"})"));
+  EXPECT_TRUE(lazy_ok("[1, 2, 3]"));
+  EXPECT_TRUE(lazy_ok("null"));
+  EXPECT_TRUE(lazy_ok("true"));
+  EXPECT_TRUE(lazy_ok("false"));
+  EXPECT_TRUE(lazy_ok("42"));
 }
