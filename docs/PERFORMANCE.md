@@ -2,6 +2,23 @@
 
 > All measurements taken on dedicated bare-metal hardware. CI runners are **never** used for performance measurements due to scheduler noise. Benchmark files: `twitter.json` (617 KB), `canada.json` (2.2 MB), `citm_catalog.json` (1.7 MB), `gsoc-2018.json` (3.2 MB).
 
+## Build Configuration Note
+
+All Beast JSON numbers in this document use **PGO (Profile-Guided Optimization) + LTO (Link-Time Optimization)**. This is important context when comparing against other libraries:
+
+| Flag | What it does | Effect on numbers |
+|:---|:---|:---|
+| `-O3` | Aggressive inlining, loop unrolling, vectorization | Baseline; all libraries use this |
+| `-march=native` | Enable all CPU-native ISA extensions (AVX-512, NEON, etc.) | Enables SIMD intrinsics; yyjson also compiled with this |
+| `-flto` | Link-Time Optimization — whole-program analysis across TUs | Inlines across translation-unit boundaries; enables dead-code elimination of cold paths |
+| **PGO** (parse-only) | GCC `-fprofile-generate` → training run → `-fprofile-use` | Branch-prediction hints, basic-block reordering, inlining decisions guided by actual parse workload |
+
+**Parse-only PGO is critical:** Using a mixed parse+serialize PGO profile causes LTO to interleave serialize code into parse hot paths, degrading parse performance by ~10% on citm_catalog. Beast uses a **parse-only training workload** (Phase 75A) to maximize parse throughput at the cost of slightly suboptimal serialize branch hints.
+
+**yyjson comparison:** yyjson is compiled with `-O3 -march=native` but **without PGO**. This is yyjson at its standard best-effort build — the comparison is fair in the sense that yyjson does not publish PGO-tuned numbers, and most users will not apply PGO to yyjson.
+
+For reproduction instructions including the two-step PGO build: see [How to Reproduce](#how-to-reproduce).
+
 ---
 
 ## Table of Contents
@@ -26,8 +43,9 @@
 
 **Environment:**
 - CPU: Intel (AVX-512 capable), GCC 13.3.0
-- Flags: `-O3 -flto -march=native` + parse-only PGO profile
-- Iterations: 300 per file
+- Flags: `-O3 -flto -march=native` + **parse-only PGO** (two-step: `-fprofile-generate` training run → `-fprofile-use -fprofile-correction`)
+- yyjson: `-O3 -flto -march=native`, no PGO
+- Iterations: 300 per file, dedicated bare-metal (not CI)
 - yyjson compiled with full SIMD enabled (`-march=native`)
 
 #### Parse throughput
@@ -57,7 +75,8 @@
 **Environment:**
 - CPU: Apple M1 Pro
 - OS: macOS 26.3, Apple Clang 17
-- Flags: LLVM PGO (`-fprofile-generate` → `llvm-profdata merge` → `-fprofile-instr-use`)
+- Flags: `-O3 -march=native` + **LLVM PGO** (`-fprofile-generate` → `llvm-profdata merge` → `-fprofile-instr-use`) + implicit LTO via Apple's linker
+- yyjson: `-O3 -march=native`, no PGO
 - Iterations: 500 per file
 
 #### Parse throughput
@@ -87,9 +106,10 @@
 **Environment:**
 - Device: Samsung Galaxy Z Fold 5
 - OS: Android, Termux, Clang 21.1.8
-- Flags: `-O3 -march=armv8.4-a+crypto+dotprod+fp16+i8mm+bf16` (no SVE — kernel disabled)
+- Flags: `-O3 -march=armv8.4-a+crypto+dotprod+fp16+i8mm+bf16` (no SVE — kernel disabled); **no PGO** (Android Termux profiling infrastructure unavailable at time of measurement)
+- yyjson: same flags, no PGO
 - CPU pinned to cpu6 (Cortex-A715 Gold, 2803 MHz); prime core (Cortex-X3 3360 MHz) offline at measurement time
-- Iterations: 300 per file
+- Iterations: 300 per file, dedicated device (not CI)
 
 #### Parse throughput
 

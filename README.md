@@ -1,17 +1,21 @@
 # Beast JSON
 
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![Tests](https://img.shields.io/badge/tests-368%2F368%20PASS-brightgreen.svg)](docs/GETTING_STARTED.md#running-tests)
+
 **The fastest C++20 JSON library you can drop into any project — single header, zero dependencies.**
 
 Beast JSON is a high-performance, header-only C++ JSON parser and serializer built on a tape-based lazy DOM. It beats [yyjson](https://github.com/ibireme/yyjson) — currently the world's fastest JSON library — on parse throughput across all standard benchmark files on Linux x86_64 and Android AArch64, while offering a developer experience on par with [nlohmann/json](https://github.com/nlohmann/json).
-
-> **An AI-Only Generated Library** — every line of code, every optimization, and every benchmark in this repository was designed and written by AI (Claude/Gemini). An ongoing experiment in what AI can achieve in low-level, high-performance C++ systems programming.
 
 ---
 
 ## Performance at a Glance
 
-> Linux x86_64, GCC 13.3, `-O3 -flto -march=native` + parse-only PGO, vs yyjson with full SIMD.
-> Full benchmark tables for all 3 platforms: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**
+> **Build:** GCC 13.3, `-O3 -march=native -flto` + **parse-only PGO** (Profile-Guided Optimization with a parse-only training workload; LTO code layout tuned for parse hot paths).
+> **Comparison:** yyjson built with full SIMD (`-march=native`), no PGO. Both libraries at their best.
+> **Method:** 300 iterations per file, per-run average on dedicated bare-metal. Not measured on CI.
+> Full tables for all 3 platforms: **[docs/PERFORMANCE.md](docs/PERFORMANCE.md)**
 
 | File | Beast parse | yyjson parse | Ratio | Beast serialize | yyjson serialize |
 |:---|---:|---:|:---:|---:|---:|
@@ -310,6 +314,32 @@ Merge · MergePatch · StructBinding · IsValid · AutoSerial · MacroFields
 RFC8259_Accept(16) · RFC8259_Reject(29) · RFC8259_ImplDefined · RFC8259_Roundtrip · RFC8259_API
 + Unicode · StrictNumber · ControlChar · Comments · TrailingCommas · DuplicateKeys · ErrorHandling · Serializer · Utf8Validation
 ```
+
+---
+
+## Built Entirely by AI
+
+Every line of code, every optimization phase, every benchmark, and every document in this repository was designed and written by AI — specifically [Claude](https://claude.ai) (Anthropic) and [Gemini](https://gemini.google.com) (Google). No human wrote any C++ source code.
+
+This is an ongoing research experiment: **can AI autonomously produce a world-class, low-level systems library?** The answer, measured against the fastest JSON parsers in existence, appears to be yes.
+
+The optimization journal spans 80+ phases of iterative improvement — micro-benchmarking, regression analysis, SIMD intrinsic tuning, PGO profile splitting, LTO layout debugging — all performed and documented by AI. The failure database ([docs/OPTIMIZATION_FAILURES.md](docs/OPTIMIZATION_FAILURES.md)) records every approach that regressed performance and why, accumulated entirely through AI-driven experimentation.
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) for full text.
+
+```
+Copyright 2026 Beast JSON Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+```
+
+Apache 2.0 was chosen over MIT for its **explicit patent grant** — users receive a license to any patents covering Beast JSON's algorithms (tape-based parsing, SWAR scanning, pre-flagged separators, KeyLenCache), protecting commercial users from patent claims.
 
 ---
 
