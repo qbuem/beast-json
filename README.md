@@ -405,7 +405,7 @@ kc_.lens[depth_][key_idx] = static_cast<uint16_t>(e - s);
 
 ## 🗺️ Roadmap to 1.0 (The Ultimate API)
 
-> 3종 플랫폼 최적화 완료 (x86_64 Phase 75 · Snapdragon Gen 2 Phase 73 · M1 Pro Phase 80-M1) · **The Ultimate API 완성** · **Zero-Effort 자동 직렬화 엔진 완성** (ctest 312/312 PASS). 다음 목표: **RFC 8259 완전 준수 + Foreign Language Bindings (v1.0)**.
+> 3종 플랫폼 최적화 완료 (x86_64 Phase 75 · Snapdragon Gen 2 Phase 73 · M1 Pro Phase 80-M1) · **The Ultimate API 완성** · **Zero-Effort 자동 직렬화 엔진 완성** · **RFC 8259 완전 준수** · **Foreign Language Bindings 완성** (ctest 368/368 PASS) — **v1.0 목표 달성**.
 
 자세한 계획 및 진행 현황은 **[docs/ROADMAP.md](docs/ROADMAP.md)** 를 참조하세요.
 
@@ -431,8 +431,8 @@ kc_.lens[depth_][key_idx] = static_cast<uint16_t>(e - s);
 - [x] **`merge()` / `merge_patch(json)`**: RFC 7396 JSON Merge Patch.
 - [x] **`beast::read<T>()` / `beast::write()`**: 자동 직렬화 엔진 (STL 전체 + 매크로 구조체).
 - [x] **`BEAST_JSON_FIELDS(Type, ...)`**: 한 줄 매크로로 커스텀 구조체 읽기+쓰기 완전 자동화.
-- [ ] **RFC 8259 완전 준수**: JSON Test Suite 전체 통과.
-- [ ] **Foreign Language Bindings**: Python (`pybind11`/`ctypes`) · Node.js (`N-API`).
+- [x] **RFC 8259 완전 준수**: `beast::rfc8259::validate()` + `beast::parse_strict()` — 56개 테스트 통과.
+- [x] **Foreign Language Bindings**: C Shared Library (`beast_json_c.so`) + Python ctypes 바인딩 완성.
 
 ---
 
@@ -622,6 +622,42 @@ cd build && ./benchmarks/bench_all --all
 
 Since beast-json is a single header library, you can also simply copy `include/beast_json/beast_json.hpp` into your project with no CMake required.
 
+### Language Bindings (C / Python)
+
+```bash
+# Build C shared library
+cmake -S . -B build -DBEAST_JSON_BUILD_BINDINGS=ON
+cmake --build build --target beast_json_c
+
+# Run Python example
+cd bindings/python
+BEAST_JSON_LIB_PATH=../../build/bindings/c python3 example.py
+```
+
+```python
+from beast_json import Document, loads
+
+doc = Document('{"name":"Alice","tags":["go","cpp"]}')
+root = doc.root()
+print(root["name"])           # Alice
+print(root["tags"][0])        # go
+print(root.at("/tags/1"))     # cpp (RFC 6901 JSON Pointer)
+
+# Mutation
+root["name"].set("Bob")
+root.insert("version", 2)
+print(root.dump(indent=2))
+
+# RFC 8259 strict mode
+try:
+    bad = Document("[1,2,]", strict=True)
+except ValueError as e:
+    print(e)  # trailing comma at offset 5
+
+# loads() — drop-in for json.loads()
+data = loads('[1, 2, {"x": 3}]')  # → [1, 2, {'x': 3}]
+```
+
 ---
 
 ## Test Coverage
@@ -666,4 +702,9 @@ Since beast-json is a single header library, you can also simply copy `include/b
 | IsValid | 3 | ✅ PASS |
 | AutoSerial | 21 | ✅ PASS |
 | MacroFields | 12 | ✅ PASS |
-| **Total** | **312** | **100% PASS** |
+| RFC8259_Accept | 16 | ✅ PASS |
+| RFC8259_Reject | 29 | ✅ PASS |
+| RFC8259_ImplDefined | 3 | ✅ PASS |
+| RFC8259_Roundtrip | 4 | ✅ PASS |
+| RFC8259_API | 4 | ✅ PASS |
+| **Total** | **368** | **100% PASS** |

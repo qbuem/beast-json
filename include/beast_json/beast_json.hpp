@@ -4902,6 +4902,217 @@ inline Value parse(Document &doc, std::string_view json) {
 using SafeValue = beast::json::lazy::SafeValue;
 
 // ============================================================================
+// beast::rfc8259 — RFC 8259 strict validator
+// ============================================================================
+//
+// Validates a JSON string against RFC 8259 (the JSON specification).
+// Throws std::runtime_error with a descriptive message on any violation.
+//
+// Differences from the default lenient parser:
+//   • Rejects trailing commas:   [1,2,]  {\"a\":1,}
+//   • Rejects leading zeros:     01  007  -01
+//   • Rejects trailing decimal:  1.
+//   • Rejects empty exponent:    1e  1e+  1E-
+//   • Rejects unescaped control chars in strings (U+0000..U+001F)
+//   • Rejects invalid escape sequences: \x  \a  \z  etc.
+//   • Rejects trailing non-whitespace content after the value
+//   • Accepts any JSON value at top level (RFC 8259 §2)
+//
+// Usage:
+//   beast::Document doc;
+//   beast::Value root = beast::parse_strict(doc, json);  // throws on violation
+//
+//   // Or just validate without parsing:
+//   beast::rfc8259::validate(json);  // throws std::runtime_error on violation
+// ============================================================================
+
+namespace rfc8259 {
+
+namespace detail_ {
+
+[[noreturn]] inline void fail(const char* msg, const char* pos, const char* begin) {
+  char buf[128];
+  std::snprintf(buf, sizeof(buf), "RFC 8259 violation at offset %zu: %s",
+                static_cast<size_t>(pos - begin), msg);
+  throw std::runtime_error(buf);
+}
+
+struct Validator {
+  const char* p;
+  const char* end;
+  const char* begin;
+
+  void ws() noexcept {
+    while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
+      ++p;
+  }
+
+  void expect_literal(const char* lit, size_t len) {
+    if (static_cast<size_t>(end - p) < len || std::memcmp(p, lit, len) != 0)
+      fail("invalid literal", p, begin);
+    p += len;
+  }
+
+  void parse_string() {
+    ++p;  // skip '"'
+    while (p < end) {
+      unsigned char c = static_cast<unsigned char>(*p++);
+      if (c == '"') return;  // end of string
+      if (c == '\\') {
+        if (p >= end) fail("unterminated escape sequence", p - 1, begin);
+        unsigned char esc = static_cast<unsigned char>(*p++);
+        if (esc == 'u') {
+          if (p + 4 > end) fail("incomplete \\uXXXX escape", p - 2, begin);
+          for (int i = 0; i < 4; ++i) {
+            unsigned char h = static_cast<unsigned char>(*p++);
+            bool hex = (h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') ||
+                       (h >= 'A' && h <= 'F');
+            if (!hex) fail("invalid hex digit in \\uXXXX", p - 1, begin);
+          }
+        } else if (esc != '"' && esc != '\\' && esc != '/' && esc != 'b' &&
+                   esc != 'f' && esc != 'n' && esc != 'r' && esc != 't') {
+          fail("invalid escape character", p - 1, begin);
+        }
+      } else if (c < 0x20) {
+        fail("unescaped control character in string", p - 1, begin);
+      }
+    }
+    fail("unterminated string", p, begin);
+  }
+
+  void parse_number() {
+    // Optional minus
+    if (*p == '-') ++p;
+    if (p >= end) fail("unexpected end in number", p, begin);
+
+    // Integer part
+    if (*p == '0') {
+      ++p;
+      // Leading zero: reject if followed by another digit
+      if (p < end && static_cast<unsigned char>(*p) >= '0' &&
+          static_cast<unsigned char>(*p) <= '9')
+        fail("leading zero in number", p - 1, begin);
+    } else if (static_cast<unsigned char>(*p) >= '1' &&
+               static_cast<unsigned char>(*p) <= '9') {
+      while (p < end && static_cast<unsigned char>(*p) >= '0' &&
+             static_cast<unsigned char>(*p) <= '9')
+        ++p;
+    } else {
+      fail("invalid number", p, begin);
+    }
+
+    // Optional fractional part
+    if (p < end && *p == '.') {
+      ++p;
+      if (p >= end || static_cast<unsigned char>(*p) < '0' ||
+          static_cast<unsigned char>(*p) > '9')
+        fail("trailing decimal point or missing digits after '.'", p - 1, begin);
+      while (p < end && static_cast<unsigned char>(*p) >= '0' &&
+             static_cast<unsigned char>(*p) <= '9')
+        ++p;
+    }
+
+    // Optional exponent
+    if (p < end && (*p == 'e' || *p == 'E')) {
+      ++p;
+      if (p < end && (*p == '+' || *p == '-')) ++p;
+      if (p >= end || static_cast<unsigned char>(*p) < '0' ||
+          static_cast<unsigned char>(*p) > '9')
+        fail("missing digits in exponent", p - 1, begin);
+      while (p < end && static_cast<unsigned char>(*p) >= '0' &&
+             static_cast<unsigned char>(*p) <= '9')
+        ++p;
+    }
+  }
+
+  void parse_array() {
+    ++p;  // skip '['
+    ws();
+    if (p < end && *p == ']') { ++p; return; }  // empty array
+    parse_value();
+    ws();
+    while (p < end && *p == ',') {
+      ++p;  // skip ','
+      ws();
+      if (p < end && *p == ']') fail("trailing comma in array", p - 1, begin);
+      parse_value();
+      ws();
+    }
+    if (p >= end || *p != ']') fail("expected ']'", p, begin);
+    ++p;
+  }
+
+  void parse_object() {
+    ++p;  // skip '{'
+    ws();
+    if (p < end && *p == '}') { ++p; return; }  // empty object
+    if (p >= end || *p != '"') fail("expected string key", p, begin);
+    parse_string();
+    ws();
+    if (p >= end || *p != ':') fail("expected ':' after key", p, begin);
+    ++p;
+    parse_value();
+    ws();
+    while (p < end && *p == ',') {
+      ++p;  // skip ','
+      ws();
+      if (p < end && *p == '}') fail("trailing comma in object", p - 1, begin);
+      if (p >= end || *p != '"') fail("expected string key", p, begin);
+      parse_string();
+      ws();
+      if (p >= end || *p != ':') fail("expected ':' after key", p, begin);
+      ++p;
+      parse_value();
+      ws();
+    }
+    if (p >= end || *p != '}') fail("expected '}'", p, begin);
+    ++p;
+  }
+
+  void parse_value() {
+    ws();
+    if (p >= end) fail("unexpected end of input", p, begin);
+    char c = *p;
+    if      (c == '"')                  parse_string();
+    else if (c == '{')                  parse_object();
+    else if (c == '[')                  parse_array();
+    else if (c == 't')                  expect_literal("true",  4);
+    else if (c == 'f')                  expect_literal("false", 5);
+    else if (c == 'n')                  expect_literal("null",  4);
+    else if (c == '-' || (c >= '0' && c <= '9')) parse_number();
+    else fail("unexpected character", p, begin);
+  }
+
+  void run(std::string_view json) {
+    p     = json.data();
+    end   = json.data() + json.size();
+    begin = p;
+    parse_value();
+    ws();
+    if (p != end) fail("trailing content after JSON value", p, begin);
+  }
+};
+
+}  // namespace detail_
+
+/// Validate \p json against RFC 8259.
+/// Throws std::runtime_error with offset information on the first violation.
+inline void validate(std::string_view json) {
+  detail_::Validator{}.run(json);
+}
+
+}  // namespace rfc8259
+
+/// Parse \p json into \p doc with strict RFC 8259 compliance.
+/// Rejects: trailing commas, leading zeros, invalid escapes,
+///          unescaped control characters, trailing content, etc.
+/// Throws std::runtime_error describing the violation and its byte offset.
+inline Value parse_strict(Document &doc, std::string_view json) {
+  rfc8259::validate(json);
+  return beast::json::lazy::parse_reuse(doc, json);
+}
+
+// ============================================================================
 // beast::detail — Automatic Serialization / Deserialization Engine
 // ============================================================================
 //
