@@ -394,13 +394,14 @@ kc_.lens[depth_][key_idx] = static_cast<uint16_t>(e - s);
 ---
 
 ## 📚 Documentation
-- [**Roadmap to v1.0**](docs/ROADMAP.md)
+- [**Getting Started Guide**](docs/GETTING_STARTED.md) — Installation, first parse, common patterns, pitfalls
+- [**API Reference**](docs/API_REFERENCE.md) — Complete `Value`, `Document`, `SafeValue`, C API, Python API
+- [**Architecture & Internals**](docs/ARCHITECTURE.md) — TapeNode, Stage 1/2 AVX-512, SWAR, KeyLenCache, LUT state machine
+- [**Performance Guide**](docs/PERFORMANCE.md) — Benchmark results, profiling, PGO setup, optimization knobs
+- [**Roadmap to v1.0**](docs/ROADMAP.md) — Platform milestones and phase history
 - [**Security & Memory-Safety Report**](SECURITY.md) — 5 ASan/UBSan/libFuzzer bugs fixed
-- [API Readiness & The Ultimate API Blueprint](docs/API_READINESS_REPORT.md)
-- [1.0 Release GitHub Page TODO](docs/GITHUB_PAGE_TODO.md)
 - [Optimization Failures & History](docs/OPTIMIZATION_FAILURES.md)
 - [Optimization TODO / Phase History](docs/TODO.md)
-- [Extreme Optimization Plan (Phases 1-60)](docs/OPTIMIZATION_PLAN.md)
 
 ---
 
