@@ -932,7 +932,7 @@ public:
             throw std::runtime_error("beast::Value::as<float>: not a number");
           double val = 0.0;
           const char *beg = m.data.data();
-          const char *end = beg + m.data.size();
+          [[maybe_unused]] const char *end = beg + m.data.size();
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
           std::from_chars(beg, end, val);
 #else
@@ -986,7 +986,7 @@ public:
       const TapeNode &nd = doc_->tape[idx_];
       double val = 0.0;
       const char *beg = doc_->source.data() + nd.offset;
-      const char *end = beg + nd.length();
+      [[maybe_unused]] const char *end = beg + nd.length();
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
       auto [ptr, ec] = std::from_chars(beg, end, val);
       if (ec != std::errc{})
@@ -1069,6 +1069,7 @@ public:
     if (BEAST_UNLIKELY(idx_ != 0))
       return dump_subtree_();
     const char *src = doc_->source.data();
+    [[maybe_unused]] const size_t src_sz = doc_->source.size();
     const size_t ntape = doc_->tape.size();
 
     // Phase E: separators pre-computed by parser into meta bits 23-16.
@@ -1353,6 +1354,7 @@ public:
       return;
     }
     const char *src = doc_->source.data();
+    [[maybe_unused]] const size_t src_sz = doc_->source.size();
     const size_t ntape = doc_->tape.size();
     size_t mutation_extra2 = 0;
     for (const auto &[k, m] : doc_->mutations_)
