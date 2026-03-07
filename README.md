@@ -143,9 +143,9 @@ target_link_libraries(my_app PRIVATE beast_json)
 ```
 
 Requires a C++20 compliant compiler:
-* **GCC** 12+
-* **Clang** 15+
-* **Apple Clang** 16+
+* **GCC** 11+
+* **Clang** 14+
+* **Apple Clang** 14+
 
 ---
 
