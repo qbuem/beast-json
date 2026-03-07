@@ -241,6 +241,7 @@ int main(int argc, char **argv) {
   int file_arg = -1;
   bool run_all = false;
   bool parse_only = false;
+  bool quick_mode = false;
   std::string lib_filter = "";
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--iter") == 0 && i + 1 < argc) {
@@ -251,6 +252,8 @@ int main(int argc, char **argv) {
       run_all = true;
     } else if (std::strcmp(argv[i], "--parse-only") == 0) {
       parse_only = true;
+    } else if (std::strcmp(argv[i], "--quick") == 0) {
+      quick_mode = true;
     } else {
       file_arg = i;
     }
@@ -278,12 +281,16 @@ int main(int argc, char **argv) {
     const std::vector<std::string> files = {"twitter.json", "canada.json",
                                             "citm_catalog.json",
                                             "gsoc-2018.json", "harsh.json"};
+    size_t scale = quick_mode ? 20 : 1;
     for (const auto &f : files)
-      run_file(argv[0], lib_filter, f, N, parse_only);
+      run_file(argv[0], lib_filter, f, std::max<size_t>(1, N / scale),
+               parse_only);
   } else {
+    size_t scale = quick_mode ? 20 : 1;
     const std::string filename =
         (file_arg >= 0) ? argv[file_arg] : "twitter.json";
-    run_file(argv[0], lib_filter, filename, N, parse_only);
+    run_file(argv[0], lib_filter, filename, std::max<size_t>(1, N / scale),
+             parse_only);
   }
   return 0;
 }

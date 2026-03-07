@@ -141,7 +141,7 @@ jobs:
           cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
           if [ "${{ matrix.build_type }}" = "Release" ] && [ "${{ matrix.compiler }}" = "clang" ]; then
             cd benchmarks
-            ./bench_all --all > benchmark_${{ matrix.os }}_aarch64.txt || true
+            ./bench_all --all --quick > benchmark_${{ matrix.os }}_aarch64.txt || true
           fi
 
     - name: Post QEMU Benchmark Results to Job Summary
