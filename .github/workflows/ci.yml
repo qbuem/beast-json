@@ -78,6 +78,20 @@ jobs:
       run: |
         ./bench_all --all > benchmark_${{ matrix.os }}_${{ matrix.arch }}.txt || echo "Benchmark failed or missing"
 
+    - name: Post Benchmark Results to Job Summary (Native)
+      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64') && ((runner.os == 'Linux' && matrix.compiler == 'clang') || (runner.os == 'macOS' && matrix.compiler == 'apple-clang'))
+      run: |
+        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_${{ matrix.arch }}.txt"
+        if [ -f "$BENCH_FILE" ]; then
+          {
+            echo "## Benchmark Results"
+            echo "**Platform:** \`${{ matrix.os }}\` / \`${{ matrix.arch }}\` / \`${{ matrix.compiler }}\` / \`${{ matrix.build_type }}\`"
+            echo '```'
+            cat "$BENCH_FILE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Upload Benchmark Artifacts
       if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64') && ((runner.os == 'Linux' && matrix.compiler == 'clang') || (runner.os == 'macOS' && matrix.compiler == 'apple-clang'))
       uses: actions/upload-artifact@v4
@@ -128,6 +142,20 @@ jobs:
             cd benchmarks
             ./bench_all --all > benchmark_${{ matrix.os }}_aarch64.txt || true
           fi
+
+    - name: Post QEMU Benchmark Results to Job Summary
+      if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release' && matrix.compiler == 'clang'
+      run: |
+        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_aarch64.txt"
+        if [ -f "$BENCH_FILE" ]; then
+          {
+            echo "## Benchmark Results"
+            echo "**Platform:** \`${{ matrix.os }}\` / \`aarch64 (QEMU)\` / \`${{ matrix.compiler }}\` / \`${{ matrix.build_type }}\`"
+            echo '```'
+            cat "$BENCH_FILE"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     - name: Upload QEMU Benchmark Artifacts
       if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release' && matrix.compiler == 'clang'
