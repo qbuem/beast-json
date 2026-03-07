@@ -87,6 +87,19 @@ jobs:
 
     # ── AARCH64 (ARM Linux) QEMU Emulation ────────────────────────────────────
 
+    # Pre-fetch FetchContent dependencies on the host (has internet access).
+    # The QEMU container cannot reliably reach github.com, so we download
+    # googletest here and pass FETCHCONTENT_SOURCE_DIR_GOOGLETEST to cmake.
+    - name: Pre-fetch dependencies for QEMU
+      if: runner.os == 'Linux' && matrix.arch == 'aarch64'
+      run: |
+        mkdir -p "${{ github.workspace }}/.cmake-deps/googletest-src"
+        curl -L -o /tmp/gtest.zip \
+          https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+        unzip -q /tmp/gtest.zip -d /tmp/gtest-extracted
+        cp -r /tmp/gtest-extracted/googletest-1.14.0/. \
+          "${{ github.workspace }}/.cmake-deps/googletest-src/"
+
     - name: Run aarch64 Build & Test (QEMU)
       if: runner.os == 'Linux' && matrix.arch == 'aarch64'
       uses: uraimo/run-on-arch-action@v2
@@ -105,7 +118,10 @@ jobs:
             export CC=clang-15
             export CXX=clang++-15
           fi
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBEAST_JSON_BUILD_TESTS=ON
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DBEAST_JSON_BUILD_TESTS=ON \
+            -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=${{ github.workspace }}/.cmake-deps/googletest-src
           cmake --build build --config ${{ matrix.build_type }} -j2
           cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
           if [ "${{ matrix.build_type }}" = "Release" ] && [ "${{ matrix.compiler }}" = "clang" ]; then
