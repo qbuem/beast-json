@@ -73,15 +73,15 @@ jobs:
       run: ctest -C ${{ matrix.build_type }} --output-on-failure
 
     - name: Run & Export Benchmarks (Native)
-      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64') && ((runner.os == 'Linux' && matrix.compiler == 'clang') || (runner.os == 'macOS' && matrix.compiler == 'apple-clang'))
+      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64')
       working-directory: build/benchmarks
       run: |
-        ./bench_all --all > benchmark_${{ matrix.os }}_${{ matrix.arch }}.txt || echo "Benchmark failed or missing"
+        ./bench_all --all > benchmark_${{ matrix.os }}_${{ matrix.arch }}_${{ matrix.compiler }}.txt || echo "Benchmark failed or missing"
 
     - name: Post Benchmark Results to Job Summary (Native)
-      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64') && ((runner.os == 'Linux' && matrix.compiler == 'clang') || (runner.os == 'macOS' && matrix.compiler == 'apple-clang'))
+      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64')
       run: |
-        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_${{ matrix.arch }}.txt"
+        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_${{ matrix.arch }}_${{ matrix.compiler }}.txt"
         if [ -f "$BENCH_FILE" ]; then
           {
             echo "## Benchmark Results"
@@ -93,11 +93,11 @@ jobs:
         fi
 
     - name: Upload Benchmark Artifacts
-      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64') && ((runner.os == 'Linux' && matrix.compiler == 'clang') || (runner.os == 'macOS' && matrix.compiler == 'apple-clang'))
+      if: matrix.build_type == 'Release' && (runner.os != 'Linux' || matrix.arch == 'x86_64')
       uses: actions/upload-artifact@v4
       with:
-        name: benchmark-${{ matrix.os }}-${{ matrix.arch }}
-        path: build/benchmarks/benchmark_${{ matrix.os }}_${{ matrix.arch }}.txt
+        name: benchmark-${{ matrix.os }}-${{ matrix.arch }}-${{ matrix.compiler }}
+        path: build/benchmarks/benchmark_${{ matrix.os }}_${{ matrix.arch }}_${{ matrix.compiler }}.txt
 
     # ── AARCH64 (ARM Linux) QEMU Emulation ────────────────────────────────────
 
@@ -139,15 +139,15 @@ jobs:
             -DFETCHCONTENT_SOURCE_DIR_GOOGLETEST=${{ github.workspace }}/.cmake-deps/googletest-src
           cmake --build build --config ${{ matrix.build_type }} -j1
           cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
-          if [ "${{ matrix.build_type }}" = "Release" ] && [ "${{ matrix.compiler }}" = "clang" ]; then
+          if [ "${{ matrix.build_type }}" = "Release" ]; then
             cd benchmarks
-            ./bench_all --all --quick > benchmark_${{ matrix.os }}_aarch64.txt || true
+            ./bench_all --all --quick > benchmark_${{ matrix.os }}_aarch64_${{ matrix.compiler }}.txt || true
           fi
 
     - name: Post QEMU Benchmark Results to Job Summary
-      if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release' && matrix.compiler == 'clang'
+      if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release'
       run: |
-        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_aarch64.txt"
+        BENCH_FILE="build/benchmarks/benchmark_${{ matrix.os }}_aarch64_${{ matrix.compiler }}.txt"
         if [ -f "$BENCH_FILE" ]; then
           {
             echo "## Benchmark Results"
@@ -159,8 +159,8 @@ jobs:
         fi
 
     - name: Upload QEMU Benchmark Artifacts
-      if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release' && matrix.compiler == 'clang'
+      if: runner.os == 'Linux' && matrix.arch == 'aarch64' && matrix.build_type == 'Release'
       uses: actions/upload-artifact@v4
       with:
-        name: benchmark-${{ matrix.os }}-aarch64-qemu
-        path: build/benchmarks/benchmark_${{ matrix.os }}_aarch64.txt
+        name: benchmark-${{ matrix.os }}-aarch64-qemu-${{ matrix.compiler }}
+        path: build/benchmarks/benchmark_${{ matrix.os }}_aarch64_${{ matrix.compiler }}.txt
