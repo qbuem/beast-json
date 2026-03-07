@@ -106,7 +106,7 @@ jobs:
             export CXX=clang++-15
           fi
           cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DBEAST_JSON_BUILD_TESTS=ON
-          cmake --build build --config ${{ matrix.build_type }} -j4
+          cmake --build build --config ${{ matrix.build_type }} -j2
           cd build && ctest -C ${{ matrix.build_type }} --output-on-failure
           if [ "${{ matrix.build_type }}" = "Release" ] && [ "${{ matrix.compiler }}" = "clang" ]; then
             cd benchmarks
