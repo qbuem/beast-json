@@ -42,9 +42,9 @@ struct Company {
 };
 
 // beast_json reflection (C++17)
-BEAST_DEFINE_JSON(Address, street, city, country, zip_code);
-BEAST_DEFINE_JSON(Person, name, age, email);
-BEAST_DEFINE_JSON(Company, name, employees, departments, headquarters);
+BEAST_JSON_FIELDS(Address, street, city, country, zip_code)
+BEAST_JSON_FIELDS(Person, name, age, email)
+BEAST_JSON_FIELDS(Company, name, employees, departments, headquarters)
 
 // Glaze reflection (C++23)
 template <> struct glz::meta<Address> {
@@ -107,13 +107,13 @@ int main() {
 
     serialize_timer.start();
     for (int i = 0; i < iterations; ++i) {
-      json_str = beast::json::json_of(original);
+      json_str = beast::write(original);
     }
     double serialize_ns = serialize_timer.elapsed_ns() / iterations;
 
     deserialize_timer.start();
     for (int i = 0; i < iterations; ++i) {
-      beast::json::parse_into(result, json_str);
+      result = beast::read<Company>(json_str);
     }
     double deserialize_ns = deserialize_timer.elapsed_ns() / iterations;
 

@@ -166,6 +166,22 @@ target_compile_features(bench_all PRIVATE cxx_std_20)
 target_compile_features(bench_quick PRIVATE cxx_std_20)
 target_compile_features(bench_ser_profile PRIVATE cxx_std_20)
 
+# Glaze Benchmark
+add_executable(bench_glaze bench_glaze.cpp)
+target_link_libraries(bench_glaze PRIVATE
+    beast_json::beast_json
+    glaze::glaze
+)
+target_compile_features(bench_glaze PRIVATE cxx_std_23)
+
+# Deep Nesting Benchmark
+add_executable(bench_deep_nesting bench_deep_nesting.cpp)
+target_link_libraries(bench_deep_nesting PRIVATE
+    beast_json::beast_json
+    glaze::glaze
+)
+target_compile_features(bench_deep_nesting PRIVATE cxx_std_23)
+
 # ── Architecture-specific flags ───────────────────────────────────────────────
 # The AArch64 space is NOT monolithic. Three distinct sub-targets require
 # different flag strategies:
@@ -195,7 +211,7 @@ target_compile_features(bench_ser_profile PRIVATE cxx_std_20)
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|amd64|AMD64")
     # (A) x86_64: native ISA; LTO and auto-vectorization intact.
-    foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile)
+    foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile bench_glaze bench_deep_nesting)
         if(TARGET ${_tgt})
             target_compile_options(${_tgt} PRIVATE -march=native)
         endif()
@@ -205,7 +221,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
         # (B) Apple Silicon — no SVE, safe to use -march=native + auto-vectorize.
         # This unlocks DOTPROD (UDOT/SDOT), SHA3/EOR3 (M2+), and correct
         # BEAST_PREFETCH_DISTANCE (512B) via BEAST_ARCH_APPLE_SILICON macro.
-        foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile)
+        foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile bench_glaze bench_deep_nesting)
             if(TARGET ${_tgt})
                 target_compile_options(${_tgt} PRIVATE -march=native)
             endif()
@@ -217,7 +233,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64|ARM64")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         # (C) Non-Apple AArch64 + Clang: SVE SIGILL safety guards.
         # Clang generates SVE at LTO link time even when source only uses NEON.
-        foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile)
+        foreach(_tgt bench_all bench_file_io bench_lazy_dom bench_quick bench_ser_profile bench_glaze bench_deep_nesting)
             if(TARGET ${_tgt})
                 target_compile_options(${_tgt} PRIVATE
                     -fno-lto -fno-vectorize -fno-slp-vectorize)

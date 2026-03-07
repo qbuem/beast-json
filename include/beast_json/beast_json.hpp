@@ -33,7 +33,6 @@
 
 #include <algorithm>
 #include <array>
-#include <ranges>
 #include <atomic>
 #include <bit>
 #include <bitset>
@@ -46,28 +45,22 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include <functional>
-#include <future>
-#include <initializer_list>
-#include <iomanip> // for std::setw
-#include <iostream>
-#include <limits>
 #include <list>
 #include <map>
-#include <unordered_map>
 #include <memory>
 #include <memory_resource>
 #include <mutex>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <sstream>
-#include <unordered_set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -132,18 +125,19 @@
 #define BEAST_HAS_NEON 1
 #include <arm_neon.h>
 #endif
-// ARM ISA extension detection — all require -march=native or explicit target flags
-// DOTPROD: UDOT/SDOT 4×uint8 multiply-accumulate.
+// ARM ISA extension detection — all require -march=native or explicit target
+// flags DOTPROD: UDOT/SDOT 4×uint8 multiply-accumulate.
 //   Available on: Apple M1/M2/M3, Cortex-A76+, Cortex-X1+, Neoverse V1/N2.
 //   Enables branchless 4-byte character classification in a single instruction.
 #if defined(__ARM_FEATURE_DOTPROD)
 #define BEAST_HAS_DOTPROD 1
 #endif
 // SVE: ARM Scalable Vector Extension (variable-width SIMD: 128–2048 bits).
-//   Available on: AWS Graviton 3 (Neoverse V1, 256-bit), Neoverse V2, Cortex-X4.
-//   NOT available on Apple Silicon (AMX is Apple's proprietary equivalent).
-//   NOT exposed on Android kernels < 5.16 even when hardware supports it.
-//   Use only with explicit -march=armv8.4-a+sve guard or runtime detection.
+//   Available on: AWS Graviton 3 (Neoverse V1, 256-bit), Neoverse V2,
+//   Cortex-X4. NOT available on Apple Silicon (AMX is Apple's proprietary
+//   equivalent). NOT exposed on Android kernels < 5.16 even when hardware
+//   supports it. Use only with explicit -march=armv8.4-a+sve guard or runtime
+//   detection.
 #if defined(__ARM_FEATURE_SVE)
 #define BEAST_HAS_SVE 1
 #include <arm_sve.h>
@@ -203,21 +197,21 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 //    3 = L1 hint (data used immediately) ← for x86 tight loops
 
 #if defined(BEAST_ARCH_APPLE_SILICON)
-#define BEAST_CACHE_LINE_SIZE    128
-#define BEAST_PREFETCH_DISTANCE  512   // 4 × 128B M1 cache lines
-#define BEAST_PREFETCH_LOCALITY  1     // L2 hint; parse consumes sequentially
+#define BEAST_CACHE_LINE_SIZE 128
+#define BEAST_PREFETCH_DISTANCE 512 // 4 × 128B M1 cache lines
+#define BEAST_PREFETCH_LOCALITY 1   // L2 hint; parse consumes sequentially
 #elif defined(BEAST_ARCH_ARM64)
-#define BEAST_CACHE_LINE_SIZE    64
-#define BEAST_PREFETCH_DISTANCE  256   // 4 × 64B; Phase 58-A A/B winner
-#define BEAST_PREFETCH_LOCALITY  1     // L2 hint (NTA hurt: Phase 58-A)
+#define BEAST_CACHE_LINE_SIZE 64
+#define BEAST_PREFETCH_DISTANCE 256 // 4 × 64B; Phase 58-A A/B winner
+#define BEAST_PREFETCH_LOCALITY 1   // L2 hint (NTA hurt: Phase 58-A)
 #elif defined(BEAST_ARCH_X86_64)
-#define BEAST_CACHE_LINE_SIZE    64
-#define BEAST_PREFETCH_DISTANCE  192   // Phase 48 measured optimum
-#define BEAST_PREFETCH_LOCALITY  1     // L2 hint
+#define BEAST_CACHE_LINE_SIZE 64
+#define BEAST_PREFETCH_DISTANCE 192 // Phase 48 measured optimum
+#define BEAST_PREFETCH_LOCALITY 1   // L2 hint
 #else
-#define BEAST_CACHE_LINE_SIZE    64
-#define BEAST_PREFETCH_DISTANCE  128
-#define BEAST_PREFETCH_LOCALITY  1
+#define BEAST_CACHE_LINE_SIZE 64
+#define BEAST_PREFETCH_DISTANCE 128
+#define BEAST_PREFETCH_LOCALITY 1
 #endif
 
 // ============================================================================
@@ -225,14 +219,15 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 // ============================================================================
 
 #ifdef __GNUC__
-#define BEAST_INLINE   __attribute__((always_inline)) inline
+#define BEAST_INLINE __attribute__((always_inline)) inline
 #define BEAST_NOINLINE __attribute__((noinline))
 // Read-ahead prefetch with architecture-tuned locality hint.
-// Always use this macro in the parse hot loop — never hardcode distance/locality.
-#define BEAST_PREFETCH(addr) \
-    __builtin_prefetch((addr), 0, BEAST_PREFETCH_LOCALITY)
+// Always use this macro in the parse hot loop — never hardcode
+// distance/locality.
+#define BEAST_PREFETCH(addr)                                                   \
+  __builtin_prefetch((addr), 0, BEAST_PREFETCH_LOCALITY)
 #else
-#define BEAST_INLINE   inline
+#define BEAST_INLINE inline
 #define BEAST_NOINLINE
 #define BEAST_PREFETCH(addr) ((void)0)
 #endif
@@ -250,7 +245,6 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 #include <bit>
 #define BEAST_CLZ(x) std::countl_zero(static_cast<unsigned long long>(x))
 #define BEAST_CTZ(x) std::countr_zero(static_cast<unsigned long long>(x))
-
 
 namespace beast {
 namespace json {
@@ -270,7 +264,6 @@ BEAST_INLINE uint64_t prefix_xor(uint64_t x) noexcept {
 } // namespace simd
 } // namespace json
 } // namespace beast
-
 
 namespace beast {
 namespace json {
@@ -409,11 +402,19 @@ struct Stage1Index {
 // value that has been set() since parse.  Keyed by tape index.
 struct MutationEntry {
   TapeNodeType type;
-  std::string  data; // string content (no quotes) for StringRaw;
-                     // decimal text for Integer/Double;
-                     // empty for Null/BooleanTrue/BooleanFalse
+  std::string data; // string content (no quotes) for StringRaw;
+                    // decimal text for Integer/Double;
+                    // empty for Null/BooleanTrue/BooleanFalse
 };
 
+// ─────────────────────────────────────────────────────────────
+// DocumentView
+// ─────────────────────────────────────────────────────────────
+
+/// @brief An opaque view over a parsed JSON document's memory arena and tape.
+/// @details A `DocumentView` can be reused across multiple parses. Reusing a
+/// document resets its internal allocator cursor and prevents reallocation if
+/// the new JSON fits within the previously allocated capacity.
 class DocumentView {
 public:
   std::string_view source;
@@ -432,11 +433,14 @@ public:
 
   // Structural modification state — empty for read-only documents.
   // deleted_   : tape indices of deleted object-keys or array-elements.
-  //              Cascade: deleting an object key also implicitly drops its value subtree.
+  //              Cascade: deleting an object key also implicitly drops its
+  //              value subtree.
   // additions_ : keyed by parent ObjectStart/ArrayStart tape index.
-  //              Each entry is {key_string (empty for arrays), pre-serialized JSON value}.
-  std::unordered_set<uint32_t>                                          deleted_;
-  std::unordered_map<uint32_t, std::vector<std::pair<std::string,std::string>>> additions_;
+  //              Each entry is {key_string (empty for arrays), pre-serialized
+  //              JSON value}.
+  std::unordered_set<uint32_t> deleted_;
+  std::unordered_map<uint32_t, std::vector<std::pair<std::string, std::string>>>
+      additions_;
 
   DocumentView() = default;
   explicit DocumentView(std::string_view json) : source(json) {}
@@ -484,40 +488,32 @@ public:
 // ─────────────────────────────────────────────────────────────
 
 /// Matches any integral type except bool (maps to JSON integer).
-template<typename T>
+template <typename T>
 concept JsonInteger = std::integral<T> && !std::same_as<T, bool>;
 
 /// Matches floating-point types (maps to JSON double).
-template<typename T>
+template <typename T>
 concept JsonFloat = std::floating_point<T>;
 
 /// Types that can be read back from a JSON value via as<T>().
-template<typename T>
+template <typename T>
 concept JsonReadable =
-    std::same_as<T, bool>        ||
-    JsonInteger<T>               ||
-    JsonFloat<T>                 ||
-    std::same_as<T, std::string> ||
-    std::same_as<T, std::string_view>;
+    std::same_as<T, bool> || JsonInteger<T> || JsonFloat<T> ||
+    std::same_as<T, std::string> || std::same_as<T, std::string_view>;
 
 /// Types that can be written into a JSON value via set()/operator=().
-template<typename T>
+template <typename T>
 concept JsonWritable =
-    std::same_as<T, std::nullptr_t> ||
-    std::same_as<T, bool>           ||
-    JsonInteger<T>                  ||
-    JsonFloat<T>                    ||
-    std::convertible_to<T, std::string_view>;
+    std::same_as<T, std::nullptr_t> || std::same_as<T, bool> ||
+    JsonInteger<T> || JsonFloat<T> || std::convertible_to<T, std::string_view>;
 
 /// Scalar-only subset of JsonWritable: excludes string-like types.
 /// Used for insert<T>/push_back<T> templates to prevent ambiguity with
 /// the insert(key, string_view) overload that would cause infinite recursion.
-template<typename T>
+template <typename T>
 concept JsonScalarOnly =
-    std::same_as<T, std::nullptr_t> ||
-    std::same_as<T, bool>           ||
-    JsonInteger<T>                  ||
-    JsonFloat<T>;
+    std::same_as<T, std::nullptr_t> || std::same_as<T, bool> ||
+    JsonInteger<T> || JsonFloat<T>;
 
 // ─────────────────────────────────────────────────────────────
 // Forward declarations
@@ -529,6 +525,12 @@ class SafeValue; // optional-propagating proxy (defined after Value)
 // Value + zero-copy dump()
 // ─────────────────────────────────────────────────────────────
 
+/// @brief The primary accessor type for the Beast JSON DOM.
+/// @details `Value` is a lightweight handle consisting of a pointer to the
+/// owning `DocumentView` and a 32-bit tape index. It provides zero-copy,
+/// on-demand access to parsed JSON nodes. An invalid (null) `Value{}` is
+/// returned by any access that fails, such as a missing key or out-of-range
+/// index.
 class Value {
   DocumentView *doc_ = nullptr;
   uint32_t idx_ = 0;
@@ -550,50 +552,60 @@ private:
   }
 
 public:
-  // ── Type checkers ───────────────────────────────────────────────────────────
+  // ── Type checkers
+  // ───────────────────────────────────────────────────────────
 
   /// Returns true if this Value points to a valid parsed node.
   /// A default-constructed or missing Value returns false.
   bool is_valid() const noexcept { return doc_ != nullptr; }
 
   bool is_null() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     return effective_type_() == TapeNodeType::Null;
   }
   bool is_bool() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     const auto t = effective_type_();
     return t == TapeNodeType::BooleanTrue || t == TapeNodeType::BooleanFalse;
   }
   bool is_int() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     return effective_type_() == TapeNodeType::Integer;
   }
   bool is_double() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     const auto t = effective_type_();
     return t == TapeNodeType::Double || t == TapeNodeType::NumberRaw;
   }
   bool is_number() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     const auto t = effective_type_();
     return t == TapeNodeType::Integer || t == TapeNodeType::Double ||
            t == TapeNodeType::NumberRaw;
   }
   bool is_string() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     return effective_type_() == TapeNodeType::StringRaw;
   }
   bool is_object() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     return effective_type_() == TapeNodeType::ObjectStart;
   }
   bool is_array() const noexcept {
-    if (!doc_) return false;
+    if (!doc_)
+      return false;
     return effective_type_() == TapeNodeType::ArrayStart;
   }
 
-  // ── set<T>(): write / mutate a value ─────────────────────────────────────────
+  // ── set<T>(): write / mutate a value
+  // ─────────────────────────────────────────
   //
   // Replaces the value at this tape position with a new value.
   // The mutation is stored in doc_->mutations_ (overlay map).
@@ -608,31 +620,27 @@ public:
   }
 
   void set(bool b) {
-    doc_->mutations_[idx_] = {b ? TapeNodeType::BooleanTrue
-                                : TapeNodeType::BooleanFalse, {}};
+    doc_->mutations_[idx_] = {
+        b ? TapeNodeType::BooleanTrue : TapeNodeType::BooleanFalse, {}};
     doc_->last_dump_size_ = 0;
   }
 
-  template<JsonInteger T>
-  void set(T val) {
+  template <JsonInteger T> void set(T val) {
     char buf[32];
-    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf),
-                                   static_cast<int64_t>(val));
-    doc_->mutations_[idx_] = {TapeNodeType::Integer,
-                               std::string(buf, ptr)};
+    auto [ptr, ec] =
+        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(val));
+    doc_->mutations_[idx_] = {TapeNodeType::Integer, std::string(buf, ptr)};
     doc_->last_dump_size_ = 0;
   }
 
-  template<JsonFloat T>
-  void set(T val) {
+  template <JsonFloat T> void set(T val) {
     char buf[64];
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
-    auto [ptr, ec] = std::to_chars(buf, buf + sizeof(buf),
-                                   static_cast<double>(val));
+    auto [ptr, ec] =
+        std::to_chars(buf, buf + sizeof(buf), static_cast<double>(val));
     std::string s(buf, ptr);
 #else
-    int n = std::snprintf(buf, sizeof(buf), "%.17g",
-                          static_cast<double>(val));
+    int n = std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(val));
     std::string s(buf, static_cast<size_t>(n > 0 ? n : 0));
 #endif
     doc_->mutations_[idx_] = {TapeNodeType::Double, std::move(s)};
@@ -659,17 +667,36 @@ public:
   // The compiler-generated copy assignment (Value& = const Value&) is
   // retained for view-copy semantics (root["x"] = other_value_ref).
 
-  Value& operator=(std::nullptr_t)       { set(nullptr); return *this; }
-  Value& operator=(bool b)               { set(b);       return *this; }
-  Value& operator=(const char *s)        { set(s);       return *this; }
-  Value& operator=(std::string_view s)   { set(s);       return *this; }
-  Value& operator=(const std::string &s) { set(s);       return *this; }
+  Value &operator=(std::nullptr_t) {
+    set(nullptr);
+    return *this;
+  }
+  Value &operator=(bool b) {
+    set(b);
+    return *this;
+  }
+  Value &operator=(const char *s) {
+    set(s);
+    return *this;
+  }
+  Value &operator=(std::string_view s) {
+    set(s);
+    return *this;
+  }
+  Value &operator=(const std::string &s) {
+    set(s);
+    return *this;
+  }
 
-  template<JsonInteger T>
-  Value& operator=(T val) { set(val); return *this; }
+  template <JsonInteger T> Value &operator=(T val) {
+    set(val);
+    return *this;
+  }
 
-  template<JsonFloat T>
-  Value& operator=(T val) { set(val); return *this; }
+  template <JsonFloat T> Value &operator=(T val) {
+    set(val);
+    return *this;
+  }
 
   // ── Safe optional-chain access ────────────────────────────────────────────
   //
@@ -683,9 +710,9 @@ public:
   //
   // These are declared here and defined out-of-line after SafeValue.
   SafeValue get(std::string_view key) const noexcept;
-  SafeValue get(const char *key)      const noexcept;
-  SafeValue get(size_t idx)           const noexcept;
-  SafeValue get(int idx)              const noexcept;
+  SafeValue get(const char *key) const noexcept;
+  SafeValue get(size_t idx) const noexcept;
+  SafeValue get(int idx) const noexcept;
 
   // ── Internal: skip past the value at tape[idx], return next tape index ─────
   // O(n) walk for nested objects/arrays; O(1) for scalar types.
@@ -693,7 +720,8 @@ public:
 private:
   uint32_t skip_value_(uint32_t idx) const noexcept {
     const uint32_t tsz = static_cast<uint32_t>(doc_->tape.size());
-    if (BEAST_UNLIKELY(idx >= tsz)) return idx;
+    if (BEAST_UNLIKELY(idx >= tsz))
+      return idx;
     const auto t = doc_->tape[idx].type();
     if (t == TapeNodeType::ObjectStart || t == TapeNodeType::ArrayStart) {
       int depth = 1;
@@ -712,7 +740,8 @@ private:
   }
 
 public:
-  // ── Navigation: operator[] and find ─────────────────────────────────────────
+  // ── Navigation: operator[] and find
+  // ─────────────────────────────────────────
   //
   // Beast API philosophy:
   //   operator[](key/idx)   — throws on miss (like STL at())
@@ -733,15 +762,18 @@ public:
   //   auto v = root["a"]["b"]["c"];   // never throws; check with if(v)
   //   int x  = root["a"]["b"].value_or(0); // via SafeValue chain
   Value operator[](std::string_view key) const noexcept {
-    if (!is_object()) return {};
+    if (!is_object())
+      return {};
     uint32_t i = idx_ + 1;
     const size_t ntape = doc_->tape.size();
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
-      if (t == TapeNodeType::ObjectEnd) return {};
+      if (t == TapeNodeType::ObjectEnd)
+        return {};
       // Skip deleted keys transparently
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
-        i = skip_value_(i + 1); continue;
+        i = skip_value_(i + 1);
+        continue;
       }
       const TapeNode &kn = doc_->tape[i];
       const char *kdata = doc_->source.data() + kn.offset;
@@ -756,21 +788,25 @@ public:
   // int overload — prevents implicit conversion of int literals through
   // arithmetic operator T() to ambiguous built-in subscript.
   Value operator[](int index) const noexcept {
-    if (index < 0) return {};
+    if (index < 0)
+      return {};
     return (*this)[static_cast<size_t>(index)];
   }
 
   Value operator[](size_t index) const noexcept {
-    if (!is_array()) return {};
+    if (!is_array())
+      return {};
     uint32_t i = idx_ + 1;
     const size_t ntape = doc_->tape.size();
     size_t count = 0;
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
-      if (t == TapeNodeType::ArrayEnd) return {};
+      if (t == TapeNodeType::ArrayEnd)
+        return {};
       // Skip deleted elements transparently
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
-        i = skip_value_(i); continue;
+        i = skip_value_(i);
+        continue;
       }
       if (count == index)
         return Value(doc_, i);
@@ -782,14 +818,17 @@ public:
 
   // find() — returns optional<Value>; respects deleted keys.
   std::optional<Value> find(std::string_view key) const noexcept {
-    if (!is_object()) return std::nullopt;
+    if (!is_object())
+      return std::nullopt;
     uint32_t i = idx_ + 1;
     const size_t ntape = doc_->tape.size();
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
-      if (t == TapeNodeType::ObjectEnd) return std::nullopt;
+      if (t == TapeNodeType::ObjectEnd)
+        return std::nullopt;
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
-        i = skip_value_(i + 1); continue;
+        i = skip_value_(i + 1);
+        continue;
       }
       const TapeNode &kn = doc_->tape[i];
       const char *kdata = doc_->source.data() + kn.offset;
@@ -804,22 +843,26 @@ public:
   // ── Size (respects deletions + additions) ──────────────────────────────────
 
   size_t size() const noexcept {
-    if (!doc_) return 0;
+    if (!doc_)
+      return 0;
     const auto t = doc_->tape[idx_].type();
     const size_t ntape = doc_->tape.size();
     if (t == TapeNodeType::ArrayStart) {
       uint32_t i = idx_ + 1;
       size_t count = 0;
       while (i < ntape && doc_->tape[i].type() != TapeNodeType::ArrayEnd) {
-        if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
+        if (BEAST_UNLIKELY(!doc_->deleted_.empty() &&
+                           doc_->deleted_.count(i))) {
           i = skip_value_(i);
         } else {
-          i = skip_value_(i); ++count;
+          i = skip_value_(i);
+          ++count;
         }
       }
       if (!doc_->additions_.empty()) {
         auto ait = doc_->additions_.find(idx_);
-        if (ait != doc_->additions_.end()) count += ait->second.size();
+        if (ait != doc_->additions_.end())
+          count += ait->second.size();
       }
       return count;
     }
@@ -827,15 +870,18 @@ public:
       uint32_t i = idx_ + 1;
       size_t count = 0;
       while (i < ntape && doc_->tape[i].type() != TapeNodeType::ObjectEnd) {
-        if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
-          i = skip_value_(i + 1);  // skip deleted key+value
+        if (BEAST_UNLIKELY(!doc_->deleted_.empty() &&
+                           doc_->deleted_.count(i))) {
+          i = skip_value_(i + 1); // skip deleted key+value
         } else {
-          i = skip_value_(i + 1); ++count;
+          i = skip_value_(i + 1);
+          ++count;
         }
       }
       if (!doc_->additions_.empty()) {
         auto ait = doc_->additions_.find(idx_);
-        if (ait != doc_->additions_.end()) count += ait->second.size();
+        if (ait != doc_->additions_.end())
+          count += ait->second.size();
       }
       return count;
     }
@@ -844,7 +890,8 @@ public:
 
   bool empty() const noexcept { return size() == 0; }
 
-  // ── as<T>(): typed value extraction ─────────────────────────────────────────
+  // ── as<T>(): typed value extraction
+  // ─────────────────────────────────────────
   //
   // Beast unique pattern: as<T>() is the single canonical accessor.
   // Throws std::runtime_error on type mismatch.
@@ -857,7 +904,8 @@ public:
   template <typename T> T as() const {
     // Guard: invalid Value{} (missing key / out-of-range index) → throw.
     // This makes try_as<T>() safe even on invalid Values (returns nullopt).
-    if (!doc_) throw std::runtime_error("beast::Value::as: value is missing or invalid");
+    if (!doc_)
+      throw std::runtime_error("beast::Value::as: value is missing or invalid");
 
     // Check mutation overlay first — O(1) unordered_map lookup, only paid
     // when mutations_ is non-empty (guarded by BEAST_UNLIKELY branch).
@@ -866,8 +914,10 @@ public:
       if (mit != doc_->mutations_.end()) {
         const MutationEntry &m = mit->second;
         if constexpr (std::is_same_v<T, bool>) {
-          if (m.type == TapeNodeType::BooleanTrue) return true;
-          if (m.type == TapeNodeType::BooleanFalse) return false;
+          if (m.type == TapeNodeType::BooleanTrue)
+            return true;
+          if (m.type == TapeNodeType::BooleanFalse)
+            return false;
           throw std::runtime_error("beast::Value::as<bool>: not a boolean");
         } else if constexpr (std::is_integral_v<T>) {
           if (m.type != TapeNodeType::Integer)
@@ -887,7 +937,8 @@ public:
 #else
           char buf[64];
           size_t len = m.data.size();
-          if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+          if (len >= sizeof(buf))
+            len = sizeof(buf) - 1;
           std::memcpy(buf, beg, len);
           buf[len] = '\0';
           val = std::strtod(buf, nullptr);
@@ -900,8 +951,7 @@ public:
           return std::string_view(m.data);
         } else if constexpr (std::is_same_v<T, std::string>) {
           if (m.type != TapeNodeType::StringRaw)
-            throw std::runtime_error(
-                "beast::Value::as<string>: not a string");
+            throw std::runtime_error("beast::Value::as<string>: not a string");
           return m.data;
         }
       }
@@ -910,8 +960,10 @@ public:
     // No mutation — read from tape (original fast path)
     if constexpr (std::is_same_v<T, bool>) {
       const auto t = doc_->tape[idx_].type();
-      if (t == TapeNodeType::BooleanTrue) return true;
-      if (t == TapeNodeType::BooleanFalse) return false;
+      if (t == TapeNodeType::BooleanTrue)
+        return true;
+      if (t == TapeNodeType::BooleanFalse)
+        return false;
       throw std::runtime_error("beast::Value::as<bool>: not a boolean");
     } else if constexpr (std::is_integral_v<T>) {
       const auto t = doc_->tape[idx_].type();
@@ -941,7 +993,8 @@ public:
 #else
       char buf[64];
       size_t len = nd.length();
-      if (len >= sizeof(buf)) len = sizeof(buf) - 1;
+      if (len >= sizeof(buf))
+        len = sizeof(buf) - 1;
       std::memcpy(buf, beg, len);
       buf[len] = '\0';
       char *endp = nullptr;
@@ -964,8 +1017,7 @@ public:
 
   // try_as<T>(): non-throwing variant — returns std::nullopt on any error.
   // Constrained to JsonReadable types; ill-formed for unsupported T.
-  template<JsonReadable T>
-  std::optional<T> try_as() const noexcept {
+  template <JsonReadable T> std::optional<T> try_as() const noexcept {
     try {
       return as<T>();
     } catch (...) {
@@ -973,22 +1025,19 @@ public:
     }
   }
 
-  // ── Implicit conversion ───────────────────────────────────────────────────────
+  // ── Implicit conversion
+  // ───────────────────────────────────────────────────────
   //
   // Enables: int age = doc["age"];  std::string name = doc["name"];
   // Restricted to arithmetic types and std::string/string_view to prevent
   // accidental conversions.
 
-  template<JsonReadable T>
-  operator T() const {
-    return as<T>();
-  }
+  template <JsonReadable T> operator T() const { return as<T>(); }
 
-  // ── Null / validity check ─────────────────────────────────────────────────────
+  // ── Null / validity check
+  // ─────────────────────────────────────────────────────
 
-  explicit operator bool() const noexcept {
-    return doc_ != nullptr;
-  }
+  explicit operator bool() const noexcept { return doc_ != nullptr; }
 
   // ── Serialization ─────────────────────────────────────────────────────────
   //
@@ -1019,6 +1068,7 @@ public:
     if (BEAST_UNLIKELY(idx_ != 0))
       return dump_subtree_();
     const char *src = doc_->source.data();
+    const size_t src_sz = doc_->source.size();
     const size_t ntape = doc_->tape.size();
 
     // Phase E: separators pre-computed by parser into meta bits 23-16.
@@ -1068,19 +1118,27 @@ public:
           const MutationEntry &m = mit->second;
           switch (m.type) {
           case TapeNodeType::Null:
-            std::memcpy(w, "null", 4); w += 4; break;
+            std::memcpy(w, "null", 4);
+            w += 4;
+            break;
           case TapeNodeType::BooleanTrue:
-            std::memcpy(w, "true", 4); w += 4; break;
+            std::memcpy(w, "true", 4);
+            w += 4;
+            break;
           case TapeNodeType::BooleanFalse:
-            std::memcpy(w, "false", 5); w += 5; break;
+            std::memcpy(w, "false", 5);
+            w += 5;
+            break;
           case TapeNodeType::StringRaw:
             *w++ = '"';
             std::memcpy(w, m.data.data(), m.data.size());
             w += m.data.size();
-            *w++ = '"'; break;
+            *w++ = '"';
+            break;
           default: // Integer, Double
             std::memcpy(w, m.data.data(), m.data.size());
-            w += m.data.size(); break;
+            w += m.data.size();
+            break;
           }
           continue;
         }
@@ -1115,14 +1173,15 @@ public:
         // Eliminates the 16B+cascade branch chain for 96%+ of twitter strings.
         //
         // For slen ≤ 16: scalar 8-4-1 cascade (fast for short keys).
-        // For slen ≥ 32: std::memcpy (large values, dispatch overhead amortised).
-        // Phase 80-M1: Restructured branch order — slen 1-16 (95%+ of citm/twitter)
-        // checked FIRST → 2 branches in hot path vs 3 (saves 1 branch/string).
-        // Code size: ~13 instructions vs ~16 → smaller hot-path I-cache footprint.
-        // Generic NEON (non-M1): Phase 61 structure unchanged.
+        // For slen ≥ 32: std::memcpy (large values, dispatch overhead
+        // amortised). Phase 80-M1: Restructured branch order — slen 1-16 (95%+
+        // of citm/twitter) checked FIRST → 2 branches in hot path vs 3 (saves 1
+        // branch/string). Code size: ~13 instructions vs ~16 → smaller hot-path
+        // I-cache footprint. Generic NEON (non-M1): Phase 61 structure
+        // unchanged.
 #if BEAST_ARCH_APPLE_SILICON
         if (BEAST_LIKELY(slen <= 16)) {
-          if (BEAST_LIKELY(sp + 16 <= src + (buf_cap - 16))) {
+          if (BEAST_LIKELY(sp + 16 <= src + src_sz)) {
             vst1q_u8(reinterpret_cast<uint8_t *>(w),
                      vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
             w += slen;
@@ -1156,25 +1215,34 @@ public:
               std::memcpy(&b, sp + 8, 8);
               std::memcpy(w, &a, 8);
               std::memcpy(w + 8, &b, 8);
-              sp += 16; w += 16; rem = 0;
+              sp += 16;
+              w += 16;
+              rem = 0;
             }
             if (rem >= 8) {
               uint64_t a;
-              std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
-              sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
+              std::memcpy(&a, sp, 8);
+              std::memcpy(w, &a, 8);
+              sp += 8;
+              w += 8;
+              rem = static_cast<uint16_t>(rem - 8);
             }
             if (rem >= 4) {
               uint32_t a;
-              std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
-              sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
+              std::memcpy(&a, sp, 4);
+              std::memcpy(w, &a, 4);
+              sp += 4;
+              w += 4;
+              rem = static_cast<uint16_t>(rem - 4);
             }
-            while (rem--) *w++ = *sp++;
+            while (rem--)
+              *w++ = *sp++;
           }
         } else {
           std::memcpy(w, sp, slen);
           w += slen;
         }
-#endif  // BEAST_ARCH_APPLE_SILICON
+#endif // BEAST_ARCH_APPLE_SILICON
 #else
         // Unrolled 16-8-4-1 copy (Phase D3): avoids glibc dispatch overhead
         // for short strings (twitter.json avg 16.9 chars, 84% ≤ 24 chars).
@@ -1276,11 +1344,16 @@ public:
       return;
     }
     if (BEAST_UNLIKELY(!doc_->deleted_.empty() || !doc_->additions_.empty())) {
-      out = dump_changes_(); return;
+      out = dump_changes_();
+      return;
     }
     // Subtree (non-root): last_dump_size_ is root-only; don't use cache here
-    if (BEAST_UNLIKELY(idx_ != 0)) { out = dump_subtree_(); return; }
+    if (BEAST_UNLIKELY(idx_ != 0)) {
+      out = dump_subtree_();
+      return;
+    }
     const char *src = doc_->source.data();
+    const size_t src_sz = doc_->source.size();
     const size_t ntape = doc_->tape.size();
     size_t mutation_extra2 = 0;
     for (const auto &[k, m] : doc_->mutations_)
@@ -1318,19 +1391,27 @@ public:
           const MutationEntry &m = mit->second;
           switch (m.type) {
           case TapeNodeType::Null:
-            std::memcpy(w, "null", 4); w += 4; break;
+            std::memcpy(w, "null", 4);
+            w += 4;
+            break;
           case TapeNodeType::BooleanTrue:
-            std::memcpy(w, "true", 4); w += 4; break;
+            std::memcpy(w, "true", 4);
+            w += 4;
+            break;
           case TapeNodeType::BooleanFalse:
-            std::memcpy(w, "false", 5); w += 5; break;
+            std::memcpy(w, "false", 5);
+            w += 5;
+            break;
           case TapeNodeType::StringRaw:
             *w++ = '"';
             std::memcpy(w, m.data.data(), m.data.size());
             w += m.data.size();
-            *w++ = '"'; break;
+            *w++ = '"';
+            break;
           default:
             std::memcpy(w, m.data.data(), m.data.size());
-            w += m.data.size(); break;
+            w += m.data.size();
+            break;
           }
           continue;
         }
@@ -1359,7 +1440,7 @@ public:
         // Phase 80-M1: see dump() above for rationale.
 #if BEAST_ARCH_APPLE_SILICON
         if (BEAST_LIKELY(slen <= 16)) {
-          if (BEAST_LIKELY(sp + 16 <= src + (buf_cap - 16))) {
+          if (BEAST_LIKELY(sp + 16 <= src + src_sz)) {
             vst1q_u8(reinterpret_cast<uint8_t *>(w),
                      vld1q_u8(reinterpret_cast<const uint8_t *>(sp)));
             w += slen;
@@ -1389,47 +1470,69 @@ public:
             uint16_t rem = slen;
             if (rem >= 16) {
               uint64_t a, b;
-              std::memcpy(&a, sp, 8); std::memcpy(&b, sp + 8, 8);
-              std::memcpy(w, &a, 8); std::memcpy(w + 8, &b, 8);
-              sp += 16; w += 16; rem = 0;
+              std::memcpy(&a, sp, 8);
+              std::memcpy(&b, sp + 8, 8);
+              std::memcpy(w, &a, 8);
+              std::memcpy(w + 8, &b, 8);
+              sp += 16;
+              w += 16;
+              rem = 0;
             }
             if (rem >= 8) {
               uint64_t a;
-              std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
-              sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
+              std::memcpy(&a, sp, 8);
+              std::memcpy(w, &a, 8);
+              sp += 8;
+              w += 8;
+              rem = static_cast<uint16_t>(rem - 8);
             }
             if (rem >= 4) {
               uint32_t a;
-              std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
-              sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
+              std::memcpy(&a, sp, 4);
+              std::memcpy(w, &a, 4);
+              sp += 4;
+              w += 4;
+              rem = static_cast<uint16_t>(rem - 4);
             }
-            while (rem--) *w++ = *sp++;
+            while (rem--)
+              *w++ = *sp++;
           }
         } else {
           std::memcpy(w, sp, slen);
           w += slen;
         }
-#endif  // BEAST_ARCH_APPLE_SILICON
+#endif // BEAST_ARCH_APPLE_SILICON
 #else
         if (BEAST_LIKELY(slen <= 31)) {
           uint16_t rem = slen;
           if (rem >= 16) {
             uint64_t a, b;
-            std::memcpy(&a, sp, 8); std::memcpy(&b, sp + 8, 8);
-            std::memcpy(w, &a, 8); std::memcpy(w + 8, &b, 8);
-            sp += 16; w += 16; rem = static_cast<uint16_t>(rem - 16);
+            std::memcpy(&a, sp, 8);
+            std::memcpy(&b, sp + 8, 8);
+            std::memcpy(w, &a, 8);
+            std::memcpy(w + 8, &b, 8);
+            sp += 16;
+            w += 16;
+            rem = static_cast<uint16_t>(rem - 16);
           }
           if (rem >= 8) {
             uint64_t a;
-            std::memcpy(&a, sp, 8); std::memcpy(w, &a, 8);
-            sp += 8; w += 8; rem = static_cast<uint16_t>(rem - 8);
+            std::memcpy(&a, sp, 8);
+            std::memcpy(w, &a, 8);
+            sp += 8;
+            w += 8;
+            rem = static_cast<uint16_t>(rem - 8);
           }
           if (rem >= 4) {
             uint32_t a;
-            std::memcpy(&a, sp, 4); std::memcpy(w, &a, 4);
-            sp += 4; w += 4; rem = static_cast<uint16_t>(rem - 4);
+            std::memcpy(&a, sp, 4);
+            std::memcpy(w, &a, 4);
+            sp += 4;
+            w += 4;
+            rem = static_cast<uint16_t>(rem - 4);
           }
-          while (rem--) *w++ = *sp++;
+          while (rem--)
+            *w++ = *sp++;
         } else {
           std::memcpy(w, sp, slen);
           w += slen;
@@ -1449,11 +1552,17 @@ public:
       }
 
       case TapeNodeType::BooleanTrue:
-        std::memcpy(w, "true", 4); w += 4; break;
+        std::memcpy(w, "true", 4);
+        w += 4;
+        break;
       case TapeNodeType::BooleanFalse:
-        std::memcpy(w, "false", 5); w += 5; break;
+        std::memcpy(w, "false", 5);
+        w += 5;
+        break;
       case TapeNodeType::Null:
-        std::memcpy(w, "null", 4); w += 4; break;
+        std::memcpy(w, "null", 4);
+        w += 4;
+        break;
 
       default:
         break;
@@ -1471,7 +1580,8 @@ public:
   // Uses std::string::append internally (not ultra-fast, but pretty-print
   // is rarely on the hot path).
   std::string dump(int indent) const {
-    if (!doc_) return "null";
+    if (!doc_)
+      return "null";
     std::string out;
     out.reserve(doc_->source.size() * 2 + 64);
     dump_pretty_(out, indent, 0);
@@ -1489,17 +1599,20 @@ public:
   // size(), items(), and elements().
 
   void erase(std::string_view key) {
-    if (!is_object()) return;
+    if (!is_object())
+      return;
     uint32_t i = idx_ + 1;
     const size_t ntape = doc_->tape.size();
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
-      if (t == TapeNodeType::ObjectEnd) return;
+      if (t == TapeNodeType::ObjectEnd)
+        return;
       const TapeNode &kn = doc_->tape[i];
       const char *kdata = doc_->source.data() + kn.offset;
       if (kn.length() == key.size() &&
           std::memcmp(kdata, key.data(), key.size()) == 0) {
-        doc_->deleted_.insert(i);   // mark key deleted (cascade: dump skips value)
+        doc_->deleted_.insert(
+            i); // mark key deleted (cascade: dump skips value)
         doc_->last_dump_size_ = 0;
         return;
       }
@@ -1509,25 +1622,32 @@ public:
   void erase(const char *key) { erase(std::string_view(key)); }
 
   void erase(size_t idx) {
-    if (!is_array()) return;
+    if (!is_array())
+      return;
     uint32_t i = idx_ + 1;
     const size_t ntape = doc_->tape.size();
     size_t count = 0;
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
-      if (t == TapeNodeType::ArrayEnd) return;
+      if (t == TapeNodeType::ArrayEnd)
+        return;
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
-        i = skip_value_(i); continue;
+        i = skip_value_(i);
+        continue;
       }
       if (count == idx) {
         doc_->deleted_.insert(i);
         doc_->last_dump_size_ = 0;
         return;
       }
-      i = skip_value_(i); ++count;
+      i = skip_value_(i);
+      ++count;
     }
   }
-  void erase(int idx) { if (idx >= 0) erase(static_cast<size_t>(idx)); }
+  void erase(int idx) {
+    if (idx >= 0)
+      erase(static_cast<size_t>(idx));
+  }
 
   // ── Structural insert API ────────────────────────────────────────────────
   //
@@ -1538,8 +1658,10 @@ public:
 
   // insert_json: store a pre-serialized JSON value (raw, no quoting)
   void insert_json(std::string_view key, std::string_view raw_json) {
-    if (!is_object()) return;
-    doc_->additions_[idx_].emplace_back(std::string(key), std::string(raw_json));
+    if (!is_object())
+      return;
+    doc_->additions_[idx_].emplace_back(std::string(key),
+                                        std::string(raw_json));
     doc_->last_dump_size_ = 0;
   }
   // insert(key, string) — inserts a JSON string (auto-quoted)
@@ -1553,33 +1675,48 @@ public:
     insert(key, std::string_view(str_val));
   }
   // insert(key, nullptr/bool) — explicit overloads
-  void insert(std::string_view key, std::nullptr_t)   { insert_json(key, "null"); }
-  void insert(std::string_view key, bool b)            { insert_json(key, b ? "true" : "false"); }
+  void insert(std::string_view key, std::nullptr_t) {
+    insert_json(key, "null");
+  }
+  void insert(std::string_view key, bool b) {
+    insert_json(key, b ? "true" : "false");
+  }
   // insert(key, numeric) — numeric scalars
-  template<JsonInteger T>
-  void insert(std::string_view key, T val) { insert_json(key, scalar_to_json_(val)); }
-  template<JsonFloat T>
-  void insert(std::string_view key, T val) { insert_json(key, scalar_to_json_(val)); }
+  template <JsonInteger T> void insert(std::string_view key, T val) {
+    insert_json(key, scalar_to_json_(val));
+  }
+  template <JsonFloat T> void insert(std::string_view key, T val) {
+    insert_json(key, scalar_to_json_(val));
+  }
   // insert(key, Value) — serializes the value subtree
-  void insert(std::string_view key, const Value &v) { insert_json(key, v.dump()); }
+  void insert(std::string_view key, const Value &v) {
+    insert_json(key, v.dump());
+  }
 
   // push_back_json: raw JSON append
   void push_back_json(std::string_view raw_json) {
-    if (!is_array()) return;
+    if (!is_array())
+      return;
     doc_->additions_[idx_].emplace_back(std::string(), std::string(raw_json));
     doc_->last_dump_size_ = 0;
   }
   // push_back(string) — auto-quoted
-  void push_back(std::string_view str_val)     { push_back_json(scalar_to_json_(str_val)); }
-  void push_back(const std::string &str_val)   { push_back(std::string_view(str_val)); }
-  void push_back(const char *str_val)          { push_back(std::string_view(str_val)); }
-  void push_back(std::nullptr_t)               { push_back_json("null"); }
-  void push_back(bool b)                       { push_back_json(b ? "true" : "false"); }
-  template<JsonInteger T>
-  void push_back(T val)                        { push_back_json(scalar_to_json_(val)); }
-  template<JsonFloat T>
-  void push_back(T val)                        { push_back_json(scalar_to_json_(val)); }
-  void push_back(const Value &v)               { push_back_json(v.dump()); }
+  void push_back(std::string_view str_val) {
+    push_back_json(scalar_to_json_(str_val));
+  }
+  void push_back(const std::string &str_val) {
+    push_back(std::string_view(str_val));
+  }
+  void push_back(const char *str_val) { push_back(std::string_view(str_val)); }
+  void push_back(std::nullptr_t) { push_back_json("null"); }
+  void push_back(bool b) { push_back_json(b ? "true" : "false"); }
+  template <JsonInteger T> void push_back(T val) {
+    push_back_json(scalar_to_json_(val));
+  }
+  template <JsonFloat T> void push_back(T val) {
+    push_back_json(scalar_to_json_(val));
+  }
+  void push_back(const Value &v) { push_back_json(v.dump()); }
 
   // ── Iteration ─────────────────────────────────────────────────────────────
   //
@@ -1595,10 +1732,12 @@ public:
   //   for (auto elem : root["arr"].elements())
   //       std::cout << elem.as<int>() << "\n";
 
-  // Shared skip helper — delegates to the canonical skip_value_() instance method.
-  // Static so iterator classes (defined before their parent Value closes) can call it.
+  // Shared skip helper — delegates to the canonical skip_value_() instance
+  // method. Static so iterator classes (defined before their parent Value
+  // closes) can call it.
   static uint32_t skip_val_s_(const DocumentView *doc, uint32_t i) noexcept {
-    if (BEAST_UNLIKELY(i >= static_cast<uint32_t>(doc->tape.size()))) return i;
+    if (BEAST_UNLIKELY(i >= static_cast<uint32_t>(doc->tape.size())))
+      return i;
     Value tmp(const_cast<DocumentView *>(doc), i);
     return tmp.skip_value_(i);
   }
@@ -1608,62 +1747,82 @@ public:
   //   for (auto [key, val] : root["obj"].items()) { ... }
   class ObjectIterator {
     const DocumentView *doc_;
-    uint32_t key_idx_;  // UINT32_MAX = end sentinel
+    uint32_t key_idx_; // UINT32_MAX = end sentinel
     void skip_deleted_() noexcept {
       const size_t tape_sz = doc_->tape.size();
       while (key_idx_ != UINT32_MAX) {
         // Bounds guard: malformed tape may lack an ObjectEnd sentinel.
-        if (BEAST_UNLIKELY(key_idx_ >= tape_sz)) { key_idx_ = UINT32_MAX; return; }
+        if (BEAST_UNLIKELY(key_idx_ >= tape_sz)) {
+          key_idx_ = UINT32_MAX;
+          return;
+        }
         const auto t = doc_->tape[key_idx_].type();
-        if (t == TapeNodeType::ObjectEnd) { key_idx_ = UINT32_MAX; return; }
-        if (doc_->deleted_.empty() || !doc_->deleted_.count(key_idx_)) return;
-        key_idx_ = skip_val_s_(doc_, key_idx_ + 1);  // skip deleted key+value
+        if (t == TapeNodeType::ObjectEnd) {
+          key_idx_ = UINT32_MAX;
+          return;
+        }
+        if (doc_->deleted_.empty() || !doc_->deleted_.count(key_idx_))
+          return;
+        key_idx_ = skip_val_s_(doc_, key_idx_ + 1); // skip deleted key+value
       }
     }
+
   public:
-    // value_type uses pair to avoid incomplete-type issue with Value inside Value
-    using difference_type   = std::ptrdiff_t;
-    using value_type        = std::pair<std::string_view, Value>;
+    // value_type uses pair to avoid incomplete-type issue with Value inside
+    // Value
+    using difference_type = std::ptrdiff_t;
+    using value_type = std::pair<std::string_view, Value>;
     using iterator_category = std::forward_iterator_tag;
 
     ObjectIterator() noexcept : doc_(nullptr), key_idx_(UINT32_MAX) {}
     ObjectIterator(const DocumentView *doc, uint32_t key_idx) noexcept
-        : doc_(doc), key_idx_(key_idx) { skip_deleted_(); }
+        : doc_(doc), key_idx_(key_idx) {
+      skip_deleted_();
+    }
 
     // Returns {key_string_view, Value} — Value is constructed on demand
     std::pair<std::string_view, Value> operator*() const noexcept {
       const TapeNode &kn = doc_->tape[key_idx_];
-      return { std::string_view(doc_->source.data() + kn.offset, kn.length()),
-               Value(const_cast<DocumentView*>(doc_), key_idx_ + 1) };
+      return {std::string_view(doc_->source.data() + kn.offset, kn.length()),
+              Value(const_cast<DocumentView *>(doc_), key_idx_ + 1)};
     }
     ObjectIterator &operator++() noexcept {
-      key_idx_ = skip_val_s_(doc_, key_idx_ + 1);  // skip value
+      key_idx_ = skip_val_s_(doc_, key_idx_ + 1); // skip value
       skip_deleted_();
       return *this;
     }
-    ObjectIterator operator++(int) noexcept { auto t = *this; ++(*this); return t; }
-    bool operator==(const ObjectIterator &o) const noexcept { return key_idx_ == o.key_idx_; }
-    bool operator!=(const ObjectIterator &o) const noexcept { return key_idx_ != o.key_idx_; }
+    ObjectIterator operator++(int) noexcept {
+      auto t = *this;
+      ++(*this);
+      return t;
+    }
+    bool operator==(const ObjectIterator &o) const noexcept {
+      return key_idx_ == o.key_idx_;
+    }
   };
 
   // Range-compatible proxy for object iteration (also includes additions)
   class ObjectRange {
     const DocumentView *doc_;
-    uint32_t obj_idx_;  // ObjectStart tape index
+    uint32_t obj_idx_; // ObjectStart tape index
     // Additions appended as synthetic entries after tape traversal
-    const std::vector<std::pair<std::string,std::string>> *adds_ = nullptr;
+    const std::vector<std::pair<std::string, std::string>> *adds_ = nullptr;
+
   public:
-    ObjectRange(const DocumentView *doc, uint32_t idx) noexcept : doc_(doc), obj_idx_(idx) {
+    ObjectRange(const DocumentView *doc, uint32_t idx) noexcept
+        : doc_(doc), obj_idx_(idx) {
       if (doc_ && !doc_->additions_.empty()) {
         auto it = doc_->additions_.find(idx);
-        if (it != doc_->additions_.end()) adds_ = &it->second;
+        if (it != doc_->additions_.end())
+          adds_ = &it->second;
       }
     }
     ObjectIterator begin() const noexcept { return {doc_, obj_idx_ + 1}; }
-    ObjectIterator end()   const noexcept { return {}; }
+    ObjectIterator end() const noexcept { return {}; }
     // additions are accessed separately via added_items()
     // (they have no tape index; expose as string pairs)
-    const std::vector<std::pair<std::string,std::string>> *added_items() const noexcept {
+    const std::vector<std::pair<std::string, std::string>> *
+    added_items() const noexcept {
       return adds_;
     }
   };
@@ -1671,65 +1830,87 @@ public:
   // Forward iterator over array elements
   class ArrayIterator {
     const DocumentView *doc_;
-    uint32_t elem_idx_;  // UINT32_MAX = end
+    uint32_t elem_idx_; // UINT32_MAX = end
     void skip_deleted_() noexcept {
       const size_t tape_sz = doc_->tape.size();
       while (elem_idx_ != UINT32_MAX) {
         // Bounds guard: malformed tape may lack an ArrayEnd sentinel.
-        if (BEAST_UNLIKELY(elem_idx_ >= tape_sz)) { elem_idx_ = UINT32_MAX; return; }
+        if (BEAST_UNLIKELY(elem_idx_ >= tape_sz)) {
+          elem_idx_ = UINT32_MAX;
+          return;
+        }
         const auto t = doc_->tape[elem_idx_].type();
-        if (t == TapeNodeType::ArrayEnd) { elem_idx_ = UINT32_MAX; return; }
-        if (doc_->deleted_.empty() || !doc_->deleted_.count(elem_idx_)) return;
+        if (t == TapeNodeType::ArrayEnd) {
+          elem_idx_ = UINT32_MAX;
+          return;
+        }
+        if (doc_->deleted_.empty() || !doc_->deleted_.count(elem_idx_))
+          return;
         elem_idx_ = skip_val_s_(doc_, elem_idx_);
       }
     }
+
   public:
-    using difference_type   = std::ptrdiff_t;
-    using value_type        = Value;
+    using difference_type = std::ptrdiff_t;
+    using value_type = Value;
     using iterator_category = std::forward_iterator_tag;
 
     ArrayIterator() noexcept : doc_(nullptr), elem_idx_(UINT32_MAX) {}
     ArrayIterator(const DocumentView *doc, uint32_t elem_idx) noexcept
-        : doc_(doc), elem_idx_(elem_idx) { skip_deleted_(); }
+        : doc_(doc), elem_idx_(elem_idx) {
+      skip_deleted_();
+    }
 
     Value operator*() const noexcept {
-      return Value(const_cast<DocumentView*>(doc_), elem_idx_);
+      return Value(const_cast<DocumentView *>(doc_), elem_idx_);
     }
     ArrayIterator &operator++() noexcept {
       elem_idx_ = skip_val_s_(doc_, elem_idx_);
       skip_deleted_();
       return *this;
     }
-    ArrayIterator operator++(int) noexcept { auto t = *this; ++(*this); return t; }
-    bool operator==(const ArrayIterator &o) const noexcept { return elem_idx_ == o.elem_idx_; }
-    bool operator!=(const ArrayIterator &o) const noexcept { return elem_idx_ != o.elem_idx_; }
+    ArrayIterator operator++(int) noexcept {
+      auto t = *this;
+      ++(*this);
+      return t;
+    }
+    bool operator==(const ArrayIterator &o) const noexcept {
+      return elem_idx_ == o.elem_idx_;
+    }
   };
 
   class ArrayRange {
     const DocumentView *doc_;
     uint32_t arr_idx_;
+
   public:
-    ArrayRange(const DocumentView *doc, uint32_t idx) noexcept : doc_(doc), arr_idx_(idx) {}
+    ArrayRange(const DocumentView *doc, uint32_t idx) noexcept
+        : doc_(doc), arr_idx_(idx) {}
     ArrayIterator begin() const noexcept { return {doc_, arr_idx_ + 1}; }
-    ArrayIterator end()   const noexcept { return {}; }
+    ArrayIterator end() const noexcept { return {}; }
   };
 
   // ── Public type aliases for use in lambdas ──────────────────────────────
   //
   // Avoids the `template` keyword in generic lambdas over items():
-  //   for (auto kv : root.items()) { kv.second.as<int>(); }  // generic lambda: needs 'template'
-  //   [](Value::ObjectItem kv){ kv.second.as<int>(); }       // explicit type: no 'template'
+  //   for (auto kv : root.items()) { kv.second.as<int>(); }  // generic lambda:
+  //   needs 'template'
+  //   [](Value::ObjectItem kv){ kv.second.as<int>(); }       // explicit type:
+  //   no 'template'
   //   [](Value::ObjectItem kv){ kv.second.as<int>(); }
-  using ObjectItem = std::pair<std::string_view, Value>;  // key-value pair from items()
+  using ObjectItem =
+      std::pair<std::string_view, Value>; // key-value pair from items()
 
   // items() — object iteration
   ObjectRange items() const noexcept {
-    if (!doc_ || !is_object()) return {nullptr, 0};
+    if (!doc_ || !is_object())
+      return {nullptr, 0};
     return {doc_, idx_};
   }
   // elements() — array iteration
   ArrayRange elements() const noexcept {
-    if (!doc_ || !is_array()) return {nullptr, 0};
+    if (!doc_ || !is_array())
+      return {nullptr, 0};
     return {doc_, idx_};
   }
 
@@ -1739,8 +1920,12 @@ public:
   // Equivalent to find(key).has_value() but reads more naturally.
   //
   // Usage: if (root.contains("name")) { ... }
-  bool contains(std::string_view key) const noexcept { return find(key).has_value(); }
-  bool contains(const char *key)      const noexcept { return contains(std::string_view(key)); }
+  bool contains(std::string_view key) const noexcept {
+    return find(key).has_value();
+  }
+  bool contains(const char *key) const noexcept {
+    return contains(std::string_view(key));
+  }
 
   // ── value(key/idx, default) — safe extraction with fallback ───────────────
   //
@@ -1752,31 +1937,34 @@ public:
   //   std::string name = root.value("name", "anonymous");
   //   double x  = root.value(0, 0.0);   // first array element or 0.0
 
-  template<JsonReadable T>
+  template <JsonReadable T>
   T value(std::string_view key, T def) const noexcept {
     auto opt = find(key);
-    if (!opt) return def;
+    if (!opt)
+      return def;
     auto r = opt->try_as<T>();
     return r ? *r : def;
   }
-  template<JsonReadable T>
-  T value(const char *key, T def) const noexcept { return value(std::string_view(key), def); }
-  template<JsonReadable T>
-  T value(size_t idx, T def) const noexcept {
+  template <JsonReadable T> T value(const char *key, T def) const noexcept {
+    return value(std::string_view(key), def);
+  }
+  template <JsonReadable T> T value(size_t idx, T def) const noexcept {
     auto v = (*this)[idx];
-    if (!v) return def;
+    if (!v)
+      return def;
     auto r = v.try_as<T>();
     return r ? *r : def;
   }
-  template<JsonReadable T>
-  T value(int idx, T def) const noexcept {
-    if (idx < 0) return def;
+  template <JsonReadable T> T value(int idx, T def) const noexcept {
+    if (idx < 0)
+      return def;
     return value(static_cast<size_t>(idx), def);
   }
   // String literal specializations (const char* → std::string)
   std::string value(std::string_view key, const char *def) const noexcept {
     auto opt = find(key);
-    if (!opt) return std::string(def);
+    if (!opt)
+      return std::string(def);
     auto r = opt->try_as<std::string>();
     return r ? *r : std::string(def);
   }
@@ -1791,18 +1979,27 @@ public:
   //
   // Usage: std::cout << root["age"].type_name() << "\n";  // "int"
   std::string_view type_name() const noexcept {
-    if (!doc_) return "invalid";
+    if (!doc_)
+      return "invalid";
     switch (effective_type_()) {
-    case TapeNodeType::Null:          return "null";
+    case TapeNodeType::Null:
+      return "null";
     case TapeNodeType::BooleanTrue:
-    case TapeNodeType::BooleanFalse:  return "bool";
-    case TapeNodeType::Integer:       return "int";
+    case TapeNodeType::BooleanFalse:
+      return "bool";
+    case TapeNodeType::Integer:
+      return "int";
     case TapeNodeType::Double:
-    case TapeNodeType::NumberRaw:     return "double";
-    case TapeNodeType::StringRaw:     return "string";
-    case TapeNodeType::ArrayStart:    return "array";
-    case TapeNodeType::ObjectStart:   return "object";
-    default:                          return "unknown";
+    case TapeNodeType::NumberRaw:
+      return "double";
+    case TapeNodeType::StringRaw:
+      return "string";
+    case TapeNodeType::ArrayStart:
+      return "array";
+    case TapeNodeType::ObjectStart:
+      return "object";
+    default:
+      return "unknown";
     }
   }
 
@@ -1820,8 +2017,7 @@ public:
   // so `root["age"] | 42` correctly calls this operator rather than
   // converting Value to int first.
 
-  template<JsonReadable T>
-  friend T operator|(const Value &v, T def) noexcept {
+  template <JsonReadable T> friend T operator|(const Value &v, T def) noexcept {
     auto r = v.try_as<T>();
     return r ? *r : def;
   }
@@ -1845,11 +2041,15 @@ public:
 
   auto keys() const noexcept {
     return items() | std::views::transform(
-        [](const ObjectItem &kv) noexcept -> std::string_view { return kv.first; });
+                         [](const ObjectItem &kv) noexcept -> std::string_view {
+                           return kv.first;
+                         });
   }
   auto values() const noexcept {
-    return items() | std::views::transform(
-        [](const ObjectItem &kv) noexcept -> Value { return kv.second; });
+    return items() |
+           std::views::transform([](const ObjectItem &kv) noexcept -> Value {
+             return kv.second;
+           });
   }
 
   // ── as_array<T>() / try_as_array<T>() — typed element views ──────────────
@@ -1866,15 +2066,15 @@ public:
   //   for (auto maybe : doc["mixed"].try_as_array<int>())
   //       if (maybe) total += *maybe;
 
-  template<JsonReadable T>
-  auto as_array() const {
-    return elements() | std::views::transform(
-        [](const Value &v) -> T { return v.as<T>(); });
+  template <JsonReadable T> auto as_array() const {
+    return elements() |
+           std::views::transform([](const Value &v) -> T { return v.as<T>(); });
   }
-  template<JsonReadable T>
-  auto try_as_array() const noexcept {
+  template <JsonReadable T> auto try_as_array() const noexcept {
     return elements() | std::views::transform(
-        [](const Value &v) noexcept -> std::optional<T> { return v.try_as<T>(); });
+                            [](const Value &v) noexcept -> std::optional<T> {
+                              return v.try_as<T>();
+                            });
   }
 
   // ── at(path) — Runtime JSON Pointer (RFC 6901) ────────────────────────────
@@ -1891,15 +2091,17 @@ public:
   //   root.at("/missing/path")     → invalid Value{} (bool == false)
 
   Value at(std::string_view path) const noexcept {
-    if (path.empty()) return *this;
-    if (path[0] != '/') return {};   // RFC 6901: must start with '/' or be empty
+    if (path.empty())
+      return *this;
+    if (path[0] != '/')
+      return {}; // RFC 6901: must start with '/' or be empty
     Value cur = *this;
     size_t pos = 1;
     while (pos <= path.size() && cur) {
       const size_t slash = path.find('/', pos);
       const std::string_view token = (slash == std::string_view::npos)
-          ? path.substr(pos)
-          : path.substr(pos, slash - pos);
+                                         ? path.substr(pos)
+                                         : path.substr(pos, slash - pos);
 
       // Decode RFC 6901 escapes (~0 → '~', ~1 → '/') only when '~' present
       if (token.find('~') != std::string_view::npos) {
@@ -1907,9 +2109,14 @@ public:
         decoded.reserve(token.size());
         for (size_t i = 0; i < token.size(); ++i) {
           if (token[i] == '~' && i + 1 < token.size()) {
-            if      (token[i+1] == '1') { decoded += '/'; ++i; }
-            else if (token[i+1] == '0') { decoded += '~'; ++i; }
-            else                         decoded += token[i];
+            if (token[i + 1] == '1') {
+              decoded += '/';
+              ++i;
+            } else if (token[i + 1] == '0') {
+              decoded += '~';
+              ++i;
+            } else
+              decoded += token[i];
           } else {
             decoded += token[i];
           }
@@ -1933,12 +2140,12 @@ public:
   //   root.at<"">()                // returns root itself
   //   root.at<"no-slash">()        // compile error: "must start with '/'"
 
-  template<size_t N>
-  struct JsonPointerLiteral {
+  template <size_t N> struct JsonPointerLiteral {
     char data[N]{};
-    static constexpr size_t size = N > 0 ? N - 1 : 0;  // exclude null terminator
+    static constexpr size_t size = N > 0 ? N - 1 : 0; // exclude null terminator
     consteval JsonPointerLiteral(const char (&s)[N]) {
-      for (size_t i = 0; i < N; ++i) data[i] = s[i];
+      for (size_t i = 0; i < N; ++i)
+        data[i] = s[i];
       // Validate: must start with '/' (RFC 6901) or be the empty document root
       if constexpr (N > 1) {
         if (s[0] != '/')
@@ -1948,8 +2155,9 @@ public:
     std::string_view view() const noexcept { return {data, size}; }
   };
 
-  template<JsonPointerLiteral Path>
-  Value at() const noexcept { return at(Path.view()); }
+  template <JsonPointerLiteral Path> Value at() const noexcept {
+    return at(Path.view());
+  }
 
   // ── merge(other) — shallow object merge ───────────────────────────────────
   //
@@ -1962,11 +2170,12 @@ public:
   //   target.merge(source);               // shallow merge
 
   void merge(const Value &other) {
-    if (!is_object() || !other.is_object()) return;
+    if (!is_object() || !other.is_object())
+      return;
     for (auto [k, v] : other.items()) {
-      erase(k);                    // mark existing tape key as deleted
-      erase_from_additions_(k);    // remove any previously inserted duplicate
-      insert(k, v);                // append new key-value
+      erase(k);                 // mark existing tape key as deleted
+      erase_from_additions_(k); // remove any previously inserted duplicate
+      insert(k, v);             // append new key-value
     }
   }
 
@@ -1992,9 +2201,12 @@ private:
   // Object: token is the key string.
   static Value at_step_(const Value &cur, std::string_view token) noexcept {
     if (cur.is_array()) {
-      if (token.empty()) return {};
+      if (token.empty())
+        return {};
       size_t idx = 0;
-      for (char c : token) if (c < '0' || c > '9') return {};
+      for (char c : token)
+        if (c < '0' || c > '9')
+          return {};
       std::from_chars(token.data(), token.data() + token.size(), idx);
       return cur[idx];
     }
@@ -2005,19 +2217,21 @@ private:
   // Called by merge() / merge_patch() before re-inserting a key.
   void erase_from_additions_(std::string_view key) {
     auto ait = doc_->additions_.find(idx_);
-    if (ait == doc_->additions_.end()) return;
+    if (ait == doc_->additions_.end())
+      return;
     auto &vec = ait->second;
-    vec.erase(std::remove_if(vec.begin(), vec.end(),
-        [&](const std::pair<std::string,std::string> &p) {
-          return std::string_view(p.first) == key;
-        }), vec.end());
-    if (vec.empty()) doc_->additions_.erase(ait);
+    std::erase_if(vec, [&](const std::pair<std::string, std::string> &p) {
+      return std::string_view(p.first) == key;
+    });
+    if (vec.empty())
+      doc_->additions_.erase(ait);
     doc_->last_dump_size_ = 0;
   }
 
   // merge_patch_impl_: recursive RFC 7396 patch application.
   void merge_patch_impl_(const Value &patch) {
-    if (!is_object() || !patch.is_object()) return;
+    if (!is_object() || !patch.is_object())
+      return;
     for (auto [k, v] : patch.items()) {
       if (v.is_null()) {
         erase(k);
@@ -2025,7 +2239,7 @@ private:
       } else {
         Value existing = (*this)[k];
         if (v.is_object() && existing.is_object()) {
-          existing.merge_patch_impl_(v);   // recursive
+          existing.merge_patch_impl_(v); // recursive
         } else {
           erase(k);
           erase_from_additions_(k);
@@ -2036,28 +2250,39 @@ private:
   }
 
   // Serialize a scalar to its JSON representation.
-  static std::string scalar_to_json_(std::nullptr_t)     { return "null"; }
-  static std::string scalar_to_json_(bool b)             { return b ? "true" : "false"; }
-  template<JsonInteger T> static std::string scalar_to_json_(T v) {
-    char buf[32]; auto [p, ec] = std::to_chars(buf, buf+sizeof(buf), static_cast<int64_t>(v));
+  static std::string scalar_to_json_(std::nullptr_t) { return "null"; }
+  static std::string scalar_to_json_(bool b) { return b ? "true" : "false"; }
+  template <JsonInteger T> static std::string scalar_to_json_(T v) {
+    char buf[32];
+    auto [p, ec] =
+        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(v));
     return std::string(buf, p);
   }
-  template<JsonFloat T> static std::string scalar_to_json_(T v) {
+  template <JsonFloat T> static std::string scalar_to_json_(T v) {
     char buf[64];
     int n = std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(v));
     return std::string(buf, static_cast<size_t>(n > 0 ? n : 0));
   }
   static std::string scalar_to_json_(std::string_view s) {
-    std::string r; r.reserve(s.size()+2);
-    r += '"'; r.append(s.data(), s.size()); r += '"'; return r;
+    std::string r;
+    r.reserve(s.size() + 2);
+    r += '"';
+    r.append(s.data(), s.size());
+    r += '"';
+    return r;
   }
-  static std::string scalar_to_json_(const std::string &s) { return scalar_to_json_(std::string_view(s)); }
-  static std::string scalar_to_json_(const char *s)         { return scalar_to_json_(std::string_view(s)); }
+  static std::string scalar_to_json_(const std::string &s) {
+    return scalar_to_json_(std::string_view(s));
+  }
+  static std::string scalar_to_json_(const char *s) {
+    return scalar_to_json_(std::string_view(s));
+  }
 
   // Subtree dump for non-root Values (idx_ != 0).
   // Iterates tape[idx_..skip_value_(idx_)) and suppresses the first node's
   // separator (which encodes position in the parent, not within this subtree).
-  // Kept out of the main dump() loop so the root hot-path has zero extra branches.
+  // Kept out of the main dump() loop so the root hot-path has zero extra
+  // branches.
   std::string dump_subtree_() const {
     const char *src = doc_->source.data();
     const uint32_t end_i = skip_value_(idx_);
@@ -2075,52 +2300,96 @@ private:
       const TapeNode &nd = doc_->tape[i];
       const uint32_t meta = nd.meta;
       const auto type = static_cast<TapeNodeType>((meta >> 24) & 0xFF);
-      // sep for the first node (idx_) is suppressed — it belongs to parent context
-      const uint8_t sep = (i == idx_) ? 0u : static_cast<uint8_t>((meta >> 16) & 0xFFu);
-      if (sep) *w++ = (sep == 0x02u) ? ':' : ',';
+      // sep for the first node (idx_) is suppressed — it belongs to parent
+      // context
+      const uint8_t sep =
+          (i == idx_) ? 0u : static_cast<uint8_t>((meta >> 16) & 0xFFu);
+      if (sep)
+        *w++ = (sep == 0x02u) ? ':' : ',';
 
       if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
         auto mit = doc_->mutations_.find(i);
         if (mit != doc_->mutations_.end()) {
           const MutationEntry &m = mit->second;
           switch (m.type) {
-          case TapeNodeType::Null:         std::memcpy(w,"null",4);  w+=4; break;
-          case TapeNodeType::BooleanTrue:  std::memcpy(w,"true",4);  w+=4; break;
-          case TapeNodeType::BooleanFalse: std::memcpy(w,"false",5); w+=5; break;
+          case TapeNodeType::Null:
+            std::memcpy(w, "null", 4);
+            w += 4;
+            break;
+          case TapeNodeType::BooleanTrue:
+            std::memcpy(w, "true", 4);
+            w += 4;
+            break;
+          case TapeNodeType::BooleanFalse:
+            std::memcpy(w, "false", 5);
+            w += 5;
+            break;
           case TapeNodeType::StringRaw:
-            *w++='"'; std::memcpy(w,m.data.data(),m.data.size()); w+=m.data.size(); *w++='"'; break;
+            *w++ = '"';
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size();
+            *w++ = '"';
+            break;
           default:
-            std::memcpy(w,m.data.data(),m.data.size()); w+=m.data.size(); break;
+            std::memcpy(w, m.data.data(), m.data.size());
+            w += m.data.size();
+            break;
           }
           continue;
         }
       }
 
       switch (type) {
-      case TapeNodeType::ObjectStart: *w++ = '{'; break;
-      case TapeNodeType::ObjectEnd:   *w++ = '}'; break;
-      case TapeNodeType::ArrayStart:  *w++ = '['; break;
-      case TapeNodeType::ArrayEnd:    *w++ = ']'; break;
+      case TapeNodeType::ObjectStart:
+        *w++ = '{';
+        break;
+      case TapeNodeType::ObjectEnd:
+        *w++ = '}';
+        break;
+      case TapeNodeType::ArrayStart:
+        *w++ = '[';
+        break;
+      case TapeNodeType::ArrayEnd:
+        *w++ = ']';
+        break;
       case TapeNodeType::StringRaw: {
         const uint16_t slen = static_cast<uint16_t>(meta & 0xFFFFu);
         const size_t src_sz = doc_->source.size();
-        const size_t safe_slen = (nd.offset < src_sz)
-            ? std::min<size_t>(slen, src_sz - nd.offset) : 0;
+        const size_t safe_slen =
+            (nd.offset < src_sz) ? std::min<size_t>(slen, src_sz - nd.offset)
+                                 : 0;
         *w++ = '"';
-        std::memcpy(w, src + nd.offset, safe_slen); w += safe_slen;
-        *w++ = '"'; break;
+        std::memcpy(w, src + nd.offset, safe_slen);
+        w += safe_slen;
+        *w++ = '"';
+        break;
       }
-      case TapeNodeType::Integer: case TapeNodeType::NumberRaw: case TapeNodeType::Double: {
+      case TapeNodeType::Integer:
+      case TapeNodeType::NumberRaw:
+      case TapeNodeType::Double: {
         const uint16_t nlen = static_cast<uint16_t>(meta & 0xFFFFu);
         const size_t src_sz = doc_->source.size();
-        const size_t safe_nlen = (nd.offset < src_sz)
-            ? std::min<size_t>(nlen, src_sz - nd.offset) : 0;
-        std::memcpy(w, src + nd.offset, safe_nlen); w += safe_nlen; break;
+        const size_t safe_nlen =
+            (nd.offset < src_sz) ? std::min<size_t>(nlen, src_sz - nd.offset)
+                                 : 0;
+        std::memcpy(w, src + nd.offset, safe_nlen);
+        w += safe_nlen;
+        break;
       }
-      case TapeNodeType::BooleanTrue:  std::memcpy(w,"true",4);  w+=4; break;
-      case TapeNodeType::BooleanFalse: std::memcpy(w,"false",5); w+=5; break;
-      case TapeNodeType::Null:         std::memcpy(w,"null",4);  w+=4; break;
-      default: break;
+      case TapeNodeType::BooleanTrue:
+        std::memcpy(w, "true", 4);
+        w += 4;
+        break;
+      case TapeNodeType::BooleanFalse:
+        std::memcpy(w, "false", 5);
+        w += 5;
+        break;
+      case TapeNodeType::Null:
+        std::memcpy(w, "null", 4);
+        w += 4;
+        break;
+      default:
+        break;
       }
     }
     out.resize(static_cast<size_t>(w - w0));
@@ -2130,13 +2399,23 @@ private:
   // Write a single mutation entry into a std::string
   static void write_mutation_(std::string &out, const MutationEntry &m) {
     switch (m.type) {
-    case TapeNodeType::Null:         out += "null";  break;
-    case TapeNodeType::BooleanTrue:  out += "true";  break;
-    case TapeNodeType::BooleanFalse: out += "false"; break;
+    case TapeNodeType::Null:
+      out += "null";
+      break;
+    case TapeNodeType::BooleanTrue:
+      out += "true";
+      break;
+    case TapeNodeType::BooleanFalse:
+      out += "false";
+      break;
     case TapeNodeType::StringRaw:
-      out += '"'; out.append(m.data); out += '"'; break;
-    default:  // Integer, Double
-      out.append(m.data); break;
+      out += '"';
+      out.append(m.data);
+      out += '"';
+      break;
+    default: // Integer, Double
+      out.append(m.data);
+      break;
     }
   }
 
@@ -2149,34 +2428,59 @@ private:
 
     // Compute subtree range
     const uint32_t start_c = idx_;
-    const uint32_t end_c   = (idx_ == 0)
-        ? static_cast<uint32_t>(ntape) : skip_value_(idx_);
+    const uint32_t end_c =
+        (idx_ == 0) ? static_cast<uint32_t>(ntape) : skip_value_(idx_);
 
     std::string out;
     out.reserve(doc_->source.size() + doc_->additions_.size() * 64 + 64);
 
     // Stack-based separator state (max 64 nesting levels)
-    struct Frame { bool is_obj; bool has_prev; bool next_val; uint32_t start_idx; };
-    Frame stk[64]; int top = -1;
+    struct Frame {
+      bool is_obj;
+      bool has_prev;
+      bool next_val;
+      uint32_t start_idx;
+    };
+    Frame stk[64];
+    int top = -1;
 
     // Separator helper: update frame after writing one complete element
     auto done_elem = [](Frame &f) {
-      if (f.is_obj) { f.next_val = !f.next_val; if (!f.next_val) f.has_prev = true; }
-      else          { f.has_prev = true; }
+      if (f.is_obj) {
+        f.next_val = !f.next_val;
+        if (!f.next_val)
+          f.has_prev = true;
+      } else {
+        f.has_prev = true;
+      }
     };
     // Write separator before a non-closing node
     auto write_sep = [&](Frame &f) {
-      if (f.is_obj) { if (f.next_val) out += ':'; else if (f.has_prev) out += ','; }
-      else          { if (f.has_prev) out += ','; }
+      if (f.is_obj) {
+        if (f.next_val)
+          out += ':';
+        else if (f.has_prev)
+          out += ',';
+      } else {
+        if (f.has_prev)
+          out += ',';
+      }
     };
     // Inject additions before a closing brace/bracket
     auto inject_adds = [&](uint32_t parent_idx, Frame &f) {
-      if (doc_->additions_.empty()) return;
+      if (doc_->additions_.empty())
+        return;
       auto ait = doc_->additions_.find(parent_idx);
-      if (ait == doc_->additions_.end()) return;
+      if (ait == doc_->additions_.end())
+        return;
       for (const auto &[k, v] : ait->second) {
-        if (f.has_prev) out += ',';
-        if (f.is_obj) { out += '"'; out += k; out += "\":"; }
+        if (f.has_prev)
+          out += ',';
+        if (f.is_obj) {
+          out += '"';
+          out += k;
+          out += "\":";
+        }
         out += v;
         f.has_prev = true;
       }
@@ -2185,27 +2489,28 @@ private:
     uint32_t i = start_c;
     while (i < end_c) {
       const TapeNode &nd = doc_->tape[i];
-      const TapeNodeType type = static_cast<TapeNodeType>((nd.meta >> 24) & 0xFF);
+      const TapeNodeType type =
+          static_cast<TapeNodeType>((nd.meta >> 24) & 0xFF);
 
       // At key position: check if deleted (object member)
       if (top >= 0 && stk[top].is_obj && !stk[top].next_val &&
           type != TapeNodeType::ObjectEnd) {
         if (!doc_->deleted_.empty() && doc_->deleted_.count(i)) {
-          i = skip_value_(i + 1);  // skip deleted key + value
+          i = skip_value_(i + 1); // skip deleted key + value
           continue;
         }
       }
       // At array element: check if deleted
-      if (top >= 0 && !stk[top].is_obj &&
-          type != TapeNodeType::ArrayEnd) {
+      if (top >= 0 && !stk[top].is_obj && type != TapeNodeType::ArrayEnd) {
         if (!doc_->deleted_.empty() && doc_->deleted_.count(i)) {
-          i = skip_value_(i);  // skip deleted element
+          i = skip_value_(i); // skip deleted element
           continue;
         }
       }
 
       // Write separator (for non-closing nodes, non-root)
-      const bool is_close = (type == TapeNodeType::ObjectEnd || type == TapeNodeType::ArrayEnd);
+      const bool is_close =
+          (type == TapeNodeType::ObjectEnd || type == TapeNodeType::ArrayEnd);
       if (top >= 0 && !is_close && !(i == start_c))
         write_sep(stk[top]);
 
@@ -2214,15 +2519,18 @@ private:
         auto mit = doc_->mutations_.find(i);
         if (mit != doc_->mutations_.end()) {
           write_mutation_(out, mit->second);
-          if (top >= 0) done_elem(stk[top]);
-          ++i; continue;
+          if (top >= 0)
+            done_elem(stk[top]);
+          ++i;
+          continue;
         }
       }
 
       switch (type) {
       case TapeNodeType::ObjectStart:
         out += '{';
-        if (top >= 0 && !(i == start_c)) {}  // sep already written
+        if (top >= 0 && !(i == start_c)) {
+        } // sep already written
         ++top;
         stk[top] = {true, false, false, i};
         break;
@@ -2232,26 +2540,38 @@ private:
         stk[top] = {false, false, false, i};
         break;
       case TapeNodeType::ObjectEnd:
-        if (BEAST_UNLIKELY(top < 0)) { out += '}'; break; }
+        if (BEAST_UNLIKELY(top < 0)) {
+          out += '}';
+          break;
+        }
         inject_adds(stk[top].start_idx, stk[top]);
         out += '}';
         --top;
-        if (top >= 0) done_elem(stk[top]);
+        if (top >= 0)
+          done_elem(stk[top]);
         break;
       case TapeNodeType::ArrayEnd:
-        if (BEAST_UNLIKELY(top < 0)) { out += ']'; break; }
+        if (BEAST_UNLIKELY(top < 0)) {
+          out += ']';
+          break;
+        }
         inject_adds(stk[top].start_idx, stk[top]);
         out += ']';
         --top;
-        if (top >= 0) done_elem(stk[top]);
+        if (top >= 0)
+          done_elem(stk[top]);
         break;
       case TapeNodeType::StringRaw: {
         const uint16_t slen = static_cast<uint16_t>(nd.meta & 0xFFFFu);
         const size_t src_sz = doc_->source.size();
-        const size_t safe_slen = (nd.offset < src_sz)
-            ? std::min<size_t>(slen, src_sz - nd.offset) : 0;
-        out += '"'; out.append(src + nd.offset, safe_slen); out += '"';
-        if (top >= 0) done_elem(stk[top]);
+        const size_t safe_slen =
+            (nd.offset < src_sz) ? std::min<size_t>(slen, src_sz - nd.offset)
+                                 : 0;
+        out += '"';
+        out.append(src + nd.offset, safe_slen);
+        out += '"';
+        if (top >= 0)
+          done_elem(stk[top]);
         break;
       }
       case TapeNodeType::Integer:
@@ -2259,16 +2579,31 @@ private:
       case TapeNodeType::Double: {
         const uint16_t nlen = static_cast<uint16_t>(nd.meta & 0xFFFFu);
         const size_t src_sz = doc_->source.size();
-        const size_t safe_nlen = (nd.offset < src_sz)
-            ? std::min<size_t>(nlen, src_sz - nd.offset) : 0;
+        const size_t safe_nlen =
+            (nd.offset < src_sz) ? std::min<size_t>(nlen, src_sz - nd.offset)
+                                 : 0;
         out.append(src + nd.offset, safe_nlen);
-        if (top >= 0) done_elem(stk[top]);
+        if (top >= 0)
+          done_elem(stk[top]);
         break;
       }
-      case TapeNodeType::BooleanTrue:  out += "true";  if (top >= 0) done_elem(stk[top]); break;
-      case TapeNodeType::BooleanFalse: out += "false"; if (top >= 0) done_elem(stk[top]); break;
-      case TapeNodeType::Null:         out += "null";  if (top >= 0) done_elem(stk[top]); break;
-      default: break;
+      case TapeNodeType::BooleanTrue:
+        out += "true";
+        if (top >= 0)
+          done_elem(stk[top]);
+        break;
+      case TapeNodeType::BooleanFalse:
+        out += "false";
+        if (top >= 0)
+          done_elem(stk[top]);
+        break;
+      case TapeNodeType::Null:
+        out += "null";
+        if (top >= 0)
+          done_elem(stk[top]);
+        break;
+      default:
+        break;
       }
       ++i;
     }
@@ -2277,61 +2612,80 @@ private:
 
   // Pretty-print recursive helper
   void dump_pretty_(std::string &out, int indent_size, int depth) const {
-    if (!doc_) { out += "null"; return; }
+    if (!doc_) {
+      out += "null";
+      return;
+    }
     const TapeNodeType root_type = doc_->tape[idx_].type();
 
     if (root_type == TapeNodeType::ObjectStart) {
       out += '{';
       bool first = true;
-      std::string pad(static_cast<size_t>((depth+1)*indent_size), ' ');
-      std::string close_pad(static_cast<size_t>(depth*indent_size), ' ');
+      std::string pad(static_cast<size_t>((depth + 1) * indent_size), ' ');
+      std::string close_pad(static_cast<size_t>(depth * indent_size), ' ');
       // tape entries
       uint32_t i = idx_ + 1;
       const size_t ntape = doc_->tape.size();
       while (i < ntape && doc_->tape[i].type() != TapeNodeType::ObjectEnd) {
         if (!doc_->deleted_.empty() && doc_->deleted_.count(i)) {
-          i = skip_value_(i+1); continue;
+          i = skip_value_(i + 1);
+          continue;
         }
-        if (!first) out += ',';
-        out += '\n'; out += pad;
+        if (!first)
+          out += ',';
+        out += '\n';
+        out += pad;
         // key
         const TapeNode &kn = doc_->tape[i];
-        out += '"'; out.append(doc_->source.data()+kn.offset, kn.length()); out += '"';
+        out += '"';
+        out.append(doc_->source.data() + kn.offset, kn.length());
+        out += '"';
         out += ": ";
-        Value val_v(doc_, i+1);
-        val_v.dump_pretty_(out, indent_size, depth+1);
+        Value val_v(doc_, i + 1);
+        val_v.dump_pretty_(out, indent_size, depth + 1);
         first = false;
-        i = skip_value_(i+1);
+        i = skip_value_(i + 1);
       }
       // additions
       if (!doc_->additions_.empty()) {
         auto ait = doc_->additions_.find(idx_);
         if (ait != doc_->additions_.end()) {
-          for (const auto &[k,v] : ait->second) {
-            if (!first) out += ',';
-            out += '\n'; out += pad;
-            out += '"'; out += k; out += "\": "; out += v;
+          for (const auto &[k, v] : ait->second) {
+            if (!first)
+              out += ',';
+            out += '\n';
+            out += pad;
+            out += '"';
+            out += k;
+            out += "\": ";
+            out += v;
             first = false;
           }
         }
       }
-      if (!first) { out += '\n'; out += close_pad; }
+      if (!first) {
+        out += '\n';
+        out += close_pad;
+      }
       out += '}';
     } else if (root_type == TapeNodeType::ArrayStart) {
       out += '[';
       bool first = true;
-      std::string pad(static_cast<size_t>((depth+1)*indent_size), ' ');
-      std::string close_pad(static_cast<size_t>(depth*indent_size), ' ');
+      std::string pad(static_cast<size_t>((depth + 1) * indent_size), ' ');
+      std::string close_pad(static_cast<size_t>(depth * indent_size), ' ');
       uint32_t i = idx_ + 1;
       const size_t ntape = doc_->tape.size();
       while (i < ntape && doc_->tape[i].type() != TapeNodeType::ArrayEnd) {
         if (!doc_->deleted_.empty() && doc_->deleted_.count(i)) {
-          i = skip_value_(i); continue;
+          i = skip_value_(i);
+          continue;
         }
-        if (!first) out += ',';
-        out += '\n'; out += pad;
+        if (!first)
+          out += ',';
+        out += '\n';
+        out += pad;
         Value elem_v(doc_, i);
-        elem_v.dump_pretty_(out, indent_size, depth+1);
+        elem_v.dump_pretty_(out, indent_size, depth + 1);
         first = false;
         i = skip_value_(i);
       }
@@ -2339,14 +2693,20 @@ private:
       if (!doc_->additions_.empty()) {
         auto ait = doc_->additions_.find(idx_);
         if (ait != doc_->additions_.end()) {
-          for (const auto &[k,v] : ait->second) {
-            if (!first) out += ',';
-            out += '\n'; out += pad; out += v;
+          for (const auto &[k, v] : ait->second) {
+            if (!first)
+              out += ',';
+            out += '\n';
+            out += pad;
+            out += v;
             first = false;
           }
         }
       }
-      if (!first) { out += '\n'; out += close_pad; }
+      if (!first) {
+        out += '\n';
+        out += close_pad;
+      }
       out += ']';
     } else {
       // scalar — just use fast dump()
@@ -2902,14 +3262,15 @@ class Parser {
   // citm_catalog.json: 243 performances × 9 keys = 2187 SIMD scans replaced
   // by byte comparisons.
   // Phase 65-M1: twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
-  // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to 32
-  // covers all twitter keys and citm's worst-case depth (9 keys per performance).
-  // Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets; M1 L1 = 192KB).
+  // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to
+  // 32 covers all twitter keys and citm's worst-case depth (9 keys per
+  // performance). Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets;
+  // M1 L1 = 192KB).
   struct KeyLenCache {
     static constexpr uint8_t MAX_DEPTH = 8;
-    static constexpr uint8_t MAX_KEYS  = 32;
-    uint8_t  key_idx[MAX_DEPTH] = {};            // current key pos per depth
-    uint16_t lens[MAX_DEPTH][MAX_KEYS] = {};     // cached source lengths (0=unset)
+    static constexpr uint8_t MAX_KEYS = 32;
+    uint8_t key_idx[MAX_DEPTH] = {};         // current key pos per depth
+    uint16_t lens[MAX_DEPTH][MAX_KEYS] = {}; // cached source lengths (0=unset)
   } kc_;
 
   // ── skip_to_action: SWAR-8 + scalar whitespace skip chain ──
@@ -2924,7 +3285,8 @@ class Parser {
     // Fast path: already on action byte.
     // Guard p_ < end_ before dereferencing: callers may reach here with
     // p_ == end_ (e.g. unterminated array/object like "[").
-    if (BEAST_UNLIKELY(p_ >= end_)) return 0;
+    if (BEAST_UNLIKELY(p_ >= end_))
+      return 0;
     unsigned char c = static_cast<unsigned char>(*p_);
     if (BEAST_LIKELY(c > 0x20))
       return static_cast<char>(c);
@@ -3024,70 +3386,70 @@ class Parser {
     }
 #endif
 
-        // Scalar tail
-        while (p_ < end_) {
-          c = static_cast<unsigned char>(*p_);
-          if (c > 0x20)
-            return static_cast<char>(c);
-          ++p_;
-        }
-        return 0;
-      }
+    // Scalar tail
+    while (p_ < end_) {
+      c = static_cast<unsigned char>(*p_);
+      if (c > 0x20)
+        return static_cast<char>(c);
+      ++p_;
+    }
+    return 0;
+  }
 
-      // ── Phase 31: Contextual SIMD Gate String Scanner ─────────────
-      //
-      // Theory: Phase 30 reverted NEON because it added startup overhead on
-      // short strings. Root fix: an 8B SWAR gate runs first. Short strings
-      // (≤8 chars, ≈36% of twitter.json) exit immediately at ZERO SIMD cost.
-      // Only when the string is confirmed > 8 chars do we enter the SIMD loop.
-      //
-      // Architecture dispatch order:
-      //   aarch64 (NEON 16B)  ← PRIMARY   — M1 / ARMv8+
-      //   x86_64  (SSE2 16B)  ← SECONDARY — Nehalem+, all modern x86
-      //   generic (SWAR-16)   ← FALLBACK
-      BEAST_INLINE const char *scan_string_end(const char *p) noexcept {
-        constexpr uint64_t K = 0x0101010101010101ULL;
-        constexpr uint64_t H = 0x8080808080808080ULL;
-        const uint64_t qm = K * static_cast<uint8_t>('"');
-        const uint64_t bsm = K * static_cast<uint8_t>('\\');
+  // ── Phase 31: Contextual SIMD Gate String Scanner ─────────────
+  //
+  // Theory: Phase 30 reverted NEON because it added startup overhead on
+  // short strings. Root fix: an 8B SWAR gate runs first. Short strings
+  // (≤8 chars, ≈36% of twitter.json) exit immediately at ZERO SIMD cost.
+  // Only when the string is confirmed > 8 chars do we enter the SIMD loop.
+  //
+  // Architecture dispatch order:
+  //   aarch64 (NEON 16B)  ← PRIMARY   — M1 / ARMv8+
+  //   x86_64  (SSE2 16B)  ← SECONDARY — Nehalem+, all modern x86
+  //   generic (SWAR-16)   ← FALLBACK
+  BEAST_INLINE const char *scan_string_end(const char *p) noexcept {
+    constexpr uint64_t K = 0x0101010101010101ULL;
+    constexpr uint64_t H = 0x8080808080808080ULL;
+    const uint64_t qm = K * static_cast<uint8_t>('"');
+    const uint64_t bsm = K * static_cast<uint8_t>('\\');
 
-        // ── Stage 1: 8B SWAR gate ──────────────────────────────────────
-        // Short strings (≤8 chars) exit here with zero SIMD overhead.
-        // Backslash-early strings also exit early (benefit escape-heavy JSON).
+    // ── Stage 1: 8B SWAR gate ──────────────────────────────────────
+    // Short strings (≤8 chars) exit here with zero SIMD overhead.
+    // Backslash-early strings also exit early (benefit escape-heavy JSON).
 #if !BEAST_HAS_NEON
-        if (BEAST_LIKELY(p + 8 <= end_)) {
-          uint64_t v0;
-          std::memcpy(&v0, p, 8);
-          uint64_t hq0 = v0 ^ qm;
-          hq0 = (hq0 - K) & ~hq0 & H;
-          uint64_t hb0 = v0 ^ bsm;
-          hb0 = (hb0 - K) & ~hb0 & H;
-          if (BEAST_UNLIKELY(hq0 | hb0))
-            return p + (BEAST_CTZ(hq0 | hb0) >> 3);
-          p += 8; // string confirmed > 8 chars: advance to SIMD
-        }
+    if (BEAST_LIKELY(p + 8 <= end_)) {
+      uint64_t v0;
+      std::memcpy(&v0, p, 8);
+      uint64_t hq0 = v0 ^ qm;
+      hq0 = (hq0 - K) & ~hq0 & H;
+      uint64_t hb0 = v0 ^ bsm;
+      hb0 = (hb0 - K) & ~hb0 & H;
+      if (BEAST_UNLIKELY(hq0 | hb0))
+        return p + (BEAST_CTZ(hq0 | hb0) >> 3);
+      p += 8; // string confirmed > 8 chars: advance to SIMD
+    }
 #endif
 
-        // ── Stage 2: SIMD loop (string > 8 chars confirmed) ───────────
+    // ── Stage 2: SIMD loop (string > 8 chars confirmed) ───────────
 
 #if BEAST_HAS_NEON
-        // aarch64 PRIMARY: NEON 16B. Pinpoint via scalar fallback loop.
-        {
-          const uint8x16_t vq = vdupq_n_u8('"');
-          const uint8x16_t vbs = vdupq_n_u8('\\');
-          while (BEAST_LIKELY(p + 16 <= end_)) {
-            uint8x16_t v = vld1q_u8(reinterpret_cast<const uint8_t *>(p));
-            uint8x16_t m = vorrq_u8(vceqq_u8(v, vq), vceqq_u8(v, vbs));
-            if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m)) != 0)) {
-              // Pinpoint: AArch64 strongly prefers scalar loop over
-              // cross-register extraction latency.
-              while (*p != '"' && *p != '\\')
-                ++p;
-              return p;
-            }
-            p += 16;
-          }
+    // aarch64 PRIMARY: NEON 16B. Pinpoint via scalar fallback loop.
+    {
+      const uint8x16_t vq = vdupq_n_u8('"');
+      const uint8x16_t vbs = vdupq_n_u8('\\');
+      while (BEAST_LIKELY(p + 16 <= end_)) {
+        uint8x16_t v = vld1q_u8(reinterpret_cast<const uint8_t *>(p));
+        uint8x16_t m = vorrq_u8(vceqq_u8(v, vq), vceqq_u8(v, vbs));
+        if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m)) != 0)) {
+          // Pinpoint: AArch64 strongly prefers scalar loop over
+          // cross-register extraction latency.
+          while (*p != '"' && *p != '\\')
+            ++p;
+          return p;
         }
+        p += 16;
+      }
+    }
 #elif BEAST_HAS_AVX2
     // x86_64 AVX2/AVX-512: SIMD string scanner.
     // Phase 34: AVX2 32B. Phase 42: AVX-512 64B outer loop (when available).
@@ -3175,275 +3537,273 @@ class Parser {
     }
 #endif
 
-        // ── Tail: 8B SWAR + scalar ─────────────────────────────────────
-        if (p + 8 <= end_) {
-          uint64_t v;
-          std::memcpy(&v, p, 8);
-          uint64_t hq = v ^ qm;
-          hq = (hq - K) & ~hq & H;
-          uint64_t hb = v ^ bsm;
-          hb = (hb - K) & ~hb & H;
-          uint64_t m = hq | hb;
-          if (BEAST_UNLIKELY(m))
-            return p + (BEAST_CTZ(m) >> 3);
-          p += 8;
-        }
-        while (p < end_ && *p != '"' && *p != '\\')
-          ++p;
-        return p;
-      }
+    // ── Tail: 8B SWAR + scalar ─────────────────────────────────────
+    if (p + 8 <= end_) {
+      uint64_t v;
+      std::memcpy(&v, p, 8);
+      uint64_t hq = v ^ qm;
+      hq = (hq - K) & ~hq & H;
+      uint64_t hb = v ^ bsm;
+      hb = (hb - K) & ~hb & H;
+      uint64_t m = hq | hb;
+      if (BEAST_UNLIKELY(m))
+        return p + (BEAST_CTZ(m) >> 3);
+      p += 8;
+    }
+    while (p < end_ && *p != '"' && *p != '\\')
+      ++p;
+    return p;
+  }
 
-      BEAST_INLINE const char *skip_string(const char *p) noexcept {
-        while (p < end_) {
-          p = scan_string_end(p);
-          if (p >= end_)
-            return end_;
-          if (*p == '"')
-            return p;
-          p += 2;
-        }
+  BEAST_INLINE const char *skip_string(const char *p) noexcept {
+    while (p < end_) {
+      p = scan_string_end(p);
+      if (p >= end_)
+        return end_;
+      if (*p == '"')
         return p;
-      }
+      p += 2;
+    }
+    return p;
+  }
 
-      // ── Phase 41: skip_string_from32
-      // ───────────────────────────────────────── Like skip_string(s+32) but
-      // skips the SWAR-8 gate in scan_string_end. Called when bytes [s, s+32)
-      // are already confirmed clean by kActString's Phase 36 AVX2 inline scan.
-      // Saves ~11 scalar instructions per call by using AVX2 directly at p =
-      // s+32 (no 8-byte prologue). For strings 32-63 chars: 1 AVX2 op total vs
-      // SWAR-8+AVX2 (17 instructions).
-      BEAST_INLINE const char *skip_string_from32(const char *s) noexcept {
-        const char *p = s + 32;
+  // ── Phase 41: skip_string_from32
+  // ───────────────────────────────────────── Like skip_string(s+32) but
+  // skips the SWAR-8 gate in scan_string_end. Called when bytes [s, s+32)
+  // are already confirmed clean by kActString's Phase 36 AVX2 inline scan.
+  // Saves ~11 scalar instructions per call by using AVX2 directly at p =
+  // s+32 (no 8-byte prologue). For strings 32-63 chars: 1 AVX2 op total vs
+  // SWAR-8+AVX2 (17 instructions).
+  BEAST_INLINE const char *skip_string_from32(const char *s) noexcept {
+    const char *p = s + 32;
 #if BEAST_HAS_AVX2
-        const __m256i vq = _mm256_set1_epi8('"');
-        const __m256i vbs = _mm256_set1_epi8('\\');
-        while (BEAST_LIKELY(p + 32 <= end_)) {
-          __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
-          uint32_t mask =
-              static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
-                  _mm256_cmpeq_epi8(v, vq), _mm256_cmpeq_epi8(v, vbs))));
-          if (BEAST_LIKELY(mask != 0)) {
-            p += __builtin_ctz(mask);
-            if (BEAST_LIKELY(*p == '"'))
-              return p;
-            p += 2; // skip escape sequence (backslash + next byte)
-            continue;
-          }
-          p += 32;
+    const __m256i vq = _mm256_set1_epi8('"');
+    const __m256i vbs = _mm256_set1_epi8('\\');
+    while (BEAST_LIKELY(p + 32 <= end_)) {
+      __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
+      uint32_t mask =
+          static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
+              _mm256_cmpeq_epi8(v, vq), _mm256_cmpeq_epi8(v, vbs))));
+      if (BEAST_LIKELY(mask != 0)) {
+        p += __builtin_ctz(mask);
+        if (BEAST_LIKELY(*p == '"'))
+          return p;
+        p += 2; // skip escape sequence (backslash + next byte)
+        continue;
+      }
+      p += 32;
+    }
+    // ── Tail: SSE2 16B (handles remaining <32B) ──────────────────────────
+    {
+      const __m128i vq128 = _mm_set1_epi8('"');
+      const __m128i vbs128 = _mm_set1_epi8('\\');
+      while (p + 16 <= end_) {
+        __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
+        int mask = _mm_movemask_epi8(
+            _mm_or_si128(_mm_cmpeq_epi8(v, vq128), _mm_cmpeq_epi8(v, vbs128)));
+        if (mask) {
+          p += __builtin_ctz(mask);
+          if (*p == '"')
+            return p;
+          p += 2;
+          break;
         }
-        // ── Tail: SSE2 16B (handles remaining <32B) ──────────────────────────
-        {
-          const __m128i vq128 = _mm_set1_epi8('"');
-          const __m128i vbs128 = _mm_set1_epi8('\\');
-          while (p + 16 <= end_) {
-            __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
-            int mask = _mm_movemask_epi8(_mm_or_si128(
-                _mm_cmpeq_epi8(v, vq128), _mm_cmpeq_epi8(v, vbs128)));
-            if (mask) {
-              p += __builtin_ctz(mask);
-              if (*p == '"')
-                return p;
-              p += 2;
-              break;
-            }
-            p += 16;
-          }
-        }
+        p += 16;
+      }
+    }
 #endif
-        // SWAR-8 + scalar tail (platform-agnostic, handles last <16B)
-        while (p < end_) {
-          p = scan_string_end(p);
-          if (p >= end_)
-            return end_;
-          if (*p == '"')
-            return p;
-          p += 2;
-        }
+    // SWAR-8 + scalar tail (platform-agnostic, handles last <16B)
+    while (p < end_) {
+      p = scan_string_end(p);
+      if (p >= end_)
+        return end_;
+      if (*p == '"')
         return p;
-      }
+      p += 2;
+    }
+    return p;
+  }
 
-      // ── Phase 43: skip_string_from64
-      // ───────────────────────────────────────── Like skip_string_from32 but
-      // starts 64B further (s+64). Called when bytes [s, s+64) are confirmed
-      // clean by an AVX-512 inline scan. For strings 64-127 chars: 1 AVX-512 op
-      // total vs full scan_string_end().
+  // ── Phase 43: skip_string_from64
+  // ───────────────────────────────────────── Like skip_string_from32 but
+  // starts 64B further (s+64). Called when bytes [s, s+64) are confirmed
+  // clean by an AVX-512 inline scan. For strings 64-127 chars: 1 AVX-512 op
+  // total vs full scan_string_end().
 #if BEAST_HAS_AVX512
-      BEAST_INLINE const char *skip_string_from64(const char *s) noexcept {
-        const char *p = s + 64;
-        {
-          const __m512i vq512 = _mm512_set1_epi8('"');
-          const __m512i vbs512 = _mm512_set1_epi8('\\');
-          while (BEAST_LIKELY(p + 64 <= end_)) {
-            __m512i v =
-                _mm512_loadu_si512(reinterpret_cast<const __m512i *>(p));
-            uint64_t mask = _mm512_cmpeq_epi8_mask(v, vq512) |
-                            _mm512_cmpeq_epi8_mask(v, vbs512);
-            if (BEAST_LIKELY(mask != 0)) {
-              p += __builtin_ctzll(mask);
-              if (BEAST_LIKELY(*p == '"'))
-                return p;
-              p += 2; // skip escape sequence
-              continue;
-            }
-            p += 64;
-          }
+  BEAST_INLINE const char *skip_string_from64(const char *s) noexcept {
+    const char *p = s + 64;
+    {
+      const __m512i vq512 = _mm512_set1_epi8('"');
+      const __m512i vbs512 = _mm512_set1_epi8('\\');
+      while (BEAST_LIKELY(p + 64 <= end_)) {
+        __m512i v = _mm512_loadu_si512(reinterpret_cast<const __m512i *>(p));
+        uint64_t mask = _mm512_cmpeq_epi8_mask(v, vq512) |
+                        _mm512_cmpeq_epi8_mask(v, vbs512);
+        if (BEAST_LIKELY(mask != 0)) {
+          p += __builtin_ctzll(mask);
+          if (BEAST_LIKELY(*p == '"'))
+            return p;
+          p += 2; // skip escape sequence
+          continue;
         }
-        // AVX2 32B tail (handles remaining <64B)
-        {
-          const __m256i vq = _mm256_set1_epi8('"');
-          const __m256i vbs = _mm256_set1_epi8('\\');
-          while (BEAST_LIKELY(p + 32 <= end_)) {
-            __m256i v =
-                _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
-            uint32_t mask =
-                static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
-                    _mm256_cmpeq_epi8(v, vq), _mm256_cmpeq_epi8(v, vbs))));
-            if (BEAST_LIKELY(mask != 0)) {
-              p += __builtin_ctz(mask);
-              if (BEAST_LIKELY(*p == '"'))
-                return p;
-              p += 2;
-              continue;
-            }
-            p += 32;
-          }
+        p += 64;
+      }
+    }
+    // AVX2 32B tail (handles remaining <64B)
+    {
+      const __m256i vq = _mm256_set1_epi8('"');
+      const __m256i vbs = _mm256_set1_epi8('\\');
+      while (BEAST_LIKELY(p + 32 <= end_)) {
+        __m256i v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(p));
+        uint32_t mask =
+            static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
+                _mm256_cmpeq_epi8(v, vq), _mm256_cmpeq_epi8(v, vbs))));
+        if (BEAST_LIKELY(mask != 0)) {
+          p += __builtin_ctz(mask);
+          if (BEAST_LIKELY(*p == '"'))
+            return p;
+          p += 2;
+          continue;
         }
-        // SSE2 16B tail
-        {
-          const __m128i vq128 = _mm_set1_epi8('"');
-          const __m128i vbs128 = _mm_set1_epi8('\\');
-          while (p + 16 <= end_) {
-            __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
-            int mask = _mm_movemask_epi8(_mm_or_si128(
-                _mm_cmpeq_epi8(v, vq128), _mm_cmpeq_epi8(v, vbs128)));
-            if (mask) {
-              p += __builtin_ctz(mask);
-              if (*p == '"')
-                return p;
-              p += 2;
-              break;
-            }
-            p += 16;
-          }
-        }
-        // Scalar tail (platform-agnostic, handles last <16B)
-        while (p < end_) {
-          p = scan_string_end(p);
-          if (p >= end_)
-            return end_;
+        p += 32;
+      }
+    }
+    // SSE2 16B tail
+    {
+      const __m128i vq128 = _mm_set1_epi8('"');
+      const __m128i vbs128 = _mm_set1_epi8('\\');
+      while (p + 16 <= end_) {
+        __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
+        int mask = _mm_movemask_epi8(
+            _mm_or_si128(_mm_cmpeq_epi8(v, vq128), _mm_cmpeq_epi8(v, vbs128)));
+        if (mask) {
+          p += __builtin_ctz(mask);
           if (*p == '"')
             return p;
           p += 2;
+          break;
         }
-        return p;
+        p += 16;
       }
+    }
+    // Scalar tail (platform-agnostic, handles last <16B)
+    while (p < end_) {
+      p = scan_string_end(p);
+      if (p >= end_)
+        return end_;
+      if (*p == '"')
+        return p;
+      p += 2;
+    }
+    return p;
+  }
 #endif // BEAST_HAS_AVX512
 
-      // Fused key scanner: scan string end, then consume ':' immediately.
-      // For object keys: after closing '"', the next structural char is always
-      // ':'. If the char after '"' is already ':', consume it and return the
-      // next char. If there's whitespace between '"' and ':', do a normal SWAR
-      // skip. Returns the char that follows the ':' (the start of the value, or
-      // 0 on error). Also sets p_ to the position of that char.
-      //
-      // Phase B1 upgrade: SWAR-24 fast path (same as main switch case '"':)
-      // covers ≤24-byte keys with no backslash, accounting for 90%+ of
-      // twitter.json keys.
-      BEAST_INLINE char scan_key_colon_next(const char *s,
-                                            const char **key_end_out) noexcept {
-        // s is the char after the opening '"' of the key.
-        const char *e;
-        // Phase 59: KeyCache fast path — O(1) key-end detection.
-        // In valid JSON, any '"' inside a string is escaped as '\"', so
-        // s[cached_len] == '"' unambiguously identifies the closing quote.
-        // Skips the full SIMD scan for repeated same-schema objects (citm: 2187×).
-        const uint8_t kd = (depth_ < KeyLenCache::MAX_DEPTH)
-                               ? static_cast<uint8_t>(depth_) : uint8_t(255);
-        if (BEAST_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
-          const uint8_t kidx = kc_.key_idx[kd];
-          if (kidx < KeyLenCache::MAX_KEYS) {
-            const uint16_t cl = kc_.lens[kd][kidx];
-            if (cl != 0) {
-              // Phase 65: simplified KeyLenCache guard — s[cl+1]==':' only.
-              // A true cache hit: s[cl] == '"' (key's closing quote) and
-              // s[cl+1] == ':' (the key-value separator that follows immediately).
-              // This single check rejects all known false-positive patterns:
-              //   Case A (value opening '"'): s[cl+1] = first char of value ≠ ':'
-              //   Case B (value closing '"'): s[cl+1] = ',' or '}' ≠ ':'
-              // Removed: s[cl-1] != ':' — was redundant given s[cl+1]==':',
-              // and added one extra memory read per cache-hit on the hot path.
-              // ⚠ Known edge case: a string value starting with ':' (e.g. ":foo")
-              // could cause a false-positive here.  None of the four standard
-              // benchmark files (twitter/canada/citm/gsoc) contain such values.
-              if (BEAST_LIKELY(s + cl + 1 < end_) && s[cl] == '"' &&
-                  s[cl + 1] == ':') {
-                e = s + cl;
-                kc_.key_idx[kd] = kidx + 1;
-                goto skn_cache_hit;
-              }
-              kc_.lens[kd][kidx] = 0; // length mismatch: clear for re-learning
-            }
+  // Fused key scanner: scan string end, then consume ':' immediately.
+  // For object keys: after closing '"', the next structural char is always
+  // ':'. If the char after '"' is already ':', consume it and return the
+  // next char. If there's whitespace between '"' and ':', do a normal SWAR
+  // skip. Returns the char that follows the ':' (the start of the value, or
+  // 0 on error). Also sets p_ to the position of that char.
+  //
+  // Phase B1 upgrade: SWAR-24 fast path (same as main switch case '"':)
+  // covers ≤24-byte keys with no backslash, accounting for 90%+ of
+  // twitter.json keys.
+  BEAST_INLINE char scan_key_colon_next(const char *s,
+                                        const char **key_end_out) noexcept {
+    // s is the char after the opening '"' of the key.
+    const char *e;
+    // Phase 59: KeyCache fast path — O(1) key-end detection.
+    // In valid JSON, any '"' inside a string is escaped as '\"', so
+    // s[cached_len] == '"' unambiguously identifies the closing quote.
+    // Skips the full SIMD scan for repeated same-schema objects (citm: 2187×).
+    const uint8_t kd = (depth_ < KeyLenCache::MAX_DEPTH)
+                           ? static_cast<uint8_t>(depth_)
+                           : uint8_t(255);
+    if (BEAST_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
+      const uint8_t kidx = kc_.key_idx[kd];
+      if (kidx < KeyLenCache::MAX_KEYS) {
+        const uint16_t cl = kc_.lens[kd][kidx];
+        if (cl != 0) {
+          // Phase 65: simplified KeyLenCache guard — s[cl+1]==':' only.
+          // A true cache hit: s[cl] == '"' (key's closing quote) and
+          // s[cl+1] == ':' (the key-value separator that follows immediately).
+          // This single check rejects all known false-positive patterns:
+          //   Case A (value opening '"'): s[cl+1] = first char of value ≠ ':'
+          //   Case B (value closing '"'): s[cl+1] = ',' or '}' ≠ ':'
+          // Removed: s[cl-1] != ':' — was redundant given s[cl+1]==':',
+          // and added one extra memory read per cache-hit on the hot path.
+          // ⚠ Known edge case: a string value starting with ':' (e.g. ":foo")
+          // could cause a false-positive here.  None of the four standard
+          // benchmark files (twitter/canada/citm/gsoc) contain such values.
+          if (BEAST_LIKELY(s + cl + 1 < end_) && s[cl] == '"' &&
+              s[cl + 1] == ':') {
+            e = s + cl;
+            kc_.key_idx[kd] = kidx + 1;
+            goto skn_cache_hit;
           }
+          kc_.lens[kd][kidx] = 0; // length mismatch: clear for re-learning
         }
+      }
+    }
 #if BEAST_HAS_AVX2
 #if BEAST_HAS_AVX512
-        // ── Phase 43: AVX-512 64B one-shot key scan
-        // ───────────────────────────── Handles keys ≤63 chars in one 512-bit
-        // operation.
-        if (BEAST_LIKELY(s + 64 <= end_)) {
-          const __m512i _vq512 = _mm512_set1_epi8('"');
-          const __m512i _vbs512 = _mm512_set1_epi8('\\');
-          __m512i _v512 =
-              _mm512_loadu_si512(reinterpret_cast<const __m512i *>(s));
-          uint64_t _mask512 = _mm512_cmpeq_epi8_mask(_v512, _vq512) |
-                              _mm512_cmpeq_epi8_mask(_v512, _vbs512);
-          if (BEAST_LIKELY(_mask512 != 0)) {
-            e = s + __builtin_ctzll(_mask512);
-            if (BEAST_LIKELY(*e == '"')) {
-              goto skn_found;
-            }
-            goto skn_slow; // backslash → full scanner
-          }
-          // mask==0: bytes [s, s+64) clean → skip_string_from64
-          e = skip_string_from64(s);
-          if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-            return 0;
+    // ── Phase 43: AVX-512 64B one-shot key scan
+    // ───────────────────────────── Handles keys ≤63 chars in one 512-bit
+    // operation.
+    if (BEAST_LIKELY(s + 64 <= end_)) {
+      const __m512i _vq512 = _mm512_set1_epi8('"');
+      const __m512i _vbs512 = _mm512_set1_epi8('\\');
+      __m512i _v512 = _mm512_loadu_si512(reinterpret_cast<const __m512i *>(s));
+      uint64_t _mask512 = _mm512_cmpeq_epi8_mask(_v512, _vq512) |
+                          _mm512_cmpeq_epi8_mask(_v512, _vbs512);
+      if (BEAST_LIKELY(_mask512 != 0)) {
+        e = s + __builtin_ctzll(_mask512);
+        if (BEAST_LIKELY(*e == '"')) {
           goto skn_found;
         }
-        // s+64 > end_: fall through to AVX2 32B
+        goto skn_slow; // backslash → full scanner
+      }
+      // mask==0: bytes [s, s+64) clean → skip_string_from64
+      e = skip_string_from64(s);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0;
+      goto skn_found;
+    }
+    // s+64 > end_: fall through to AVX2 32B
 #endif
-        // ── Phase 36: AVX2 32B key scan
-        // ───────────────────────────────────────── Handles keys ≤31 chars in
-        // one 256-bit operation. mask==0 or backslash → goto skn_slow directly
-        // (no SWAR-24 redundancy).
-        if (BEAST_LIKELY(s + 32 <= end_)) {
-          const __m256i _vq = _mm256_set1_epi8('"');
-          const __m256i _vbs = _mm256_set1_epi8('\\');
-          __m256i _v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(s));
-          uint32_t _mask =
-              static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
-                  _mm256_cmpeq_epi8(_v, _vq), _mm256_cmpeq_epi8(_v, _vbs))));
-          if (BEAST_LIKELY(_mask != 0)) {
-            e = s + __builtin_ctz(_mask);
-            if (BEAST_LIKELY(*e == '"')) {
-              goto skn_found;
-            }
-            goto skn_slow; // backslash → full scanner
-          }
-          // ── Phase 41: mask==0 — bytes [s, s+32) are clean ────────────────
-          // skip_string_from32 starts AVX2 at s+32 directly, skipping
-          // scan_string_end's SWAR-8 gate (~11 instructions saved per call).
-          e = skip_string_from32(s);
-          if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-            return 0;
+    // ── Phase 36: AVX2 32B key scan
+    // ───────────────────────────────────────── Handles keys ≤31 chars in
+    // one 256-bit operation. mask==0 or backslash → goto skn_slow directly
+    // (no SWAR-24 redundancy).
+    if (BEAST_LIKELY(s + 32 <= end_)) {
+      const __m256i _vq = _mm256_set1_epi8('"');
+      const __m256i _vbs = _mm256_set1_epi8('\\');
+      __m256i _v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(s));
+      uint32_t _mask =
+          static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
+              _mm256_cmpeq_epi8(_v, _vq), _mm256_cmpeq_epi8(_v, _vbs))));
+      if (BEAST_LIKELY(_mask != 0)) {
+        e = s + __builtin_ctz(_mask);
+        if (BEAST_LIKELY(*e == '"')) {
           goto skn_found;
         }
-        // ── Phase 45: near end of buffer on AVX2+ → skn_slow directly
-        // ────────── SWAR-24 is dead code on AVX2/AVX-512 machines (only
-        // reached for keys within the last 31B of input, i.e. essentially never
-        // on real files). Removing it shrinks the function → better L1 I-cache
-        // utilization.
-        goto skn_slow;
+        goto skn_slow; // backslash → full scanner
+      }
+      // ── Phase 41: mask==0 — bytes [s, s+32) are clean ────────────────
+      // skip_string_from32 starts AVX2 at s+32 directly, skipping
+      // scan_string_end's SWAR-8 gate (~11 instructions saved per call).
+      e = skip_string_from32(s);
+      if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+        return 0;
+      goto skn_found;
+    }
+    // ── Phase 45: near end of buffer on AVX2+ → skn_slow directly
+    // ────────── SWAR-24 is dead code on AVX2/AVX-512 machines (only
+    // reached for keys within the last 31B of input, i.e. essentially never
+    // on real files). Removing it shrinks the function → better L1 I-cache
+    // utilization.
+    goto skn_slow;
 #elif BEAST_HAS_NEON
 #if defined(BEAST_ARCH_APPLE_SILICON)
     // ── Phase 60-C / 65-M1: Apple Silicon 3×16B NEON key scanner ────────────
@@ -3451,7 +3811,8 @@ class Parser {
     //   - 128B L1/L2 cache lines: 3×16B loads (48B) still within one cache line
     //     on aligned access → 3rd load is effectively free after the 1st miss.
     //   - 576-entry ROB: wider speculative window absorbs the extra branch vs
-    //     Cortex-X3 (~200 ROB entries) where Phase 60-B showed +5.6% regression.
+    //     Cortex-X3 (~200 ROB entries) where Phase 60-B showed +5.6%
+    //     regression.
     //   - Pure NEON: no scalar pre-gates; all loads are vector instructions.
     //
     // Key-length distribution for benchmark files:
@@ -3604,679 +3965,679 @@ class Parser {
       constexpr uint64_t H = 0x8080808080808080ULL;
       const uint64_t qm = K * static_cast<uint8_t>('"');
       const uint64_t bsm = K * static_cast<uint8_t>('\\');
-    if (BEAST_LIKELY(s + 24 <= end_)) {
-      uint64_t v0;
-      std::memcpy(&v0, s, 8);
-      uint64_t hq0 = v0 ^ qm;
-      hq0 = (hq0 - K) & ~hq0 & H;
-      uint64_t hb0 = v0 ^ bsm;
-      hb0 = (hb0 - K) & ~hb0 & H;
-      if (BEAST_LIKELY(!hb0)) {
-        if (hq0) { // ≤8-char key: quote in first chunk, no backslash
-          e = s + (BEAST_CTZ(hq0) >> 3);
-          goto skn_found;
+      if (BEAST_LIKELY(s + 24 <= end_)) {
+        uint64_t v0;
+        std::memcpy(&v0, s, 8);
+        uint64_t hq0 = v0 ^ qm;
+        hq0 = (hq0 - K) & ~hq0 & H;
+        uint64_t hb0 = v0 ^ bsm;
+        hb0 = (hb0 - K) & ~hb0 & H;
+        if (BEAST_LIKELY(!hb0)) {
+          if (hq0) { // ≤8-char key: quote in first chunk, no backslash
+            e = s + (BEAST_CTZ(hq0) >> 3);
+            goto skn_found;
+          }
+          // Key is 9-24 chars: load v1 and v2
+          uint64_t v1, v2;
+          std::memcpy(&v1, s + 8, 8);
+          std::memcpy(&v2, s + 16, 8);
+          uint64_t hq1 = v1 ^ qm;
+          hq1 = (hq1 - K) & ~hq1 & H;
+          uint64_t hb1 = v1 ^ bsm;
+          hb1 = (hb1 - K) & ~hb1 & H;
+          uint64_t hq2 = v2 ^ qm;
+          hq2 = (hq2 - K) & ~hq2 & H;
+          uint64_t hb2 = v2 ^ bsm;
+          hb2 = (hb2 - K) & ~hb2 & H;
+          if (BEAST_LIKELY(!(hb1 | hb2))) {
+            if (hq1)
+              e = s + 8 + (BEAST_CTZ(hq1) >> 3);
+            else if (hq2)
+              e = s + 16 + (BEAST_CTZ(hq2) >> 3);
+            else
+              goto skn_slow;
+            goto skn_found;
+          }
         }
-        // Key is 9-24 chars: load v1 and v2
-        uint64_t v1, v2;
-        std::memcpy(&v1, s + 8, 8);
-        std::memcpy(&v2, s + 16, 8);
-        uint64_t hq1 = v1 ^ qm;
-        hq1 = (hq1 - K) & ~hq1 & H;
-        uint64_t hb1 = v1 ^ bsm;
-        hb1 = (hb1 - K) & ~hb1 & H;
-        uint64_t hq2 = v2 ^ qm;
-        hq2 = (hq2 - K) & ~hq2 & H;
-        uint64_t hb2 = v2 ^ bsm;
-        hb2 = (hb2 - K) & ~hb2 & H;
-        if (BEAST_LIKELY(!(hb1 | hb2))) {
-          if (hq1)
-            e = s + 8 + (BEAST_CTZ(hq1) >> 3);
-          else if (hq2)
-            e = s + 16 + (BEAST_CTZ(hq2) >> 3);
-          else
-            goto skn_slow;
-          goto skn_found;
-        }
+        // Backslash found → fall through to full scan
       }
-      // Backslash found → fall through to full scan
-    }
     } // end SWAR-24 scope (K/H/qm/bsm)
 #endif // BEAST_HAS_AVX2
-      skn_slow:
-        e = skip_string(s);
-        if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-          return 0; // malformed
-      skn_found:
-        // Phase 59: record key length for future cache hits (first-pass learning).
-        if (BEAST_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
-          const uint8_t kidx = kc_.key_idx[kd];
-          if (kidx < KeyLenCache::MAX_KEYS) {
-            if (kc_.lens[kd][kidx] == 0)
-              kc_.lens[kd][kidx] = static_cast<uint16_t>(e - s);
-            kc_.key_idx[kd] = kidx + 1;
-          }
-        }
-      skn_cache_hit:
-        if (key_end_out)
-          *key_end_out = e;
-        push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-             static_cast<uint32_t>(s - data_));
-        p_ = e + 1; // advance past closing '"'
+  skn_slow:
+    e = skip_string(s);
+    if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+      return 0; // malformed
+  skn_found:
+    // Phase 59: record key length for future cache hits (first-pass learning).
+    if (BEAST_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
+      const uint8_t kidx = kc_.key_idx[kd];
+      if (kidx < KeyLenCache::MAX_KEYS) {
+        if (kc_.lens[kd][kidx] == 0)
+          kc_.lens[kd][kidx] = static_cast<uint16_t>(e - s);
+        kc_.key_idx[kd] = kidx + 1;
+      }
+    }
+  skn_cache_hit:
+    if (key_end_out)
+      *key_end_out = e;
+    push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+         static_cast<uint32_t>(s - data_));
+    p_ = e + 1; // advance past closing '"'
 
-        // Now: consume ':' and skip whitespace to the value start.
-        // Common case: p_ is already on ':' (no space between key and colon)
-        if (BEAST_LIKELY(p_ < end_ && *p_ == ':')) {
-          ++p_;
-          // peek at value start
-          if (BEAST_LIKELY(p_ < end_)) {
-            unsigned char nc = static_cast<unsigned char>(*p_);
-            if (BEAST_LIKELY(nc > 0x20))
-              return static_cast<char>(nc);
-            return skip_to_action();
-          }
-          return 0;
-        }
-        // Rare: whitespace between key and colon, or missing colon
-        char ch = skip_to_action();
-        if (ch != ':')
-          return ch; // let outer loop handle it
-        ++p_;
+    // Now: consume ':' and skip whitespace to the value start.
+    // Common case: p_ is already on ':' (no space between key and colon)
+    if (BEAST_LIKELY(p_ < end_ && *p_ == ':')) {
+      ++p_;
+      // peek at value start
+      if (BEAST_LIKELY(p_ < end_)) {
+        unsigned char nc = static_cast<unsigned char>(*p_);
+        if (BEAST_LIKELY(nc > 0x20))
+          return static_cast<char>(nc);
         return skip_to_action();
       }
+      return 0;
+    }
+    // Rare: whitespace between key and colon, or missing colon
+    char ch = skip_to_action();
+    if (ch != ':')
+      return ch; // let outer loop handle it
+    ++p_;
+    return skip_to_action();
+  }
 
-      // ── Phase 19 Technique 8: tape push via local register pointer ─
-      // tape_head_ is kept in a CPU register across the parse() body.
-      // No pointer chain: doc_->tape.head is only synced at the very end.
-      // push(): for every token EXCEPT ObjectEnd/ArrayEnd.
-      // Computes separator flag from current parse context, stores in meta bits
-      // 23-16 so dump() needs no bit-stack at all.
-      //   sep = 0  → no separator  (root, first array element, first object
-      //   key) sep = 1  → comma         (non-first array element or object key)
-      //   sep = 2  → colon         (object value, always)
-      BEAST_INLINE void push(TapeNodeType t, uint16_t l, uint32_t o) noexcept {
-        // Phase 58-A: prefetch tape write slot 16 TapeNodes (192B) ahead — store
-        // hint. Hides tape-arena write latency; significant gain on large files
-        // (canada).
-        __builtin_prefetch(tape_head_ + 16, 1, 1);
-        uint8_t sep = 0;
-        if (BEAST_LIKELY(depth_ > 0)) {
-          // Phase 64 (x86_64): LUT-based sep+state computation.
-          // Replaces 14-instruction bit arithmetic with 2 table loads.
-          // Valid states: 0(arr,no-elem), 3(obj,key,no-elem), 4(arr,has-elem),
-          //               6(obj,val), 7(obj,key,has-elem).
-          // sep_lut  maps cur_state_ → separator byte (0=none, 1=comma, 2=colon)
-          // ncs_lut  maps cur_state_ → next cur_state_ after this push()
-          // Both tables fit in a single 8-byte pair (trivially L1-resident).
-          static constexpr uint8_t sep_lut[8] = {0, 0, 0, 0, 1, 0, 2, 1};
-          // ncs_lut[cs] = next cur_state_ after push():
-          //   000(0)→100(4): arr, gains has_elem
-          //   011(3)→110(6): obj key (no-elem) → obj val (has-elem)
-          //   100(4)→100(4): arr, has_elem stays
-          //   110(6)→111(7): obj val → obj key (has-elem)
-          //   111(7)→110(6): obj key → obj val
-          static constexpr uint8_t ncs_lut[8] = {4, 0, 0, 6, 4, 0, 7, 6};
-          const uint8_t cs = cur_state_;
-          sep = sep_lut[cs];
-          cur_state_ = ncs_lut[cs];
+  // ── Phase 19 Technique 8: tape push via local register pointer ─
+  // tape_head_ is kept in a CPU register across the parse() body.
+  // No pointer chain: doc_->tape.head is only synced at the very end.
+  // push(): for every token EXCEPT ObjectEnd/ArrayEnd.
+  // Computes separator flag from current parse context, stores in meta bits
+  // 23-16 so dump() needs no bit-stack at all.
+  //   sep = 0  → no separator  (root, first array element, first object
+  //   key) sep = 1  → comma         (non-first array element or object key)
+  //   sep = 2  → colon         (object value, always)
+  BEAST_INLINE void push(TapeNodeType t, uint16_t l, uint32_t o) noexcept {
+    // Phase 58-A: prefetch tape write slot 16 TapeNodes (192B) ahead — store
+    // hint. Hides tape-arena write latency; significant gain on large files
+    // (canada).
+    __builtin_prefetch(tape_head_ + 16, 1, 1);
+    uint8_t sep = 0;
+    if (BEAST_LIKELY(depth_ > 0)) {
+      // Phase 64 (x86_64): LUT-based sep+state computation.
+      // Replaces 14-instruction bit arithmetic with 2 table loads.
+      // Valid states: 0(arr,no-elem), 3(obj,key,no-elem), 4(arr,has-elem),
+      //               6(obj,val), 7(obj,key,has-elem).
+      // sep_lut  maps cur_state_ → separator byte (0=none, 1=comma, 2=colon)
+      // ncs_lut  maps cur_state_ → next cur_state_ after this push()
+      // Both tables fit in a single 8-byte pair (trivially L1-resident).
+      static constexpr uint8_t sep_lut[8] = {0, 0, 0, 0, 1, 0, 2, 1};
+      // ncs_lut[cs] = next cur_state_ after push():
+      //   000(0)→100(4): arr, gains has_elem
+      //   011(3)→110(6): obj key (no-elem) → obj val (has-elem)
+      //   100(4)→100(4): arr, has_elem stays
+      //   110(6)→111(7): obj val → obj key (has-elem)
+      //   111(7)→110(6): obj key → obj val
+      static constexpr uint8_t ncs_lut[8] = {4, 0, 0, 6, 4, 0, 7, 6};
+      const uint8_t cs = cur_state_;
+      sep = sep_lut[cs];
+      cur_state_ = ncs_lut[cs];
+    }
+    TapeNode *n = tape_head_++;
+    n->meta = (static_cast<uint32_t>(t) << 24) |
+              (static_cast<uint32_t>(sep) << 16) | static_cast<uint32_t>(l);
+    n->offset = o;
+  }
+
+  // push_end(): for ObjectEnd / ArrayEnd — always sep=0, no state update.
+  BEAST_INLINE void push_end(TapeNodeType t, uint32_t o) noexcept {
+    TapeNode *n = tape_head_++;
+    n->meta = static_cast<uint32_t>(t) << 24; // sep=0, len=0
+    n->offset = o;
+  }
+
+  BEAST_INLINE uint32_t tape_size() const noexcept {
+    return static_cast<uint32_t>(tape_head_ - doc_->tape.base);
+  }
+
+public:
+  explicit Parser(DocumentView *doc)
+      : p_(doc->data()), end_(doc->data() + doc->size()), data_(doc->data()),
+        doc_(doc),
+        tape_head_(doc->tape.base) // initialize local head from arena base
+  {}
+
+  // ── Phase 19: main parse loop ──────────────────────────────
+  // Key changes vs Phase 18:
+  //   1. char c = skip_to_action()  → switch(c) avoids re-read of *p_
+  //   2. tape_head_ is local → no doc_->tape.size() pointer chain
+  //   3. NEON 16-byte WS skip in skip_to_action() path
+  [[gnu::hot, gnu::flatten]] bool parse() {
+    // skip_to_action() returns the first action char AND advances p_.
+    // We keep 'c' as the dispatch value — no *p_ re-read needed.
+    char c = skip_to_action();
+    if (BEAST_UNLIKELY(c == 0 || p_ >= end_)) {
+      doc_->tape.head = tape_head_; // sync
+      return false;
+    }
+
+    while (p_ < end_) {
+      // Phase 58-A / Apple Silicon: prefetch BEAST_PREFETCH_DISTANCE bytes
+      // ahead with L2 locality hint. Distance is arch-tuned at compile time:
+      //   Apple Silicon (M1/M2/M3): 512B (4 × 128B cache lines)
+      //   Cortex-X3 / generic ARM64: 256B (4 × 64B; Phase 58-A winner)
+      //   x86_64: 192B (Phase 48 measured optimum)
+      BEAST_PREFETCH(p_ + BEAST_PREFETCH_DISTANCE);
+      // Phase 32: LUT dispatch — 11 ActionId cases vs 17 raw char cases.
+      // kActionLut[c] maps every byte to an ActionId in one L1 cache
+      // access.
+      switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
+
+      case kActObjOpen: {
+        // Nested objects/arrays are not valid object keys (RFC 8259 §4).
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        push(TapeNodeType::ObjectStart, 0, static_cast<uint32_t>(p_ - data_));
+        // Phase 60-A: save parent state, init new object context.
+        // cstate_stack_[depth_] saves cur_state_ for restore on close.
+        cstate_stack_[depth_] = cur_state_;
+        cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
+        ++depth_;
+        // Phase 59: reset key index for newly entered object depth.
+        if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
+          kc_.key_idx[depth_] = 0;
+        ++p_;
+        if (BEAST_LIKELY(p_ < end_)) {
+          unsigned char fc = static_cast<unsigned char>(*p_);
+          if (BEAST_LIKELY(fc > 0x20)) {
+            c = static_cast<char>(fc);
+            continue;
+          }
         }
-        TapeNode *n = tape_head_++;
-        n->meta = (static_cast<uint32_t>(t) << 24) |
-                  (static_cast<uint32_t>(sep) << 16) | static_cast<uint32_t>(l);
-        n->offset = o;
+        break;
       }
-
-      // push_end(): for ObjectEnd / ArrayEnd — always sep=0, no state update.
-      BEAST_INLINE void push_end(TapeNodeType t, uint32_t o) noexcept {
-        TapeNode *n = tape_head_++;
-        n->meta = static_cast<uint32_t>(t) << 24; // sep=0, len=0
-        n->offset = o;
-      }
-
-      BEAST_INLINE uint32_t tape_size() const noexcept {
-        return static_cast<uint32_t>(tape_head_ - doc_->tape.base);
-      }
-
-    public:
-      explicit Parser(DocumentView * doc)
-          : p_(doc->data()), end_(doc->data() + doc->size()),
-            data_(doc->data()), doc_(doc),
-            tape_head_(doc->tape.base) // initialize local head from arena base
-      {}
-
-      // ── Phase 19: main parse loop ──────────────────────────────
-      // Key changes vs Phase 18:
-      //   1. char c = skip_to_action()  → switch(c) avoids re-read of *p_
-      //   2. tape_head_ is local → no doc_->tape.size() pointer chain
-      //   3. NEON 16-byte WS skip in skip_to_action() path
-      [[gnu::hot, gnu::flatten]] bool parse() {
-        // skip_to_action() returns the first action char AND advances p_.
-        // We keep 'c' as the dispatch value — no *p_ re-read needed.
-        char c = skip_to_action();
-        if (BEAST_UNLIKELY(c == 0 || p_ >= end_)) {
-          doc_->tape.head = tape_head_; // sync
-          return false;
+      case kActArrOpen: {
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        push(TapeNodeType::ArrayStart, 0, static_cast<uint32_t>(p_ - data_));
+        // Phase 60-A: save parent state, init new array context.
+        cstate_stack_[depth_] = cur_state_;
+        cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
+        ++depth_;
+        ++p_;
+        if (BEAST_LIKELY(p_ < end_)) {
+          unsigned char fc = static_cast<unsigned char>(*p_);
+          if (BEAST_LIKELY(fc > 0x20)) {
+            c = static_cast<char>(fc);
+            continue;
+          }
         }
-
-        while (p_ < end_) {
-          // Phase 58-A / Apple Silicon: prefetch BEAST_PREFETCH_DISTANCE bytes
-          // ahead with L2 locality hint. Distance is arch-tuned at compile time:
-          //   Apple Silicon (M1/M2/M3): 512B (4 × 128B cache lines)
-          //   Cortex-X3 / generic ARM64: 256B (4 × 64B; Phase 58-A winner)
-          //   x86_64: 192B (Phase 48 measured optimum)
-          BEAST_PREFETCH(p_ + BEAST_PREFETCH_DISTANCE);
-          // Phase 32: LUT dispatch — 11 ActionId cases vs 17 raw char cases.
-          // kActionLut[c] maps every byte to an ActionId in one L1 cache
-          // access.
-          switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
-
-          case kActObjOpen: {
-            // Nested objects/arrays are not valid object keys (RFC 8259 §4).
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            push(TapeNodeType::ObjectStart, 0,
+        break;
+      }
+      case kActClose: {
+        if (BEAST_UNLIKELY(depth_ == 0))
+          goto fail;
+        --depth_;
+        // Phase 60-A: restore parent depth's state (no mask arithmetic).
+        cur_state_ = cstate_stack_[depth_];
+        push_end(c == '}' ? TapeNodeType::ObjectEnd : TapeNodeType::ArrayEnd,
                  static_cast<uint32_t>(p_ - data_));
-            // Phase 60-A: save parent state, init new object context.
-            // cstate_stack_[depth_] saves cur_state_ for restore on close.
-            cstate_stack_[depth_] = cur_state_;
-            cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
-            ++depth_;
-            // Phase 59: reset key index for newly entered object depth.
-            if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
-              kc_.key_idx[depth_] = 0;
-            ++p_;
-            if (BEAST_LIKELY(p_ < end_)) {
-              unsigned char fc = static_cast<unsigned char>(*p_);
-              if (BEAST_LIKELY(fc > 0x20)) {
-                c = static_cast<char>(fc);
-                continue;
-              }
-            }
-            break;
-          }
-          case kActArrOpen: {
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            push(TapeNodeType::ArrayStart, 0,
-                 static_cast<uint32_t>(p_ - data_));
-            // Phase 60-A: save parent state, init new array context.
-            cstate_stack_[depth_] = cur_state_;
-            cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
-            ++depth_;
-            ++p_;
-            if (BEAST_LIKELY(p_ < end_)) {
-              unsigned char fc = static_cast<unsigned char>(*p_);
-              if (BEAST_LIKELY(fc > 0x20)) {
-                c = static_cast<char>(fc);
-                continue;
-              }
-            }
-            break;
-          }
-          case kActClose: {
-            if (BEAST_UNLIKELY(depth_ == 0))
-              goto fail;
-            --depth_;
-            // Phase 60-A: restore parent depth's state (no mask arithmetic).
-            cur_state_ = cstate_stack_[depth_];
-            push_end(c == '}' ? TapeNodeType::ObjectEnd
-                              : TapeNodeType::ArrayEnd,
-                     static_cast<uint32_t>(p_ - data_));
-            ++p_;
-            break;
-          }
-          case kActString: {
-            const char *s = p_ + 1, *e;
-            constexpr uint64_t K = 0x0101010101010101ULL;
-            constexpr uint64_t H = 0x8080808080808080ULL;
-            const uint64_t qm = K * static_cast<uint8_t>('"');
-            const uint64_t bsm = K * static_cast<uint8_t>('\\');
+        ++p_;
+        break;
+      }
+      case kActString: {
+        const char *s = p_ + 1, *e;
+        constexpr uint64_t K = 0x0101010101010101ULL;
+        constexpr uint64_t H = 0x8080808080808080ULL;
+        const uint64_t qm = K * static_cast<uint8_t>('"');
+        const uint64_t bsm = K * static_cast<uint8_t>('\\');
 #if BEAST_HAS_AVX2
 #if BEAST_HAS_AVX512
-            // ── Phase 43: AVX-512 64B one-shot string scan
-            // ────────────────────── One 512-bit load handles ≤63-char strings
-            // in a single zmm op. Expected gain: citm (long keys) −5~10%,
-            // twitter moderate.
-            if (BEAST_LIKELY(s + 64 <= end_)) {
-              const __m512i _vq512 = _mm512_set1_epi8('"');
-              const __m512i _vbs512 = _mm512_set1_epi8('\\');
-              __m512i _v512 =
-                  _mm512_loadu_si512(reinterpret_cast<const __m512i *>(s));
-              uint64_t _mask512 = _mm512_cmpeq_epi8_mask(_v512, _vq512) |
-                                  _mm512_cmpeq_epi8_mask(_v512, _vbs512);
-              if (BEAST_LIKELY(_mask512 != 0)) {
-                e = s + __builtin_ctzll(_mask512);
-                if (BEAST_LIKELY(*e == '"')) {
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-                goto str_slow; // backslash first → full scanner
-              }
-              // mask==0: bytes [s, s+64) clean → skip_string_from64
-              e = skip_string_from64(s);
-              if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-                goto fail;
+        // ── Phase 43: AVX-512 64B one-shot string scan
+        // ────────────────────── One 512-bit load handles ≤63-char strings
+        // in a single zmm op. Expected gain: citm (long keys) −5~10%,
+        // twitter moderate.
+        if (BEAST_LIKELY(s + 64 <= end_)) {
+          const __m512i _vq512 = _mm512_set1_epi8('"');
+          const __m512i _vbs512 = _mm512_set1_epi8('\\');
+          __m512i _v512 =
+              _mm512_loadu_si512(reinterpret_cast<const __m512i *>(s));
+          uint64_t _mask512 = _mm512_cmpeq_epi8_mask(_v512, _vq512) |
+                              _mm512_cmpeq_epi8_mask(_v512, _vbs512);
+          if (BEAST_LIKELY(_mask512 != 0)) {
+            e = s + __builtin_ctzll(_mask512);
+            if (BEAST_LIKELY(*e == '"')) {
               push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                    static_cast<uint32_t>(s - data_));
               p_ = e + 1;
               goto str_done;
             }
-            // s+64 > end_: fall through to AVX2 32B
+            goto str_slow; // backslash first → full scanner
+          }
+          // mask==0: bytes [s, s+64) clean → skip_string_from64
+          e = skip_string_from64(s);
+          if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+            goto fail;
+          push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+               static_cast<uint32_t>(s - data_));
+          p_ = e + 1;
+          goto str_done;
+        }
+        // s+64 > end_: fall through to AVX2 32B
 #endif
-            // ── Phase 36: AVX2 32B inline string scan
-            // ───────────────────────── One 256-bit load handles strings up to
-            // 31 chars in 1 SIMD op. twitter.json: 84% of strings ≤24 chars —
-            // major hot-path speedup. mask==0 or backslash → goto str_slow
-            // directly (no SWAR-24 redundancy).
-            if (BEAST_LIKELY(s + 32 <= end_)) {
-              const __m256i _vq = _mm256_set1_epi8('"');
-              const __m256i _vbs = _mm256_set1_epi8('\\');
-              __m256i _v =
-                  _mm256_loadu_si256(reinterpret_cast<const __m256i *>(s));
-              uint32_t _mask = static_cast<uint32_t>(_mm256_movemask_epi8(
-                  _mm256_or_si256(_mm256_cmpeq_epi8(_v, _vq),
-                                  _mm256_cmpeq_epi8(_v, _vbs))));
-              if (BEAST_LIKELY(_mask != 0)) {
-                e = s + __builtin_ctz(_mask);
-                if (BEAST_LIKELY(*e == '"')) {
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-                goto str_slow; // backslash first → full scanner
-              }
-              // ── Phase 41: mask==0 — bytes [s, s+32) are clean ──────────────
-              // skip_string_from32 starts AVX2 at s+32 directly, skipping
-              // scan_string_end's SWAR-8 gate (~11 instructions saved per
-              // call).
-              e = skip_string_from32(s);
-              if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-                goto fail;
+        // ── Phase 36: AVX2 32B inline string scan
+        // ───────────────────────── One 256-bit load handles strings up to
+        // 31 chars in 1 SIMD op. twitter.json: 84% of strings ≤24 chars —
+        // major hot-path speedup. mask==0 or backslash → goto str_slow
+        // directly (no SWAR-24 redundancy).
+        if (BEAST_LIKELY(s + 32 <= end_)) {
+          const __m256i _vq = _mm256_set1_epi8('"');
+          const __m256i _vbs = _mm256_set1_epi8('\\');
+          __m256i _v = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(s));
+          uint32_t _mask =
+              static_cast<uint32_t>(_mm256_movemask_epi8(_mm256_or_si256(
+                  _mm256_cmpeq_epi8(_v, _vq), _mm256_cmpeq_epi8(_v, _vbs))));
+          if (BEAST_LIKELY(_mask != 0)) {
+            e = s + __builtin_ctz(_mask);
+            if (BEAST_LIKELY(*e == '"')) {
               push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                    static_cast<uint32_t>(s - data_));
               p_ = e + 1;
               goto str_done;
             }
-            // near end of buffer: fall through to SWAR-24
+            goto str_slow; // backslash first → full scanner
+          }
+          // ── Phase 41: mask==0 — bytes [s, s+32) are clean ──────────────
+          // skip_string_from32 starts AVX2 at s+32 directly, skipping
+          // scan_string_end's SWAR-8 gate (~11 instructions saved per
+          // call).
+          e = skip_string_from32(s);
+          if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+            goto fail;
+          push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+               static_cast<uint32_t>(s - data_));
+          p_ = e + 1;
+          goto str_done;
+        }
+        // near end of buffer: fall through to SWAR-24
 #elif BEAST_HAS_NEON
-            // ── Phase 62: NEON 32B inline value-string scan ─────────────────
-            // Mirrors the NEON path in scan_key_colon_next(): two 16B loads
-            // cover strings up to 31 chars (the majority of twitter.json
-            // value strings: tweet dates, screen names, short URLs).
-            // For strings > 31 chars the 32B check is clean → skip_string_from32
-            // to avoid rescanning the first 32B (important for long tweet text).
-            if (BEAST_LIKELY(s + 32 <= end_)) {
-              const uint8x16_t vq = vdupq_n_u8('"');
-              const uint8x16_t vbs = vdupq_n_u8('\\');
-              uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
-              uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
-              if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
-                e = s;
-                while (*e != '"' && *e != '\\')
-                  ++e;
-                if (BEAST_LIKELY(*e == '"')) {
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-                goto str_slow;
-              }
-              uint8x16_t v2 =
-                  vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
-              uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
-              if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
-                e = s + 16;
-                while (*e != '"' && *e != '\\')
-                  ++e;
-                if (BEAST_LIKELY(*e == '"')) {
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-                goto str_slow;
-              }
-              // [s, s+32) clean: long string — skip_string_from32 starts
-              // SWAR-8 at s+32, avoiding rescan of the clean first 32B.
-              e = skip_string_from32(s);
-              if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-                goto fail;
+        // ── Phase 62: NEON 32B inline value-string scan ─────────────────
+        // Mirrors the NEON path in scan_key_colon_next(): two 16B loads
+        // cover strings up to 31 chars (the majority of twitter.json
+        // value strings: tweet dates, screen names, short URLs).
+        // For strings > 31 chars the 32B check is clean → skip_string_from32
+        // to avoid rescanning the first 32B (important for long tweet text).
+        if (BEAST_LIKELY(s + 32 <= end_)) {
+          const uint8x16_t vq = vdupq_n_u8('"');
+          const uint8x16_t vbs = vdupq_n_u8('\\');
+          uint8x16_t v1 = vld1q_u8(reinterpret_cast<const uint8_t *>(s));
+          uint8x16_t m1 = vorrq_u8(vceqq_u8(v1, vq), vceqq_u8(v1, vbs));
+          if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m1)) != 0)) {
+            e = s;
+            while (*e != '"' && *e != '\\')
+              ++e;
+            if (BEAST_LIKELY(*e == '"')) {
               push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                    static_cast<uint32_t>(s - data_));
               p_ = e + 1;
               goto str_done;
             }
-            // near end of buffer: fall through to SWAR-24
-#endif
-            // SWAR cascaded: load v0 first, early exit for ≤8-char strings
-            // (Phase D2: covers 36% of twitter.json strings without loading
-            // v1/v2). twitter.json coverage: ≤8 (36%), ≤16 (64%), ≤24 (84%)
-            if (BEAST_LIKELY(s + 24 <= end_)) {
-              uint64_t v0;
-              std::memcpy(&v0, s, 8);
-              uint64_t hq0 = v0 ^ qm;
-              hq0 = (hq0 - K) & ~hq0 & H;
-              uint64_t hb0 = v0 ^ bsm;
-              hb0 = (hb0 - K) & ~hb0 & H;
-              if (BEAST_LIKELY(!hb0)) {
-                if (hq0) { // ≤8-char string, no backslash
-                  e = s + (BEAST_CTZ(hq0) >> 3);
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-                // 9-24 chars: load v1 and v2
-                uint64_t v1, v2;
-                std::memcpy(&v1, s + 8, 8);
-                std::memcpy(&v2, s + 16, 8);
-                uint64_t hq1 = v1 ^ qm;
-                hq1 = (hq1 - K) & ~hq1 & H;
-                uint64_t hb1 = v1 ^ bsm;
-                hb1 = (hb1 - K) & ~hb1 & H;
-                uint64_t hq2 = v2 ^ qm;
-                hq2 = (hq2 - K) & ~hq2 & H;
-                uint64_t hb2 = v2 ^ bsm;
-                hb2 = (hb2 - K) & ~hb2 & H;
-                if (BEAST_LIKELY(!(hb1 | hb2))) {
-                  if (hq1) {
-                    e = s + 8 + (BEAST_CTZ(hq1) >> 3);
-                  } else if (hq2) {
-                    e = s + 16 + (BEAST_CTZ(hq2) >> 3);
-                  } else {
-                    goto str_slow;
-                  }
-                  push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                       static_cast<uint32_t>(s - data_));
-                  p_ = e + 1;
-                  goto str_done;
-                }
-              }
-            } else if (s + 8 <= end_) {
-              uint64_t v;
-              std::memcpy(&v, s, 8);
-              uint64_t hq = v ^ qm;
-              hq = (hq - K) & ~hq & H;
-              uint64_t hb = v ^ bsm;
-              hb = (hb - K) & ~hb & H;
-              if (BEAST_LIKELY(hq && !hb)) {
-                e = s + (BEAST_CTZ(hq) >> 3);
-                push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
-                     static_cast<uint32_t>(s - data_));
-                p_ = e + 1;
-                goto str_done;
-              }
+            goto str_slow;
+          }
+          uint8x16_t v2 = vld1q_u8(reinterpret_cast<const uint8_t *>(s + 16));
+          uint8x16_t m2 = vorrq_u8(vceqq_u8(v2, vq), vceqq_u8(v2, vbs));
+          if (BEAST_LIKELY(vmaxvq_u32(vreinterpretq_u32_u8(m2)) != 0)) {
+            e = s + 16;
+            while (*e != '"' && *e != '\\')
+              ++e;
+            if (BEAST_LIKELY(*e == '"')) {
+              push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+                   static_cast<uint32_t>(s - data_));
+              p_ = e + 1;
+              goto str_done;
             }
-          str_slow:
-            // Strings >24 bytes or containing backslash — full SWAR-16 scanner
-            e = skip_string(s);
-            if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
-              goto fail;
+            goto str_slow;
+          }
+          // [s, s+32) clean: long string — skip_string_from32 starts
+          // SWAR-8 at s+32, avoiding rescan of the clean first 32B.
+          e = skip_string_from32(s);
+          if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+            goto fail;
+          push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+               static_cast<uint32_t>(s - data_));
+          p_ = e + 1;
+          goto str_done;
+        }
+        // near end of buffer: fall through to SWAR-24
+#endif
+        // SWAR cascaded: load v0 first, early exit for ≤8-char strings
+        // (Phase D2: covers 36% of twitter.json strings without loading
+        // v1/v2). twitter.json coverage: ≤8 (36%), ≤16 (64%), ≤24 (84%)
+        if (BEAST_LIKELY(s + 24 <= end_)) {
+          uint64_t v0;
+          std::memcpy(&v0, s, 8);
+          uint64_t hq0 = v0 ^ qm;
+          hq0 = (hq0 - K) & ~hq0 & H;
+          uint64_t hb0 = v0 ^ bsm;
+          hb0 = (hb0 - K) & ~hb0 & H;
+          if (BEAST_LIKELY(!hb0)) {
+            if (hq0) { // ≤8-char string, no backslash
+              e = s + (BEAST_CTZ(hq0) >> 3);
+              push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+                   static_cast<uint32_t>(s - data_));
+              p_ = e + 1;
+              goto str_done;
+            }
+            // 9-24 chars: load v1 and v2
+            uint64_t v1, v2;
+            std::memcpy(&v1, s + 8, 8);
+            std::memcpy(&v2, s + 16, 8);
+            uint64_t hq1 = v1 ^ qm;
+            hq1 = (hq1 - K) & ~hq1 & H;
+            uint64_t hb1 = v1 ^ bsm;
+            hb1 = (hb1 - K) & ~hb1 & H;
+            uint64_t hq2 = v2 ^ qm;
+            hq2 = (hq2 - K) & ~hq2 & H;
+            uint64_t hb2 = v2 ^ bsm;
+            hb2 = (hb2 - K) & ~hb2 & H;
+            if (BEAST_LIKELY(!(hb1 | hb2))) {
+              if (hq1) {
+                e = s + 8 + (BEAST_CTZ(hq1) >> 3);
+              } else if (hq2) {
+                e = s + 16 + (BEAST_CTZ(hq2) >> 3);
+              } else {
+                goto str_slow;
+              }
+              push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+                   static_cast<uint32_t>(s - data_));
+              p_ = e + 1;
+              goto str_done;
+            }
+          }
+        } else if (s + 8 <= end_) {
+          uint64_t v;
+          std::memcpy(&v, s, 8);
+          uint64_t hq = v ^ qm;
+          hq = (hq - K) & ~hq & H;
+          uint64_t hb = v ^ bsm;
+          hb = (hb - K) & ~hb & H;
+          if (BEAST_LIKELY(hq && !hb)) {
+            e = s + (BEAST_CTZ(hq) >> 3);
             push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                  static_cast<uint32_t>(s - data_));
             p_ = e + 1;
-
-          str_done:
-            // ── Phase 26 + B1: String Double Pump with fused key scanner ──
-            // Strings are almost always followed by ':', ',', '}', or ']'.
-            if (BEAST_LIKELY(p_ < end_)) {
-              unsigned char nc = static_cast<unsigned char>(*p_);
-              if (nc <= 0x20) {
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                nc = static_cast<unsigned char>(c);
-              }
-              if (BEAST_LIKELY(nc == ':')) {
-                // After a key: consume ':' and find value start.
-                ++p_;
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue; // bypass loop bottom, straight to value
-              }
-              if (nc == ',') {
-                // After a value: consume ',' and find next token.
-                ++p_;
-                // ── Phase B1: fused val→sep→key scanner ───────────────────
-                // If inside an object (depth ≤ 64), the next token is a key.
-                // Fuse: skip WS + scan key + consume ':' + skip WS in one shot,
-                // eliminating one switch dispatch and one extra
-                // skip_to_action().
-                // Phase 60-A: in_obj = bit1 of cur_state_ (register-resident)
-                if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
-                  // In object: expect next key string
-                  if (BEAST_LIKELY(p_ < end_)) {
-                    unsigned char fc = static_cast<unsigned char>(*p_);
-                    if (fc <= 0x20) {
-                      fc = static_cast<unsigned char>(skip_to_action());
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                    }
-                    if (BEAST_LIKELY(fc == '"')) {
-                      // Fused key scan: SWAR-24 + push + ':' consume + WS skip
-                      char vc = scan_key_colon_next(p_ + 1, nullptr);
-                      if (BEAST_UNLIKELY(vc == 0))
-                        goto fail;
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                      c = vc;
-                      continue; // directly to value — no switch for key!
-                    }
-                    // fc != '"': end of object or malformed; handle normally
-                    c = static_cast<char>(fc);
-                    continue;
-                  }
-                  goto done;
-                }
-                // Not in object (in array): find next element
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue; // bypass loop bottom, straight to next token!
-              }
-              if (BEAST_UNLIKELY(nc == ']' || nc == '}')) {
-                if (BEAST_UNLIKELY(depth_ == 0))
-                  goto fail;
-                --depth_;
-                // Phase 60-A: restore parent state (no mask arithmetic needed)
-                cur_state_ = cstate_stack_[depth_];
-                push_end(nc == '}' ? TapeNodeType::ObjectEnd
-                                   : TapeNodeType::ArrayEnd,
-                         static_cast<uint32_t>(p_ - data_));
-                ++p_;
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue;
-              }
-            }
-            break;
+            goto str_done;
           }
-          case kActTrue:
-            // Non-string values are illegal as object keys (RFC 8259 §4).
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            if (BEAST_LIKELY(p_ + 4 <= end_ && !std::memcmp(p_, "true", 4))) {
-              push(TapeNodeType::BooleanTrue, 4,
-                   static_cast<uint32_t>(p_ - data_));
-              p_ += 4;
-            } else
-              goto fail;
-            goto bool_null_done;
-          case kActFalse:
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            if (BEAST_LIKELY(p_ + 5 <= end_ && !std::memcmp(p_, "false", 5))) {
-              push(TapeNodeType::BooleanFalse, 5,
-                   static_cast<uint32_t>(p_ - data_));
-              p_ += 5;
-            } else
-              goto fail;
-            goto bool_null_done;
-          case kActNull:
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            if (BEAST_LIKELY(p_ + 4 <= end_ && !std::memcmp(p_, "null", 4))) {
-              push(TapeNodeType::Null, 4, static_cast<uint32_t>(p_ - data_));
-              p_ += 4;
-            } else
-              goto fail;
-          bool_null_done:
-            // ── Phase 44: Double-pump bool/null with fused key scanner ──────
-            // true/false/null are values; always followed by ',', ']', or '}'.
-            // Mirrors the Phase B1 number fusion: avoid re-entering switch top,
-            // and in object context fuse the next key scan after ','.
-            if (BEAST_LIKELY(p_ < end_)) {
-              unsigned char nc = static_cast<unsigned char>(*p_);
-              if (nc <= 0x20) {
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                nc = static_cast<unsigned char>(c);
-              }
-              if (BEAST_LIKELY(nc == ',')) {
-                ++p_;
-                // Phase 60-A: in_obj = bit1 of cur_state_
-                if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
-                  if (BEAST_LIKELY(p_ < end_)) {
-                    unsigned char fc = static_cast<unsigned char>(*p_);
-                    if (fc <= 0x20) {
-                      fc = static_cast<unsigned char>(skip_to_action());
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                    }
-                    if (BEAST_LIKELY(fc == '"')) {
-                      char vc = scan_key_colon_next(p_ + 1, nullptr);
-                      if (BEAST_UNLIKELY(vc == 0))
-                        goto fail;
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                      c = vc;
-                      continue;
-                    }
-                    c = static_cast<char>(fc);
-                    continue;
-                  }
-                  goto done;
-                }
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue;
-              }
-              if (BEAST_LIKELY(nc == ']' || nc == '}')) {
-                if (BEAST_UNLIKELY(depth_ == 0))
-                  goto fail;
-                --depth_;
-                // Phase 60-A: restore parent state
-                cur_state_ = cstate_stack_[depth_];
-                push_end(nc == '}' ? TapeNodeType::ObjectEnd
-                                   : TapeNodeType::ArrayEnd,
-                         static_cast<uint32_t>(p_ - data_));
-                ++p_;
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue;
-              }
-            }
-            break;
-          case kActColon:
-          case kActComma:
+        }
+      str_slow:
+        // Strings >24 bytes or containing backslash — full SWAR-16 scanner
+        e = skip_string(s);
+        if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
+          goto fail;
+        push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
+             static_cast<uint32_t>(s - data_));
+        p_ = e + 1;
+
+      str_done:
+        // ── Phase 26 + B1: String Double Pump with fused key scanner ──
+        // Strings are almost always followed by ':', ',', '}', or ']'.
+        if (BEAST_LIKELY(p_ < end_)) {
+          unsigned char nc = static_cast<unsigned char>(*p_);
+          if (nc <= 0x20) {
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            nc = static_cast<unsigned char>(c);
+          }
+          if (BEAST_LIKELY(nc == ':')) {
+            // After a key: consume ':' and find value start.
             ++p_;
-            break;
-          // Numbers: SWAR-8 digit scanner
-          case kActNumber: {
-            // Numbers are not valid object keys (RFC 8259 §4).
-            if (BEAST_UNLIKELY(cur_state_ & 0b001u)) goto fail;
-            const char *s = p_;
-            if (*p_ == '-')
-              ++p_;
-            // ── Phase 66-M1: NEON 16B integer scanner ──────────────────────
-            // Replaces SWAR-8 (8B/iter) with NEON (16B/iter) on AArch64.
-            // canada.json: integer parts are short (1-5 digits) → minimal gain
-            //   but consistent with the fractional-part NEON approach below.
-            // twitter.json: tweet ID integers (18 digits) → 1 NEON iter vs 3
-            //   SWAR-8 iterations → saves ~2 SWAR overhead per ID.
-            // Pure NEON: no scalar pre-gate inside the loop; vmaxvq_u32 result
-            // drives a single branch identical to scan_string_end's pattern.
-#if BEAST_HAS_NEON
-            {
-              const uint8x16_t vzero = vdupq_n_u8('0');
-              const uint8x16_t vnine = vdupq_n_u8(9);
-              while (p_ + 16 <= end_) {
-                uint8x16_t vv = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));
-                uint8x16_t sub = vsubq_u8(vv, vzero);   // [0..9]=digit; else wraps ≥10
-                uint8x16_t nd  = vcgtq_u8(sub, vnine);  // 0xFF where non-digit
-                if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(nd)) != 0)) {
-                  while (static_cast<unsigned>(*p_ - '0') < 10u)
-                    ++p_;
-                  goto num_done;
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue; // bypass loop bottom, straight to value
+          }
+          if (nc == ',') {
+            // After a value: consume ',' and find next token.
+            ++p_;
+            // ── Phase B1: fused val→sep→key scanner ───────────────────
+            // If inside an object (depth ≤ 64), the next token is a key.
+            // Fuse: skip WS + scan key + consume ':' + skip WS in one shot,
+            // eliminating one switch dispatch and one extra
+            // skip_to_action().
+            // Phase 60-A: in_obj = bit1 of cur_state_ (register-resident)
+            if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
+              // In object: expect next key string
+              if (BEAST_LIKELY(p_ < end_)) {
+                unsigned char fc = static_cast<unsigned char>(*p_);
+                if (fc <= 0x20) {
+                  fc = static_cast<unsigned char>(skip_to_action());
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
                 }
-                p_ += 16;
+                if (BEAST_LIKELY(fc == '"')) {
+                  // Fused key scan: SWAR-24 + push + ':' consume + WS skip
+                  char vc = scan_key_colon_next(p_ + 1, nullptr);
+                  if (BEAST_UNLIKELY(vc == 0))
+                    goto fail;
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
+                  c = vc;
+                  continue; // directly to value — no switch for key!
+                }
+                // fc != '"': end of object or malformed; handle normally
+                c = static_cast<char>(fc);
+                continue;
               }
+              goto done;
             }
-#else
-            while (p_ + 8 <= end_) {
-              uint64_t v;
-              std::memcpy(&v, p_, 8);
-              uint64_t shifted = v - 0x3030303030303030ULL;
-              uint64_t nondigit =
-                  (shifted | ((shifted & 0x7F7F7F7F7F7F7F7FULL) +
-                              0x7676767676767676ULL)) &
-                  0x8080808080808080ULL;
-              if (nondigit) {
-                p_ += BEAST_CTZ(nondigit) >> 3;
-                goto num_done;
+            // Not in object (in array): find next element
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue; // bypass loop bottom, straight to next token!
+          }
+          if (BEAST_UNLIKELY(nc == ']' || nc == '}')) {
+            if (BEAST_UNLIKELY(depth_ == 0))
+              goto fail;
+            --depth_;
+            // Phase 60-A: restore parent state (no mask arithmetic needed)
+            cur_state_ = cstate_stack_[depth_];
+            push_end(nc == '}' ? TapeNodeType::ObjectEnd
+                               : TapeNodeType::ArrayEnd,
+                     static_cast<uint32_t>(p_ - data_));
+            ++p_;
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue;
+          }
+        }
+        break;
+      }
+      case kActTrue:
+        // Non-string values are illegal as object keys (RFC 8259 §4).
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        if (BEAST_LIKELY(p_ + 4 <= end_ && !std::memcmp(p_, "true", 4))) {
+          push(TapeNodeType::BooleanTrue, 4, static_cast<uint32_t>(p_ - data_));
+          p_ += 4;
+        } else
+          goto fail;
+        goto bool_null_done;
+      case kActFalse:
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        if (BEAST_LIKELY(p_ + 5 <= end_ && !std::memcmp(p_, "false", 5))) {
+          push(TapeNodeType::BooleanFalse, 5,
+               static_cast<uint32_t>(p_ - data_));
+          p_ += 5;
+        } else
+          goto fail;
+        goto bool_null_done;
+      case kActNull:
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        if (BEAST_LIKELY(p_ + 4 <= end_ && !std::memcmp(p_, "null", 4))) {
+          push(TapeNodeType::Null, 4, static_cast<uint32_t>(p_ - data_));
+          p_ += 4;
+        } else
+          goto fail;
+      bool_null_done:
+        // ── Phase 44: Double-pump bool/null with fused key scanner ──────
+        // true/false/null are values; always followed by ',', ']', or '}'.
+        // Mirrors the Phase B1 number fusion: avoid re-entering switch top,
+        // and in object context fuse the next key scan after ','.
+        if (BEAST_LIKELY(p_ < end_)) {
+          unsigned char nc = static_cast<unsigned char>(*p_);
+          if (nc <= 0x20) {
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            nc = static_cast<unsigned char>(c);
+          }
+          if (BEAST_LIKELY(nc == ',')) {
+            ++p_;
+            // Phase 60-A: in_obj = bit1 of cur_state_
+            if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
+              if (BEAST_LIKELY(p_ < end_)) {
+                unsigned char fc = static_cast<unsigned char>(*p_);
+                if (fc <= 0x20) {
+                  fc = static_cast<unsigned char>(skip_to_action());
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
+                }
+                if (BEAST_LIKELY(fc == '"')) {
+                  char vc = scan_key_colon_next(p_ + 1, nullptr);
+                  if (BEAST_UNLIKELY(vc == 0))
+                    goto fail;
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
+                  c = vc;
+                  continue;
+                }
+                c = static_cast<char>(fc);
+                continue;
               }
-              p_ += 8;
+              goto done;
             }
-#endif
-            while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)
-              ++p_;
-          num_done:;
-            bool flt = false;
-            if (BEAST_UNLIKELY(p_ < end_ &&
-                               (*p_ == '.' || *p_ == 'e' || *p_ == 'E'))) {
-              flt = true;
-              ++p_;
-              if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue;
+          }
+          if (BEAST_LIKELY(nc == ']' || nc == '}')) {
+            if (BEAST_UNLIKELY(depth_ == 0))
+              goto fail;
+            --depth_;
+            // Phase 60-A: restore parent state
+            cur_state_ = cstate_stack_[depth_];
+            push_end(nc == '}' ? TapeNodeType::ObjectEnd
+                               : TapeNodeType::ArrayEnd,
+                     static_cast<uint32_t>(p_ - data_));
+            ++p_;
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue;
+          }
+        }
+        break;
+      case kActColon:
+      case kActComma:
+        ++p_;
+        break;
+      // Numbers: SWAR-8 digit scanner
+      case kActNumber: {
+        // Numbers are not valid object keys (RFC 8259 §4).
+        if (BEAST_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        const char *s = p_;
+        if (*p_ == '-')
+          ++p_;
+        // ── Phase 66-M1: NEON 16B integer scanner ──────────────────────
+        // Replaces SWAR-8 (8B/iter) with NEON (16B/iter) on AArch64.
+        // canada.json: integer parts are short (1-5 digits) → minimal gain
+        //   but consistent with the fractional-part NEON approach below.
+        // twitter.json: tweet ID integers (18 digits) → 1 NEON iter vs 3
+        //   SWAR-8 iterations → saves ~2 SWAR overhead per ID.
+        // Pure NEON: no scalar pre-gate inside the loop; vmaxvq_u32 result
+        // drives a single branch identical to scan_string_end's pattern.
+#if BEAST_HAS_NEON
+        {
+          const uint8x16_t vzero = vdupq_n_u8('0');
+          const uint8x16_t vnine = vdupq_n_u8(9);
+          while (p_ + 16 <= end_) {
+            uint8x16_t vv = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));
+            uint8x16_t sub =
+                vsubq_u8(vv, vzero); // [0..9]=digit; else wraps ≥10
+            uint8x16_t nd = vcgtq_u8(sub, vnine); // 0xFF where non-digit
+            if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(nd)) != 0)) {
+              while (static_cast<unsigned>(*p_ - '0') < 10u)
                 ++p_;
-              // ── Phase 66-M1: NEON 16B float digit scanner (fractional) ─
-              // canada.json: 2.32M floats, avg ~14 fractional digits.
-              //   SWAR-8: 2 iterations/float (8B + 6B tail) = 16 ops/float.
-              //   NEON-16: 1 iteration/float (14B in 16B chunk) = 8 ops/float.
-              // twitter.json: small floats → mostly scalar tail (no change).
-              //
-              // Correctness: vsubq_u8 wraps (uint8) so bytes < '0' produce
-              // values ≥ 246 > 9, correctly flagged as non-digit by vcgtq_u8.
-              //
-              // Pure NEON: vmaxvq_u32 → branch → scalar pinpoint (identical
-              // pattern to scan_string_end NEON; proven safe on all AArch64).
-              //
-              // Phase 70-M1 FAILED: vgetq_lane_u64 + ctzll in exit path
-              // improved canada +8.8% but caused twitter +128% regression
-              // even with fresh profdata. Root cause: additional basic blocks
-              // in parse() change PGO+LTO code layout → twitter L1 I-cache
-              // pressure. Any new code in parse() is forbidden.
+              goto num_done;
+            }
+            p_ += 16;
+          }
+        }
+#else
+        while (p_ + 8 <= end_) {
+          uint64_t v;
+          std::memcpy(&v, p_, 8);
+          uint64_t shifted = v - 0x3030303030303030ULL;
+          uint64_t nondigit = (shifted | ((shifted & 0x7F7F7F7F7F7F7F7FULL) +
+                                          0x7676767676767676ULL)) &
+                              0x8080808080808080ULL;
+          if (nondigit) {
+            p_ += BEAST_CTZ(nondigit) >> 3;
+            goto num_done;
+          }
+          p_ += 8;
+        }
+#endif
+        while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)
+          ++p_;
+      num_done:;
+        bool flt = false;
+        if (BEAST_UNLIKELY(p_ < end_ &&
+                           (*p_ == '.' || *p_ == 'e' || *p_ == 'E'))) {
+          flt = true;
+          ++p_;
+          if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
+            ++p_;
+          // ── Phase 66-M1: NEON 16B float digit scanner (fractional) ─
+          // canada.json: 2.32M floats, avg ~14 fractional digits.
+          //   SWAR-8: 2 iterations/float (8B + 6B tail) = 16 ops/float.
+          //   NEON-16: 1 iteration/float (14B in 16B chunk) = 8 ops/float.
+          // twitter.json: small floats → mostly scalar tail (no change).
+          //
+          // Correctness: vsubq_u8 wraps (uint8) so bytes < '0' produce
+          // values ≥ 246 > 9, correctly flagged as non-digit by vcgtq_u8.
+          //
+          // Pure NEON: vmaxvq_u32 → branch → scalar pinpoint (identical
+          // pattern to scan_string_end NEON; proven safe on all AArch64).
+          //
+          // Phase 70-M1 FAILED: vgetq_lane_u64 + ctzll in exit path
+          // improved canada +8.8% but caused twitter +128% regression
+          // even with fresh profdata. Root cause: additional basic blocks
+          // in parse() change PGO+LTO code layout → twitter L1 I-cache
+          // pressure. Any new code in parse() is forbidden.
 #if BEAST_HAS_NEON
 #define BEAST_SKIP_DIGITS()                                                    \
   do {                                                                         \
     {                                                                          \
-      const uint8x16_t _vzero = vdupq_n_u8('0');                              \
-      const uint8x16_t _vnine = vdupq_n_u8(9);                                \
+      const uint8x16_t _vzero = vdupq_n_u8('0');                               \
+      const uint8x16_t _vnine = vdupq_n_u8(9);                                 \
       while (p_ + 16 <= end_) {                                                \
-        uint8x16_t _vv  = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));    \
-        uint8x16_t _sub = vsubq_u8(_vv, _vzero);                              \
-        uint8x16_t _nd  = vcgtq_u8(_sub, _vnine);                             \
-        if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(_nd)) != 0)) {     \
-          while (static_cast<unsigned>(*p_ - '0') < 10u)                      \
+        uint8x16_t _vv = vld1q_u8(reinterpret_cast<const uint8_t *>(p_));      \
+        uint8x16_t _sub = vsubq_u8(_vv, _vzero);                               \
+        uint8x16_t _nd = vcgtq_u8(_sub, _vnine);                               \
+        if (BEAST_UNLIKELY(vmaxvq_u32(vreinterpretq_u32_u8(_nd)) != 0)) {      \
+          while (static_cast<unsigned>(*p_ - '0') < 10u)                       \
             ++p_;                                                              \
           break;                                                               \
         }                                                                      \
         p_ += 16;                                                              \
       }                                                                        \
     }                                                                          \
-    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)                \
       ++p_;                                                                    \
   } while (0)
 #else
@@ -4287,7 +4648,7 @@ class Parser {
       std::memcpy(&_v, p_, 8);                                                 \
       uint64_t _s = _v - 0x3030303030303030ULL;                                \
       uint64_t _nd =                                                           \
-          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &     \
+          (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &      \
           0x8080808080808080ULL;                                               \
       if (_nd) {                                                               \
         p_ += BEAST_CTZ(_nd) >> 3;                                             \
@@ -4295,587 +4656,601 @@ class Parser {
       }                                                                        \
       p_ += 8;                                                                 \
     }                                                                          \
-    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)               \
+    while (p_ < end_ && static_cast<unsigned>(*p_ - '0') < 10u)                \
       ++p_;                                                                    \
   } while (0)
 #endif
-              BEAST_SKIP_DIGITS(); // fractional digits
-              if (p_ < end_ && (*p_ == 'e' || *p_ == 'E')) {
-                ++p_;
-                if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
-                  ++p_;
-                BEAST_SKIP_DIGITS(); // exponent digits
-              }
-#undef BEAST_SKIP_DIGITS
-            }
-            push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
-                 static_cast<uint16_t>(p_ - s),
-                 static_cast<uint32_t>(s - data_));
-
-            // ── Phase 25 + B1: Double-pump Number Parsing with fused key
-            // scanner ─ Numbers are values. They are ALWAYS followed by ',' or
-            // ']' or '}'. Instead of falling back to the top of the switch
-            // loop, we peek at the next char. If it's ',' in an object, fuse
-            // the next key scan.
-            if (BEAST_LIKELY(p_ < end_)) {
-              unsigned char nc = static_cast<unsigned char>(*p_);
-              if (nc <= 0x20) {
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                nc = static_cast<unsigned char>(c);
-              }
-              if (BEAST_LIKELY(nc == ',')) {
-                ++p_;
-                // Phase B1 + 60-A: fused key scan; in_obj = bit1 of cur_state_
-                if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
-                  if (BEAST_LIKELY(p_ < end_)) {
-                    unsigned char fc = static_cast<unsigned char>(*p_);
-                    if (fc <= 0x20) {
-                      fc = static_cast<unsigned char>(skip_to_action());
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                    }
-                    if (BEAST_LIKELY(fc == '"')) {
-                      char vc = scan_key_colon_next(p_ + 1, nullptr);
-                      if (BEAST_UNLIKELY(vc == 0))
-                        goto fail;
-                      if (BEAST_UNLIKELY(p_ >= end_))
-                        goto done;
-                      c = vc;
-                      continue; // directly to value
-                    }
-                    c = static_cast<char>(fc);
-                    continue;
-                  }
-                  goto done;
-                }
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue; // bypass loop bottom separator logic, go straight to
-                          // next token
-              }
-              if (BEAST_LIKELY(nc == ']' || nc == '}')) {
-                if (BEAST_UNLIKELY(depth_ == 0))
-                  goto fail;
-                --depth_;
-                // Phase 60-A: restore parent state
-                cur_state_ = cstate_stack_[depth_];
-                push_end(nc == '}' ? TapeNodeType::ObjectEnd
-                                   : TapeNodeType::ArrayEnd,
-                         static_cast<uint32_t>(p_ - data_));
-                ++p_;
-                c = skip_to_action();
-                if (BEAST_UNLIKELY(p_ >= end_))
-                  goto done;
-                continue; // End handled inline!
-              }
-            }
-            break;
+          BEAST_SKIP_DIGITS(); // fractional digits
+          if (p_ < end_ && (*p_ == 'e' || *p_ == 'E')) {
+            ++p_;
+            if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
+              ++p_;
+            BEAST_SKIP_DIGITS(); // exponent digits
           }
-          default:
-            goto fail;
-          } // switch
+#undef BEAST_SKIP_DIGITS
+        }
+        push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
+             static_cast<uint16_t>(p_ - s), static_cast<uint32_t>(s - data_));
 
-          // ── Phase 19b: Inline separator + peek-next optimization ─────────
-          // After each token, consume ':' or ',' inline (no switch iteration).
-          // After the separator, try a direct *p_ peek before calling
-          // skip_to_action. For JSON like "key":value or value,"next", the char
-          // after sep is > 0x20.
-          c = skip_to_action();
+        // ── Phase 25 + B1: Double-pump Number Parsing with fused key
+        // scanner ─ Numbers are values. They are ALWAYS followed by ',' or
+        // ']' or '}'. Instead of falling back to the top of the switch
+        // loop, we peek at the next char. If it's ',' in an object, fuse
+        // the next key scan.
+        if (BEAST_LIKELY(p_ < end_)) {
+          unsigned char nc = static_cast<unsigned char>(*p_);
+          if (nc <= 0x20) {
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            nc = static_cast<unsigned char>(c);
+          }
+          if (BEAST_LIKELY(nc == ',')) {
+            ++p_;
+            // Phase B1 + 60-A: fused key scan; in_obj = bit1 of cur_state_
+            if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
+              if (BEAST_LIKELY(p_ < end_)) {
+                unsigned char fc = static_cast<unsigned char>(*p_);
+                if (fc <= 0x20) {
+                  fc = static_cast<unsigned char>(skip_to_action());
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
+                }
+                if (BEAST_LIKELY(fc == '"')) {
+                  char vc = scan_key_colon_next(p_ + 1, nullptr);
+                  if (BEAST_UNLIKELY(vc == 0))
+                    goto fail;
+                  if (BEAST_UNLIKELY(p_ >= end_))
+                    goto done;
+                  c = vc;
+                  continue; // directly to value
+                }
+                c = static_cast<char>(fc);
+                continue;
+              }
+              goto done;
+            }
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue; // bypass loop bottom separator logic, go straight to
+                      // next token
+          }
+          if (BEAST_LIKELY(nc == ']' || nc == '}')) {
+            if (BEAST_UNLIKELY(depth_ == 0))
+              goto fail;
+            --depth_;
+            // Phase 60-A: restore parent state
+            cur_state_ = cstate_stack_[depth_];
+            push_end(nc == '}' ? TapeNodeType::ObjectEnd
+                               : TapeNodeType::ArrayEnd,
+                     static_cast<uint32_t>(p_ - data_));
+            ++p_;
+            c = skip_to_action();
+            if (BEAST_UNLIKELY(p_ >= end_))
+              goto done;
+            continue; // End handled inline!
+          }
+        }
+        break;
+      }
+      default:
+        goto fail;
+      } // switch
+
+      // ── Phase 19b: Inline separator + peek-next optimization ─────────
+      // After each token, consume ':' or ',' inline (no switch iteration).
+      // After the separator, try a direct *p_ peek before calling
+      // skip_to_action. For JSON like "key":value or value,"next", the char
+      // after sep is > 0x20.
+      c = skip_to_action();
+      if (BEAST_UNLIKELY(p_ >= end_))
+        break;
+      if (BEAST_LIKELY(c == ':' || c == ',')) {
+        ++p_; // consume separator
+        if (BEAST_UNLIKELY(p_ >= end_))
+          break;
+        // Peek: if next char is already an action byte, skip
+        // skip_to_action()
+        unsigned char nc = static_cast<unsigned char>(*p_);
+        if (BEAST_LIKELY(nc > 0x20)) {
+          c = static_cast<char>(nc); // direct dispatch, zero function call
+        } else {
+          c = skip_to_action(); // whitespace present, do SWAR skip
           if (BEAST_UNLIKELY(p_ >= end_))
             break;
-          if (BEAST_LIKELY(c == ':' || c == ',')) {
-            ++p_; // consume separator
-            if (BEAST_UNLIKELY(p_ >= end_))
-              break;
-            // Peek: if next char is already an action byte, skip
-            // skip_to_action()
-            unsigned char nc = static_cast<unsigned char>(*p_);
-            if (BEAST_LIKELY(nc > 0x20)) {
-              c = static_cast<char>(nc); // direct dispatch, zero function call
-            } else {
-              c = skip_to_action(); // whitespace present, do SWAR skip
-              if (BEAST_UNLIKELY(p_ >= end_))
-                break;
-            }
-          }
-
-        } // while
-
-      done:
-        doc_->tape.head = tape_head_; // sync local head back to arena
-        // depth_==0: all containers closed.
-        // tape_head_ > base: at least one value node was written.
-        // Without the second guard, bare commas/colons (e.g. ",") satisfy
-        // depth_==0 but leave the tape empty, causing tape[0] reads from
-        // uninitialised malloc memory → heap-buffer-overflow.
-        return depth_ == 0 && tape_head_ > doc_->tape.base;
-
-      fail:
-        doc_->tape.head = tape_head_;
-        return false;
+        }
       }
 
+    } // while
+
+  done:
+    doc_->tape.head = tape_head_; // sync local head back to arena
+    // depth_==0: all containers closed.
+    // tape_head_ > base: at least one value node was written.
+    // Without the second guard, bare commas/colons (e.g. ",") satisfy
+    // depth_==0 but leave the tape empty, causing tape[0] reads from
+    // uninitialised malloc memory → heap-buffer-overflow.
+    return depth_ == 0 && tape_head_ > doc_->tape.base;
+
+  fail:
+    doc_->tape.head = tape_head_;
+    return false;
+  }
+
 #if BEAST_HAS_AVX512 || BEAST_HAS_NEON
-      // ── Phase 50: Stage 2 — index-based parse loop ───────────────────────
-      //
-      // Key differences from parse():
-      //   • No skip_to_action() calls — structural positions pre-computed by
-      //   Stage 1 • String length = O(1) lookup: close_offset - open_offset - 1
-      //   • No double-pump logic needed — sequential index traversal suffices •
-      //   Same push() / push_end() / cur_state_ as parse() for correctness
-      //
-      // Stage 1 guarantees:
-      //   • Every '"' in the index is a real (unescaped) quote
-      //   • After each opening '"', the VERY NEXT index entry is the closing
-      //   '"' • structural chars inside strings are excluded from the index •
-      //   value starts (digit/'-'/'t'/'f'/'n') are marked via vstart
-      [[gnu::hot]] bool parse_staged(const Stage1Index &s1) noexcept {
-        const uint32_t *pos = s1.positions;
-        const uint32_t n = s1.count;
+  // ── Phase 50: Stage 2 — index-based parse loop ───────────────────────
+  //
+  // Key differences from parse():
+  //   • No skip_to_action() calls — structural positions pre-computed by
+  //   Stage 1 • String length = O(1) lookup: close_offset - open_offset - 1
+  //   • No double-pump logic needed — sequential index traversal suffices •
+  //   Same push() / push_end() / cur_state_ as parse() for correctness
+  //
+  // Stage 1 guarantees:
+  //   • Every '"' in the index is a real (unescaped) quote
+  //   • After each opening '"', the VERY NEXT index entry is the closing
+  //   '"' • structural chars inside strings are excluded from the index •
+  //   value starts (digit/'-'/'t'/'f'/'n') are marked via vstart
+  [[gnu::hot]] bool parse_staged(const Stage1Index &s1) noexcept {
+    const uint32_t *pos = s1.positions;
+    const uint32_t n = s1.count;
 
-        if (BEAST_UNLIKELY(n == 0)) {
-          doc_->tape.head = tape_head_;
-          return false; // empty / all-whitespace JSON is invalid
+    if (BEAST_UNLIKELY(n == 0)) {
+      doc_->tape.head = tape_head_;
+      return false; // empty / all-whitespace JSON is invalid
+    }
+
+    // last_off tracks the byte offset just past the end of the last
+    // consumed atom.  After the for-loop we scan [last_off, end_) for stray
+    // non- whitespace, which catches things like "nulls" or "true garbage".
+    uint32_t last_off = 0;
+
+    for (uint32_t i = 0; i < n;) {
+      const uint32_t off = pos[i++];
+      const char c = data_[off];
+
+      switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
+
+      case kActObjOpen: {
+        push(TapeNodeType::ObjectStart, 0, off);
+        // Phase 60-A: save parent state, init new object context.
+        cstate_stack_[depth_] = cur_state_;
+        cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
+        ++depth_;
+        // Phase 59: reset key index for newly entered object depth.
+        if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
+          kc_.key_idx[depth_] = 0;
+        last_off = off + 1;
+        break;
+      }
+
+      case kActArrOpen: {
+        push(TapeNodeType::ArrayStart, 0, off);
+        // Phase 60-A: save parent state, init new array context.
+        cstate_stack_[depth_] = cur_state_;
+        cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
+        ++depth_;
+        last_off = off + 1;
+        break;
+      }
+
+      case kActClose: {
+        if (BEAST_UNLIKELY(depth_ == 0))
+          goto s2_fail;
+        --depth_;
+        // Phase 60-A: restore parent state (no mask arithmetic needed).
+        cur_state_ = cstate_stack_[depth_];
+        push_end(c == '}' ? TapeNodeType::ObjectEnd : TapeNodeType::ArrayEnd,
+                 off);
+        last_off = off + 1;
+        break;
+      }
+
+      case kActString: {
+        // Stage 1 guarantees: pos[i] is the closing '"' of this string.
+        if (BEAST_UNLIKELY(i >= n))
+          goto s2_fail;
+        const uint32_t close_off = pos[i++]; // consume closing '"'
+        push(TapeNodeType::StringRaw,
+             static_cast<uint16_t>(close_off - off - 1),
+             off + 1); // offset = first char inside string
+        last_off = close_off + 1;
+        break;
+      }
+
+        // Phase 53: kActColon / kActComma are no longer emitted by
+        // stage1_scan_avx512. push() cur_state_ handles key↔value
+        // alternation internally (Phase 60-A).
+
+      case kActNumber: {
+        // Scan integer/float from data_[off]; push raw token.
+        const char *s = data_ + off;
+        const char *pn = s;
+        if (*pn == '-')
+          ++pn;
+        // SWAR-8 integer digit scan
+        while (pn + 8 <= end_) {
+          uint64_t v;
+          std::memcpy(&v, pn, 8);
+          uint64_t shifted = v - 0x3030303030303030ULL;
+          uint64_t nondigit = (shifted | ((shifted & 0x7F7F7F7F7F7F7F7FULL) +
+                                          0x7676767676767676ULL)) &
+                              0x8080808080808080ULL;
+          if (nondigit) {
+            pn += BEAST_CTZ(nondigit) >> 3;
+            goto s2_num_done;
+          }
+          pn += 8;
         }
-
-        // last_off tracks the byte offset just past the end of the last
-        // consumed atom.  After the for-loop we scan [last_off, end_) for stray
-        // non- whitespace, which catches things like "nulls" or "true garbage".
-        uint32_t last_off = 0;
-
-        for (uint32_t i = 0; i < n;) {
-          const uint32_t off = pos[i++];
-          const char c = data_[off];
-
-          switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
-
-          case kActObjOpen: {
-            push(TapeNodeType::ObjectStart, 0, off);
-            // Phase 60-A: save parent state, init new object context.
-            cstate_stack_[depth_] = cur_state_;
-            cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
-            ++depth_;
-            // Phase 59: reset key index for newly entered object depth.
-            if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
-              kc_.key_idx[depth_] = 0;
-            last_off = off + 1;
-            break;
+        while (pn < end_ && static_cast<unsigned>(*pn - '0') < 10u)
+          ++pn;
+      s2_num_done:;
+        bool flt = false;
+        if (BEAST_UNLIKELY(pn < end_ &&
+                           (*pn == '.' || *pn == 'e' || *pn == 'E'))) {
+          flt = true;
+          ++pn;
+          if (pn < end_ && (*pn == '+' || *pn == '-'))
+            ++pn;
+          // SWAR-8 fractional digit scan
+          while (pn + 8 <= end_) {
+            uint64_t _v;
+            std::memcpy(&_v, pn, 8);
+            uint64_t _s = _v - 0x3030303030303030ULL;
+            uint64_t _nd =
+                (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) + 0x7676767676767676ULL)) &
+                0x8080808080808080ULL;
+            if (_nd) {
+              pn += BEAST_CTZ(_nd) >> 3;
+              break;
+            }
+            pn += 8;
           }
-
-          case kActArrOpen: {
-            push(TapeNodeType::ArrayStart, 0, off);
-            // Phase 60-A: save parent state, init new array context.
-            cstate_stack_[depth_] = cur_state_;
-            cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
-            ++depth_;
-            last_off = off + 1;
-            break;
-          }
-
-          case kActClose: {
-            if (BEAST_UNLIKELY(depth_ == 0))
-              goto s2_fail;
-            --depth_;
-            // Phase 60-A: restore parent state (no mask arithmetic needed).
-            cur_state_ = cstate_stack_[depth_];
-            push_end(c == '}' ? TapeNodeType::ObjectEnd
-                              : TapeNodeType::ArrayEnd,
-                     off);
-            last_off = off + 1;
-            break;
-          }
-
-          case kActString: {
-            // Stage 1 guarantees: pos[i] is the closing '"' of this string.
-            if (BEAST_UNLIKELY(i >= n))
-              goto s2_fail;
-            const uint32_t close_off = pos[i++]; // consume closing '"'
-            push(TapeNodeType::StringRaw,
-                 static_cast<uint16_t>(close_off - off - 1),
-                 off + 1); // offset = first char inside string
-            last_off = close_off + 1;
-            break;
-          }
-
-            // Phase 53: kActColon / kActComma are no longer emitted by
-            // stage1_scan_avx512. push() cur_state_ handles key↔value
-            // alternation internally (Phase 60-A).
-
-          case kActNumber: {
-            // Scan integer/float from data_[off]; push raw token.
-            const char *s = data_ + off;
-            const char *pn = s;
-            if (*pn == '-')
+          while (pn < end_ && static_cast<unsigned>(*pn - '0') < 10u)
+            ++pn;
+          if (pn < end_ && (*pn == 'e' || *pn == 'E')) {
+            ++pn;
+            if (pn < end_ && (*pn == '+' || *pn == '-'))
               ++pn;
-            // SWAR-8 integer digit scan
             while (pn + 8 <= end_) {
-              uint64_t v;
-              std::memcpy(&v, pn, 8);
-              uint64_t shifted = v - 0x3030303030303030ULL;
-              uint64_t nondigit =
-                  (shifted | ((shifted & 0x7F7F7F7F7F7F7F7FULL) +
-                              0x7676767676767676ULL)) &
-                  0x8080808080808080ULL;
-              if (nondigit) {
-                pn += BEAST_CTZ(nondigit) >> 3;
-                goto s2_num_done;
+              uint64_t _v;
+              std::memcpy(&_v, pn, 8);
+              uint64_t _s = _v - 0x3030303030303030ULL;
+              uint64_t _nd = (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) +
+                                    0x7676767676767676ULL)) &
+                             0x8080808080808080ULL;
+              if (_nd) {
+                pn += BEAST_CTZ(_nd) >> 3;
+                break;
               }
               pn += 8;
             }
             while (pn < end_ && static_cast<unsigned>(*pn - '0') < 10u)
               ++pn;
-          s2_num_done:;
-            bool flt = false;
-            if (BEAST_UNLIKELY(pn < end_ &&
-                               (*pn == '.' || *pn == 'e' || *pn == 'E'))) {
-              flt = true;
-              ++pn;
-              if (pn < end_ && (*pn == '+' || *pn == '-'))
-                ++pn;
-              // SWAR-8 fractional digit scan
-              while (pn + 8 <= end_) {
-                uint64_t _v;
-                std::memcpy(&_v, pn, 8);
-                uint64_t _s = _v - 0x3030303030303030ULL;
-                uint64_t _nd = (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) +
-                                      0x7676767676767676ULL)) &
-                               0x8080808080808080ULL;
-                if (_nd) {
-                  pn += BEAST_CTZ(_nd) >> 3;
-                  break;
-                }
-                pn += 8;
-              }
-              while (pn < end_ && static_cast<unsigned>(*pn - '0') < 10u)
-                ++pn;
-              if (pn < end_ && (*pn == 'e' || *pn == 'E')) {
-                ++pn;
-                if (pn < end_ && (*pn == '+' || *pn == '-'))
-                  ++pn;
-                while (pn + 8 <= end_) {
-                  uint64_t _v;
-                  std::memcpy(&_v, pn, 8);
-                  uint64_t _s = _v - 0x3030303030303030ULL;
-                  uint64_t _nd = (_s | ((_s & 0x7F7F7F7F7F7F7F7FULL) +
-                                        0x7676767676767676ULL)) &
-                                 0x8080808080808080ULL;
-                  if (_nd) {
-                    pn += BEAST_CTZ(_nd) >> 3;
-                    break;
-                  }
-                  pn += 8;
-                }
-                while (pn < end_ && static_cast<unsigned>(*pn - '0') < 10u)
-                  ++pn;
-              }
-            }
-            push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
-                 static_cast<uint16_t>(pn - s), off);
-            last_off = static_cast<uint32_t>(pn - data_);
-            break;
-          }
-
-          case kActTrue:
-            if (BEAST_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
-                               std::memcmp(data_ + off, "true", 4)))
-              goto s2_fail;
-            push(TapeNodeType::BooleanTrue, 4, off);
-            last_off = off + 4;
-            break;
-
-          case kActFalse:
-            if (BEAST_UNLIKELY(off + 5 > static_cast<uint32_t>(end_ - data_) ||
-                               std::memcmp(data_ + off, "false", 5)))
-              goto s2_fail;
-            push(TapeNodeType::BooleanFalse, 5, off);
-            last_off = off + 5;
-            break;
-
-          case kActNull:
-            if (BEAST_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
-                               std::memcmp(data_ + off, "null", 4)))
-              goto s2_fail;
-            push(TapeNodeType::Null, 4, off);
-            last_off = off + 4;
-            break;
-
-          default:
-            goto s2_fail;
-          } // switch
-        } // for
-
-        // Trailing non-whitespace check: catch inputs like "nulls" where Stage
-        // 1 only marks the value start ('n') but not the trailing junk ('s').
-        {
-          const char *tail = data_ + last_off;
-          while (tail < end_) {
-            if (static_cast<unsigned char>(*tail) > 0x20)
-              goto s2_fail;
-            ++tail;
           }
         }
-
-        doc_->tape.head = tape_head_;
-        // Same empty-tape guard as parse(): require at least one value node.
-        return depth_ == 0 && tape_head_ > doc_->tape.base;
-
-      s2_fail:
-        doc_->tape.head = tape_head_;
-        return false;
+        push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
+             static_cast<uint16_t>(pn - s), off);
+        last_off = static_cast<uint32_t>(pn - data_);
+        break;
       }
+
+      case kActTrue:
+        if (BEAST_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
+                           std::memcmp(data_ + off, "true", 4)))
+          goto s2_fail;
+        push(TapeNodeType::BooleanTrue, 4, off);
+        last_off = off + 4;
+        break;
+
+      case kActFalse:
+        if (BEAST_UNLIKELY(off + 5 > static_cast<uint32_t>(end_ - data_) ||
+                           std::memcmp(data_ + off, "false", 5)))
+          goto s2_fail;
+        push(TapeNodeType::BooleanFalse, 5, off);
+        last_off = off + 5;
+        break;
+
+      case kActNull:
+        if (BEAST_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
+                           std::memcmp(data_ + off, "null", 4)))
+          goto s2_fail;
+        push(TapeNodeType::Null, 4, off);
+        last_off = off + 4;
+        break;
+
+      default:
+        goto s2_fail;
+      } // switch
+    } // for
+
+    // Trailing non-whitespace check: catch inputs like "nulls" where Stage
+    // 1 only marks the value start ('n') but not the trailing junk ('s').
+    {
+      const char *tail = data_ + last_off;
+      while (tail < end_) {
+        if (static_cast<unsigned char>(*tail) > 0x20)
+          goto s2_fail;
+        ++tail;
+      }
+    }
+
+    doc_->tape.head = tape_head_;
+    // Same empty-tape guard as parse(): require at least one value node.
+    return depth_ == 0 && tape_head_ > doc_->tape.base;
+
+  s2_fail:
+    doc_->tape.head = tape_head_;
+    return false;
+  }
 #endif // BEAST_HAS_AVX512
-    };
+};
 
-    // ─────────────────────────────────────────────────────────────
-    // Public API
-    // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Public API
+// ─────────────────────────────────────────────────────────────
 
-    inline Value parse_reuse(DocumentView & doc, std::string_view json) {
-      doc.source = json;
-      // Clear mutation / deletion / addition overlays from any prior parse.
-      // These maps reference tape indices that are invalidated when the tape is
-      // reset; stale entries would corrupt dump_changes_() on the next call.
-      doc.mutations_.clear();
-      doc.deleted_.clear();
-      doc.additions_.clear();
-      // Worst-case tape nodes == json.size() (e.g. "[[[...]]]" produces one
-      // node per character). Use json.size() + 64 as a guaranteed upper bound.
-      const size_t needed = json.size() + 64;
-      if (BEAST_UNLIKELY(!doc.tape.base ||
-                         static_cast<size_t>(doc.tape.cap - doc.tape.base) <
-                             needed)) {
-        doc.tape.reserve(needed);
-      } else {
-        doc.tape.reset(); // hot path: head = base (1 instruction)
-      }
+inline Value parse_reuse(DocumentView &doc, std::string_view json) {
+  doc.source = json;
+  // Clear mutation / deletion / addition overlays from any prior parse.
+  // These maps reference tape indices that are invalidated when the tape is
+  // reset; stale entries would corrupt dump_changes_() on the next call.
+  doc.mutations_.clear();
+  doc.deleted_.clear();
+  doc.additions_.clear();
+  // Worst-case tape nodes == json.size() (e.g. "[[[...]]]" produces one
+  // node per character). Use json.size() + 64 as a guaranteed upper bound.
+  const size_t needed = json.size() + 64;
+  if (BEAST_UNLIKELY(!doc.tape.base ||
+                     static_cast<size_t>(doc.tape.cap - doc.tape.base) <
+                         needed)) {
+    doc.tape.reserve(needed);
+  } else {
+    doc.tape.reset(); // hot path: head = base (1 instruction)
+  }
 #if BEAST_HAS_AVX512
-      // Phase 50: Stage 1+2 is beneficial when the positions array fits in
-      // L2/L3 cache and the JSON is string-heavy (e.g. twitter.json,
-      // citm.json). Large number-heavy files (canada.json, gsoc-2018.json) have
-      // too many positions (~1M+) causing L3 pressure: Stage 1 overhead exceeds
-      // savings. Threshold: 2 MB — includes twitter(617KB) and citm(1.65MB);
-      // excludes canada(2.15MB) and gsoc(3.3MB).
-      static constexpr size_t kStage12MaxSize = 2 * 1024 * 1024; // 2 MB
-      if (BEAST_LIKELY(json.size() <= kStage12MaxSize)) {
-        stage1_scan_avx512(json.data(), json.size(), doc.idx);
-        if (!Parser(&doc).parse_staged(doc.idx)) {
-          throw std::runtime_error("Invalid JSON");
-        }
-      } else {
-        if (!Parser(&doc).parse()) {
-          throw std::runtime_error("Invalid JSON");
-        }
-      }
+  // Phase 50: Stage 1+2 is beneficial when the positions array fits in
+  // L2/L3 cache and the JSON is string-heavy (e.g. twitter.json,
+  // citm.json). Large number-heavy files (canada.json, gsoc-2018.json) have
+  // too many positions (~1M+) causing L3 pressure: Stage 1 overhead exceeds
+  // savings. Threshold: 2 MB — includes twitter(617KB) and citm(1.65MB);
+  // excludes canada(2.15MB) and gsoc(3.3MB).
+  static constexpr size_t kStage12MaxSize = 2 * 1024 * 1024; // 2 MB
+  if (BEAST_LIKELY(json.size() <= kStage12MaxSize)) {
+    stage1_scan_avx512(json.data(), json.size(), doc.idx);
+    if (!Parser(&doc).parse_staged(doc.idx)) {
+      throw std::runtime_error("Invalid JSON");
+    }
+  } else {
+    if (!Parser(&doc).parse()) {
+      throw std::runtime_error("Invalid JSON");
+    }
+  }
 #else
   if (!Parser(&doc).parse()) {
     throw std::runtime_error("Invalid JSON");
   }
 #endif
-      return Value(&doc, 0);
-    }
+  return Value(&doc, 0);
+}
 
-  // ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
-  inline void Value::merge_patch(std::string_view patch_json) {
-    if (!is_object()) return;
-    DocumentView patch_doc;
-    Value patch = parse_reuse(patch_doc, patch_json);
-    merge_patch_impl_(patch);
+// ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
+inline void Value::merge_patch(std::string_view patch_json) {
+  if (!is_object())
+    return;
+  DocumentView patch_doc;
+  Value patch = parse_reuse(patch_doc, patch_json);
+  merge_patch_impl_(patch);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// SafeValue — optional-propagating chain proxy
+//
+// Returned by Value::get(key/idx).  Every subsequent operator[] propagates
+// std::nullopt silently: if any step is absent, the entire chain returns
+// an empty SafeValue without throwing.
+//
+// Read path comparison:
+//   root["user"]["id"].as<int>()        ← throws on missing key (fast path)
+//   root.get("user")["id"].as<int>()    ← std::optional<int>, never throws
+//   root.get("user")["id"].value_or(-1) ← int with default, never throws
+//
+// SafeValue is std::optional<Value>-compatible: has_value(), operator bool,
+// operator* and operator-> all work, so existing code using optional<Value>
+// patterns compiles unchanged.
+// ───────────────────────────────────────────────────────────────────────────
+
+/// @brief An optional-propagating proxy for safe JSON navigation.
+/// @details `SafeValue` is obtained via `Value::get()`. It propagates absence
+/// silently (similar to a monad). Any chained access on an absent `SafeValue`
+/// will return another absent `SafeValue` without throwing or crashing.
+class SafeValue {
+  Value val_; // valid only when has_ == true; default-constructed otherwise
+  bool has_ = false;
+
+public:
+  SafeValue() noexcept = default;
+  explicit SafeValue(Value v) noexcept : val_(v), has_(true) {}
+
+  // ── std::optional-compatible interface ───────────────────────────────────
+
+  bool has_value() const noexcept { return has_; }
+  explicit operator bool() const noexcept { return has_; }
+
+  Value &value() {
+    if (!has_)
+      throw std::bad_optional_access{};
+    return val_;
+  }
+  const Value &value() const {
+    if (!has_)
+      throw std::bad_optional_access{};
+    return val_;
+  }
+  Value &operator*() { return value(); }
+  const Value &operator*() const { return value(); }
+  Value *operator->() { return &value(); }
+  const Value *operator->() const { return &value(); }
+
+  // ── Type checks — false when absent ──────────────────────────────────────
+
+  bool is_null() const noexcept { return has_ && val_.is_null(); }
+  bool is_bool() const noexcept { return has_ && val_.is_bool(); }
+  bool is_int() const noexcept { return has_ && val_.is_int(); }
+  bool is_double() const noexcept { return has_ && val_.is_double(); }
+  bool is_number() const noexcept { return has_ && val_.is_number(); }
+  bool is_string() const noexcept { return has_ && val_.is_string(); }
+  bool is_object() const noexcept { return has_ && val_.is_object(); }
+  bool is_array() const noexcept { return has_ && val_.is_array(); }
+
+  // ── Chaining — absent propagates forward, never throws ───────────────────
+
+  SafeValue operator[](std::string_view key) const noexcept {
+    if (!has_)
+      return {};
+    return val_.get(key); // calls Value::get() defined below
+  }
+  SafeValue operator[](const char *key) const noexcept {
+    return (*this)[std::string_view(key)];
+  }
+  SafeValue operator[](size_t idx) const noexcept {
+    if (!has_)
+      return {};
+    return val_.get(idx);
+  }
+  SafeValue operator[](int idx) const noexcept {
+    if (idx < 0 || !has_)
+      return {};
+    return val_.get(static_cast<size_t>(idx));
   }
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // SafeValue — optional-propagating chain proxy
-  //
-  // Returned by Value::get(key/idx).  Every subsequent operator[] propagates
-  // std::nullopt silently: if any step is absent, the entire chain returns
-  // an empty SafeValue without throwing.
-  //
-  // Read path comparison:
-  //   root["user"]["id"].as<int>()        ← throws on missing key (fast path)
-  //   root.get("user")["id"].as<int>()    ← std::optional<int>, never throws
-  //   root.get("user")["id"].value_or(-1) ← int with default, never throws
-  //
-  // SafeValue is std::optional<Value>-compatible: has_value(), operator bool,
-  // operator* and operator-> all work, so existing code using optional<Value>
-  // patterns compiles unchanged.
-  // ───────────────────────────────────────────────────────────────────────────
+  // Alias for further chaining (same as operator[]):
+  SafeValue get(std::string_view key) const noexcept { return (*this)[key]; }
+  SafeValue get(const char *key) const noexcept { return (*this)[key]; }
+  SafeValue get(size_t idx) const noexcept { return (*this)[idx]; }
+  SafeValue get(int idx) const noexcept { return (*this)[idx]; }
 
-  class SafeValue {
-    Value val_; // valid only when has_ == true; default-constructed otherwise
-    bool has_ = false;
+  // ── Terminal: typed extraction ────────────────────────────────────────────
 
-  public:
-    SafeValue() noexcept = default;
-    explicit SafeValue(Value v) noexcept : val_(v), has_(true) {}
-
-    // ── std::optional-compatible interface ───────────────────────────────────
-
-    bool has_value() const noexcept { return has_; }
-    explicit operator bool() const noexcept { return has_; }
-
-    Value &value() {
-      if (!has_) throw std::bad_optional_access{};
-      return val_;
-    }
-    const Value &value() const {
-      if (!has_) throw std::bad_optional_access{};
-      return val_;
-    }
-    Value &operator*() { return value(); }
-    const Value &operator*() const { return value(); }
-    Value *operator->() { return &value(); }
-    const Value *operator->() const { return &value(); }
-
-    // ── Type checks — false when absent ──────────────────────────────────────
-
-    bool is_null()   const noexcept { return has_ && val_.is_null();   }
-    bool is_bool()   const noexcept { return has_ && val_.is_bool();   }
-    bool is_int()    const noexcept { return has_ && val_.is_int();    }
-    bool is_double() const noexcept { return has_ && val_.is_double(); }
-    bool is_number() const noexcept { return has_ && val_.is_number(); }
-    bool is_string() const noexcept { return has_ && val_.is_string(); }
-    bool is_object() const noexcept { return has_ && val_.is_object(); }
-    bool is_array()  const noexcept { return has_ && val_.is_array();  }
-
-    // ── Chaining — absent propagates forward, never throws ───────────────────
-
-    SafeValue operator[](std::string_view key) const noexcept {
-      if (!has_) return {};
-      return val_.get(key); // calls Value::get() defined below
-    }
-    SafeValue operator[](const char *key) const noexcept {
-      return (*this)[std::string_view(key)];
-    }
-    SafeValue operator[](size_t idx) const noexcept {
-      if (!has_) return {};
-      return val_.get(idx);
-    }
-    SafeValue operator[](int idx) const noexcept {
-      if (idx < 0 || !has_) return {};
-      return val_.get(static_cast<size_t>(idx));
-    }
-
-    // Alias for further chaining (same as operator[]):
-    SafeValue get(std::string_view key) const noexcept { return (*this)[key]; }
-    SafeValue get(const char *key)      const noexcept { return (*this)[key]; }
-    SafeValue get(size_t idx)           const noexcept { return (*this)[idx]; }
-    SafeValue get(int idx)              const noexcept { return (*this)[idx]; }
-
-    // ── Terminal: typed extraction ────────────────────────────────────────────
-
-    // as<T>() — returns std::optional<T>; std::nullopt when absent or wrong type
-    template<JsonReadable T>
-    std::optional<T> as() const noexcept {
-      if (!has_) return std::nullopt;
-      return val_.try_as<T>();
-    }
-
-    // value_or(default) — direct T with fallback; never throws
-    template<JsonReadable T>
-    T value_or(T def) const noexcept {
-      auto r = as<T>();
-      return r ? *r : def;
-    }
-
-    // dump() — "null" when absent
-    std::string dump() const { return has_ ? val_.dump() : "null"; }
-
-    // ── Pipe fallback on SafeValue: safe_val | default ────────────────────────
-    //
-    // Usage:
-    //   int age = root.get("user")["age"] | 0;
-    //   std::string s = root.get("name") | "anon";
-
-    template<JsonReadable T>
-    friend T operator|(const SafeValue &sv, T def) noexcept {
-      if (!sv.has_) return def;
-      auto r = sv.val_.try_as<T>();
-      return r ? *r : def;
-    }
-    friend std::string operator|(const SafeValue &sv, const char *def) noexcept {
-      if (!sv.has_) return std::string(def);
-      auto r = sv.val_.try_as<std::string>();
-      return r ? *r : std::string(def);
-    }
-
-    // ── Monadic operations ────────────────────────────────────────────────────
-    //
-    // Inspired by the Monad pattern and C++23 std::optional monadic ops.
-    // All three propagate the absent state (has_=false) without branching at
-    // the call site, keeping transformation pipelines free of if-checks.
-    //
-    // Example pipeline:
-    //
-    //   auto price = root["store"]["items"][0]
-    //       .and_then([](const Value& v) -> SafeValue {
-    //           return v.is_number() ? SafeValue{v} : SafeValue{};
-    //       })
-    //       .transform([](const Value& v) { return v.as<double>() * 1.1; })
-    //       .value_or(0.0);
-
-    // and_then — flatMap: F(Value) -> SafeValue.
-    // If absent, returns SafeValue{}.  F is only called when has_value().
-    // Use when the transformation can itself fail (returns SafeValue).
-    template<std::invocable<const Value&> F>
-      requires std::same_as<std::invoke_result_t<F, const Value&>, SafeValue>
-    SafeValue and_then(F&& f) const
-        noexcept(std::is_nothrow_invocable_v<F, const Value&>) {
-      if (!has_) return {};
-      return std::invoke(std::forward<F>(f), val_);
-    }
-
-    // transform — map: F(Value) -> U, result wrapped in std::optional<U>.
-    // If absent, returns std::nullopt.  Never throws unless F throws.
-    // Use when the transformation always succeeds given a valid Value.
-    template<std::invocable<const Value&> F>
-    auto transform(F&& f) const
-        noexcept(std::is_nothrow_invocable_v<F, const Value&>)
-        -> std::optional<std::invoke_result_t<F, const Value&>> {
-      if (!has_) return std::nullopt;
-      return std::invoke(std::forward<F>(f), val_);
-    }
-
-    // or_else — fallback: F() -> SafeValue, called only when absent.
-    // Use to supply a default SafeValue when the chain is broken.
-    template<std::invocable F>
-      requires std::same_as<std::invoke_result_t<F>, SafeValue>
-    SafeValue or_else(F&& f) const
-        noexcept(std::is_nothrow_invocable_v<F>) {
-      if (has_) return *this;
-      return std::invoke(std::forward<F>(f));
-    }
-  };
-
-  // ── Value::get() out-of-line definitions (SafeValue now complete) ──────────
-
-  inline SafeValue Value::get(std::string_view key) const noexcept {
-    auto opt = find(key); // find() returns std::optional<Value>
-    return opt ? SafeValue(*opt) : SafeValue{};
+  // as<T>() — returns std::optional<T>; std::nullopt when absent or wrong type
+  template <JsonReadable T> std::optional<T> as() const noexcept {
+    if (!has_)
+      return std::nullopt;
+    return val_.try_as<T>();
   }
-  inline SafeValue Value::get(const char *key) const noexcept {
-    return get(std::string_view(key));
+
+  // value_or(default) — direct T with fallback; never throws
+  template <JsonReadable T> T value_or(T def) const noexcept {
+    auto r = as<T>();
+    return r ? *r : def;
   }
-  inline SafeValue Value::get(size_t idx) const noexcept {
-    if (!is_array()) return {};
-    uint32_t i = idx_ + 1;
-    const size_t ntape = doc_->tape.size();
-    size_t count = 0;
-    while (i < ntape) {
-      if (doc_->tape[i].type() == TapeNodeType::ArrayEnd) return {};
-      if (count == idx) return SafeValue(Value(doc_, i));
-      i = skip_value_(i);
-      ++count;
-    }
+
+  // dump() — "null" when absent
+  std::string dump() const { return has_ ? val_.dump() : "null"; }
+
+  // ── Pipe fallback on SafeValue: safe_val | default ────────────────────────
+  //
+  // Usage:
+  //   int age = root.get("user")["age"] | 0;
+  //   std::string s = root.get("name") | "anon";
+
+  template <JsonReadable T>
+  friend T operator|(const SafeValue &sv, T def) noexcept {
+    if (!sv.has_)
+      return def;
+    auto r = sv.val_.try_as<T>();
+    return r ? *r : def;
+  }
+  friend std::string operator|(const SafeValue &sv, const char *def) noexcept {
+    if (!sv.has_)
+      return std::string(def);
+    auto r = sv.val_.try_as<std::string>();
+    return r ? *r : std::string(def);
+  }
+
+  // ── Monadic operations ────────────────────────────────────────────────────
+  //
+  // Inspired by the Monad pattern and C++23 std::optional monadic ops.
+  // All three propagate the absent state (has_=false) without branching at
+  // the call site, keeping transformation pipelines free of if-checks.
+  //
+  // Example pipeline:
+  //
+  //   auto price = root["store"]["items"][0]
+  //       .and_then([](const Value& v) -> SafeValue {
+  //           return v.is_number() ? SafeValue{v} : SafeValue{};
+  //       })
+  //       .transform([](const Value& v) { return v.as<double>() * 1.1; })
+  //       .value_or(0.0);
+
+  // and_then — flatMap: F(Value) -> SafeValue.
+  // If absent, returns SafeValue{}.  F is only called when has_value().
+  // Use when the transformation can itself fail (returns SafeValue).
+  template <std::invocable<const Value &> F>
+    requires std::same_as<std::invoke_result_t<F, const Value &>, SafeValue>
+  SafeValue and_then(F &&f) const
+      noexcept(std::is_nothrow_invocable_v<F, const Value &>) {
+    if (!has_)
+      return {};
+    return std::invoke(std::forward<F>(f), val_);
+  }
+
+  // transform — map: F(Value) -> U, result wrapped in std::optional<U>.
+  // If absent, returns std::nullopt.  Never throws unless F throws.
+  // Use when the transformation always succeeds given a valid Value.
+  template <std::invocable<const Value &> F>
+  auto transform(F &&f) const
+      noexcept(std::is_nothrow_invocable_v<F, const Value &>)
+          -> std::optional<std::invoke_result_t<F, const Value &>> {
+    if (!has_)
+      return std::nullopt;
+    return std::invoke(std::forward<F>(f), val_);
+  }
+
+  // or_else — fallback: F() -> SafeValue, called only when absent.
+  // Use to supply a default SafeValue when the chain is broken.
+  template <std::invocable F>
+    requires std::same_as<std::invoke_result_t<F>, SafeValue>
+  SafeValue or_else(F &&f) const noexcept(std::is_nothrow_invocable_v<F>) {
+    if (has_)
+      return *this;
+    return std::invoke(std::forward<F>(f));
+  }
+};
+
+// ── Value::get() out-of-line definitions (SafeValue now complete) ──────────
+
+inline SafeValue Value::get(std::string_view key) const noexcept {
+  auto opt = find(key); // find() returns std::optional<Value>
+  return opt ? SafeValue(*opt) : SafeValue{};
+}
+inline SafeValue Value::get(const char *key) const noexcept {
+  return get(std::string_view(key));
+}
+inline SafeValue Value::get(size_t idx) const noexcept {
+  if (!is_array())
     return {};
+  uint32_t i = idx_ + 1;
+  const size_t ntape = doc_->tape.size();
+  size_t count = 0;
+  while (i < ntape) {
+    if (doc_->tape[i].type() == TapeNodeType::ArrayEnd)
+      return {};
+    if (count == idx)
+      return SafeValue(Value(doc_, i));
+    i = skip_value_(i);
+    ++count;
   }
-  inline SafeValue Value::get(int idx) const noexcept {
-    if (idx < 0) return {};
-    return get(static_cast<size_t>(idx));
-  }
+  return {};
+}
+inline SafeValue Value::get(int idx) const noexcept {
+  if (idx < 0)
+    return {};
+  return get(static_cast<size_t>(idx));
+}
 
-  } // namespace lazy
+} // namespace lazy
 } // namespace json
 } // namespace beast
 
@@ -4892,11 +5267,13 @@ class Parser {
 // in the library sense (they are not cheaply copyable in O(1)).
 template <>
 inline constexpr bool
-std::ranges::enable_borrowed_range<beast::json::lazy::Value::ObjectRange> = true;
+    std::ranges::enable_borrowed_range<beast::json::lazy::Value::ObjectRange> =
+        true;
 
 template <>
 inline constexpr bool
-std::ranges::enable_borrowed_range<beast::json::lazy::Value::ArrayRange> = true;
+    std::ranges::enable_borrowed_range<beast::json::lazy::Value::ArrayRange> =
+        true;
 
 // ============================================================================
 // 3-Tier Public API
@@ -4918,11 +5295,11 @@ namespace beast {
 // they may change between minor versions.
 // ---------------------------------------------------------------------------
 namespace core {
-  using TapeNodeType = beast::json::lazy::TapeNodeType;
-  using TapeNode     = beast::json::lazy::TapeNode;
-  using TapeArena    = beast::json::lazy::TapeArena;
-  using Stage1Index  = beast::json::lazy::Stage1Index;
-  using Parser       = beast::json::lazy::Parser;
+using TapeNodeType = beast::json::lazy::TapeNodeType;
+using TapeNode = beast::json::lazy::TapeNode;
+using TapeArena = beast::json::lazy::TapeArena;
+using Stage1Index = beast::json::lazy::Stage1Index;
+using Parser = beast::json::lazy::Parser;
 } // namespace core
 
 // ---------------------------------------------------------------------------
@@ -4937,9 +5314,12 @@ using Document = beast::json::lazy::DocumentView;
 /// Lifetime tied to the originating Document.
 using Value = beast::json::lazy::Value;
 
-/// Parse \p json into \p doc and return the root Value.
-/// \p doc is reused across calls — tape memory is recycled automatically.
-/// Throws std::runtime_error on malformed input.
+/// @brief Parses a JSON string into the provided Document.
+/// @param doc The Document object which will own the allocated memory.
+/// @param json The JSON string to parse.
+/// @return A beast::Value handle representing the root of the parsed JSON tree.
+/// @note This function provides best-effort parsing. For strict RFC 8259
+/// validation, use `parse_strict()` instead.
 inline Value parse(Document &doc, std::string_view json) {
   return beast::json::lazy::parse_reuse(doc, json);
 }
@@ -4977,7 +5357,8 @@ namespace rfc8259 {
 
 namespace detail_ {
 
-[[noreturn]] inline void fail(const char* msg, const char* pos, const char* begin) {
+[[noreturn]] inline void fail(const char *msg, const char *pos,
+                              const char *begin) {
   char buf[128];
   std::snprintf(buf, sizeof(buf), "RFC 8259 violation at offset %zu: %s",
                 static_cast<size_t>(pos - begin), msg);
@@ -4985,36 +5366,40 @@ namespace detail_ {
 }
 
 struct Validator {
-  const char* p;
-  const char* end;
-  const char* begin;
+  const char *p;
+  const char *end;
+  const char *begin;
 
   void ws() noexcept {
     while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
       ++p;
   }
 
-  void expect_literal(const char* lit, size_t len) {
+  void expect_literal(const char *lit, size_t len) {
     if (static_cast<size_t>(end - p) < len || std::memcmp(p, lit, len) != 0)
       fail("invalid literal", p, begin);
     p += len;
   }
 
   void parse_string() {
-    ++p;  // skip '"'
+    ++p; // skip '"'
     while (p < end) {
       unsigned char c = static_cast<unsigned char>(*p++);
-      if (c == '"') return;  // end of string
+      if (c == '"')
+        return; // end of string
       if (c == '\\') {
-        if (p >= end) fail("unterminated escape sequence", p - 1, begin);
+        if (p >= end)
+          fail("unterminated escape sequence", p - 1, begin);
         unsigned char esc = static_cast<unsigned char>(*p++);
         if (esc == 'u') {
-          if (p + 4 > end) fail("incomplete \\uXXXX escape", p - 2, begin);
+          if (p + 4 > end)
+            fail("incomplete \\uXXXX escape", p - 2, begin);
           for (int i = 0; i < 4; ++i) {
             unsigned char h = static_cast<unsigned char>(*p++);
             bool hex = (h >= '0' && h <= '9') || (h >= 'a' && h <= 'f') ||
                        (h >= 'A' && h <= 'F');
-            if (!hex) fail("invalid hex digit in \\uXXXX", p - 1, begin);
+            if (!hex)
+              fail("invalid hex digit in \\uXXXX", p - 1, begin);
           }
         } else if (esc != '"' && esc != '\\' && esc != '/' && esc != 'b' &&
                    esc != 'f' && esc != 'n' && esc != 'r' && esc != 't') {
@@ -5029,8 +5414,10 @@ struct Validator {
 
   void parse_number() {
     // Optional minus
-    if (*p == '-') ++p;
-    if (p >= end) fail("unexpected end in number", p, begin);
+    if (*p == '-')
+      ++p;
+    if (p >= end)
+      fail("unexpected end in number", p, begin);
 
     // Integer part
     if (*p == '0') {
@@ -5053,7 +5440,8 @@ struct Validator {
       ++p;
       if (p >= end || static_cast<unsigned char>(*p) < '0' ||
           static_cast<unsigned char>(*p) > '9')
-        fail("trailing decimal point or missing digits after '.'", p - 1, begin);
+        fail("trailing decimal point or missing digits after '.'", p - 1,
+             begin);
       while (p < end && static_cast<unsigned char>(*p) >= '0' &&
              static_cast<unsigned char>(*p) <= '9')
         ++p;
@@ -5062,7 +5450,8 @@ struct Validator {
     // Optional exponent
     if (p < end && (*p == 'e' || *p == 'E')) {
       ++p;
-      if (p < end && (*p == '+' || *p == '-')) ++p;
+      if (p < end && (*p == '+' || *p == '-'))
+        ++p;
       if (p >= end || static_cast<unsigned char>(*p) < '0' ||
           static_cast<unsigned char>(*p) > '9')
         fail("missing digits in exponent", p - 1, begin);
@@ -5073,82 +5462,104 @@ struct Validator {
   }
 
   void parse_array() {
-    ++p;  // skip '['
+    ++p; // skip '['
     ws();
-    if (p < end && *p == ']') { ++p; return; }  // empty array
+    if (p < end && *p == ']') {
+      ++p;
+      return;
+    } // empty array
     parse_value();
     ws();
     while (p < end && *p == ',') {
-      ++p;  // skip ','
+      ++p; // skip ','
       ws();
-      if (p < end && *p == ']') fail("trailing comma in array", p - 1, begin);
+      if (p < end && *p == ']')
+        fail("trailing comma in array", p - 1, begin);
       parse_value();
       ws();
     }
-    if (p >= end || *p != ']') fail("expected ']'", p, begin);
+    if (p >= end || *p != ']')
+      fail("expected ']'", p, begin);
     ++p;
   }
 
   void parse_object() {
-    ++p;  // skip '{'
+    ++p; // skip '{'
     ws();
-    if (p < end && *p == '}') { ++p; return; }  // empty object
-    if (p >= end || *p != '"') fail("expected string key", p, begin);
+    if (p < end && *p == '}') {
+      ++p;
+      return;
+    } // empty object
+    if (p >= end || *p != '"')
+      fail("expected string key", p, begin);
     parse_string();
     ws();
-    if (p >= end || *p != ':') fail("expected ':' after key", p, begin);
+    if (p >= end || *p != ':')
+      fail("expected ':' after key", p, begin);
     ++p;
     parse_value();
     ws();
     while (p < end && *p == ',') {
-      ++p;  // skip ','
+      ++p; // skip ','
       ws();
-      if (p < end && *p == '}') fail("trailing comma in object", p - 1, begin);
-      if (p >= end || *p != '"') fail("expected string key", p, begin);
+      if (p < end && *p == '}')
+        fail("trailing comma in object", p - 1, begin);
+      if (p >= end || *p != '"')
+        fail("expected string key", p, begin);
       parse_string();
       ws();
-      if (p >= end || *p != ':') fail("expected ':' after key", p, begin);
+      if (p >= end || *p != ':')
+        fail("expected ':' after key", p, begin);
       ++p;
       parse_value();
       ws();
     }
-    if (p >= end || *p != '}') fail("expected '}'", p, begin);
+    if (p >= end || *p != '}')
+      fail("expected '}'", p, begin);
     ++p;
   }
 
   void parse_value() {
     ws();
-    if (p >= end) fail("unexpected end of input", p, begin);
+    if (p >= end)
+      fail("unexpected end of input", p, begin);
     char c = *p;
-    if      (c == '"')                  parse_string();
-    else if (c == '{')                  parse_object();
-    else if (c == '[')                  parse_array();
-    else if (c == 't')                  expect_literal("true",  4);
-    else if (c == 'f')                  expect_literal("false", 5);
-    else if (c == 'n')                  expect_literal("null",  4);
-    else if (c == '-' || (c >= '0' && c <= '9')) parse_number();
-    else fail("unexpected character", p, begin);
+    if (c == '"')
+      parse_string();
+    else if (c == '{')
+      parse_object();
+    else if (c == '[')
+      parse_array();
+    else if (c == 't')
+      expect_literal("true", 4);
+    else if (c == 'f')
+      expect_literal("false", 5);
+    else if (c == 'n')
+      expect_literal("null", 4);
+    else if (c == '-' || (c >= '0' && c <= '9'))
+      parse_number();
+    else
+      fail("unexpected character", p, begin);
   }
 
   void run(std::string_view json) {
-    p     = json.data();
-    end   = json.data() + json.size();
+    p = json.data();
+    end = json.data() + json.size();
     begin = p;
     parse_value();
     ws();
-    if (p != end) fail("trailing content after JSON value", p, begin);
+    if (p != end)
+      fail("trailing content after JSON value", p, begin);
   }
 };
 
-}  // namespace detail_
+} // namespace detail_
 
 /// Validate \p json against RFC 8259.
 /// Throws std::runtime_error with offset information on the first violation.
-inline void validate(std::string_view json) {
-  detail_::Validator{}.run(json);
-}
+inline void validate(std::string_view json) { detail_::Validator{}.run(json); }
 
-}  // namespace rfc8259
+} // namespace rfc8259
 
 /// Parse \p json into \p doc with strict RFC 8259 compliance.
 /// Rejects: trailing commas, leading zeros, invalid escapes,
@@ -5191,90 +5602,127 @@ inline Value parse_strict(Document &doc, std::string_view json) {
 
 namespace detail {
 
-// ── Type trait helpers ────────────────────────────────────────────────────────
+// ── Type trait helpers
+// ────────────────────────────────────────────────────────
 
-template<typename T> struct is_optional_trait    : std::false_type {};
-template<typename T> struct is_optional_trait<std::optional<T>> : std::true_type {};
+template <typename T, template <typename...> class U>
+struct is_specialization_of : std::false_type {};
 
-template<typename T> struct is_pair_trait        : std::false_type {};
-template<typename A, typename B> struct is_pair_trait<std::pair<A,B>> : std::true_type {};
+template <template <typename...> class U, typename... Args>
+struct is_specialization_of<U<Args...>, U> : std::true_type {};
 
-template<typename T> struct is_tuple_trait       : std::false_type {};
-template<typename... Ts> struct is_tuple_trait<std::tuple<Ts...>> : std::true_type {};
+// ── Concepts
+// ──────────────────────────────────────────────────────────────────
 
-// ── Concepts ──────────────────────────────────────────────────────────────────
+template <typename T>
+concept JsonDetailBool =
+    std::is_same_v<T, bool> ||
+    std::is_same_v<std::remove_cvref_t<T>, std::vector<bool>::reference> ||
+    std::is_same_v<std::remove_cvref_t<T>, std::vector<bool>::const_reference>;
+template <typename T>
+concept JsonDetailArith = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
+template <typename T>
+concept JsonDetailStrLike =
+    std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view> ||
+    std::is_same_v<T, const char *>;
 
-template<typename T> concept JsonDetailBool     = std::is_same_v<T, bool>;
-template<typename T> concept JsonDetailArith    = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
-template<typename T> concept JsonDetailStrLike  =
-    std::is_same_v<T, std::string> ||
-    std::is_same_v<T, std::string_view> ||
-    std::is_same_v<T, const char*>;
-
-template<typename T> concept JsonDetailOptional = is_optional_trait<T>::value;
+template <typename T>
+concept JsonDetailOptional = is_specialization_of<T, std::optional>::value;
 
 // Sequence: has push_back — vector, list, deque (not string)
-template<typename T> concept JsonDetailSeq =
-    requires(T& t) { t.push_back(std::declval<typename T::value_type>()); } &&
-    !JsonDetailStrLike<T>;
+template <typename T>
+concept JsonDetailSeq = requires(T &t) {
+  t.push_back(std::declval<typename T::value_type>());
+} && !JsonDetailStrLike<T>;
 
 // Set: has insert, no push_back, no mapped_type — set, unordered_set, multiset
-template<typename T> concept JsonDetailSet =
-    requires(T& t) { t.insert(std::declval<typename T::value_type>()); } &&
+template <typename T>
+concept JsonDetailSet =
+    requires(T &t) { t.insert(std::declval<typename T::value_type>()); } &&
     !JsonDetailStrLike<T> &&
-    !requires(T& t) { t.push_back(std::declval<typename T::value_type>()); } &&
+    !requires(T &t) { t.push_back(std::declval<typename T::value_type>()); } &&
     !requires { typename T::mapped_type; };
 
 // Map: has mapped_type with string-compatible key — map, unordered_map
-template<typename T> concept JsonDetailMap =
-    requires { typename T::mapped_type; typename T::key_type; } &&
-    (std::is_same_v<typename T::key_type, std::string> ||
-     std::is_convertible_v<std::string, typename T::key_type>);
+template <typename T>
+concept JsonDetailMap =
+    requires {
+      typename T::mapped_type;
+      typename T::key_type;
+    } && (std::is_same_v<typename T::key_type, std::string> ||
+          std::is_convertible_v<std::string, typename T::key_type>);
 
 // Fixed array: std::array<T,N> — tuple_size + value_type, no push_back
-template<typename T> concept JsonDetailFixedArr =
-    requires { std::tuple_size<T>::value; typename T::value_type; } &&
-    !JsonDetailSeq<T> && !JsonDetailSet<T> && !JsonDetailMap<T>;
+template <typename T>
+concept JsonDetailFixedArr = requires {
+  std::tuple_size<T>::value;
+  typename T::value_type;
+} && !JsonDetailSeq<T> && !JsonDetailSet<T> && !JsonDetailMap<T>;
 
 // Tuple/pair: std::tuple<Ts…> or std::pair<A,B>
-template<typename T> concept JsonDetailTuple =
-    is_tuple_trait<T>::value || is_pair_trait<T>::value;
+template <typename T>
+concept JsonDetailTuple = is_specialization_of<T, std::tuple>::value ||
+                          is_specialization_of<T, std::pair>::value;
 
 // ADL hooks (user-defined or via BEAST_JSON_FIELDS)
-template<typename T> concept HasFromBeastJson =
-    requires(const Value& v, T& t) { from_beast_json(v, t); };
-template<typename T> concept HasToBeastJson =
-    requires(Value& v, const T& t) { to_beast_json(v, t); };
+template <typename T>
+concept HasFromBeastJson =
+    requires(const Value &v, T &t) { from_beast_json(v, t); };
+template <typename T>
+concept HasToBeastJson =
+    requires(Value &v, const T &t) { to_beast_json(v, t); };
+template <typename T>
+concept HasAppendBeastJson =
+    requires(std::string &out, const T &t) { append_beast_json(out, t); };
 
-// ── Forward declarations ──────────────────────────────────────────────────────
+// ── Forward declarations
+// ──────────────────────────────────────────────────────
 
-template<typename T> void        from_json   (const Value& v, T& out);
-template<typename T> std::string to_json_str (const T& in);
+template <typename T> void from_json(const Value &v, T &out);
+template <typename T> std::string to_json_str(const T &in);
+template <typename T> void append_json(std::string &out, const T &in);
 
-// ── Tuple/pair helpers ────────────────────────────────────────────────────────
+// ── Tuple/pair helpers
+// ────────────────────────────────────────────────────────
 
-template<typename Tup>
-void from_json_tuple_(const Value& v, Tup& out) {
+template <typename Tup> void from_json_tuple_(const Value &v, Tup &out) {
   std::vector<Value> elems;
-  for (const auto& e : v.elements()) elems.push_back(e);
-  std::apply([&](auto&... args) {
-    size_t i = 0;
-    (void)std::initializer_list<int>{
-      (i < elems.size() ? (from_json(elems[i++], args), 0) : (++i, 0))...
-    };
-  }, out);
+  for (const auto &e : v.elements())
+    elems.push_back(e);
+  std::apply(
+      [&](auto &...args) {
+        size_t i = 0;
+        ((i < elems.size() ? (from_json(elems[i++], args), void())
+                           : (++i, void())),
+         ...);
+      },
+      out);
 }
 
-template<typename Tup>
-std::string to_json_str_tuple_(const Tup& in) {
+template <typename Tup> std::string to_json_str_tuple_(const Tup &in) {
   std::string s = "[";
   bool first = true;
-  std::apply([&](const auto&... args) {
-    (void)std::initializer_list<int>{
-      (s += (std::exchange(first, false) ? "" : ",") + to_json_str(args), 0)...
-    };
-  }, in);
+  std::apply(
+      [&](const auto &...args) {
+        ((s += (std::exchange(first, false) ? "" : ",") + to_json_str(args)),
+         ...);
+      },
+      in);
   return s + ']';
+}
+
+template <typename Tup>
+void append_json_tuple_(std::string &out, const Tup &in) {
+  out += '[';
+  bool first = true;
+  std::apply(
+      [&](const auto &...args) {
+        (((first ? (first = false, void()) : (void)(out += ',')),
+          append_json(out, args)),
+         ...);
+      },
+      in);
+  out += ']';
 }
 
 // ── from_json — concept-dispatched deserialization ───────────────────────────
@@ -5283,8 +5731,7 @@ std::string to_json_str_tuple_(const Tup& in) {
 //   nullptr_t → bool → arithmetic → string → optional → sequence → set →
 //   map → fixed-array → tuple → ADL from_beast_json → static_assert
 
-template<typename T>
-void from_json(const Value& v, T& out) {
+template <typename T> void from_json(const Value &v, T &out) {
   if constexpr (std::is_same_v<T, std::nullptr_t>) {
     // nothing — null is null
   } else if constexpr (JsonDetailBool<T>) {
@@ -5294,27 +5741,30 @@ void from_json(const Value& v, T& out) {
   } else if constexpr (std::is_same_v<T, std::string>) {
     out = v.as<std::string>();
   } else if constexpr (JsonDetailOptional<T>) {
-    if (!v.is_valid() || v.is_null()) { out = std::nullopt; return; }
+    if (!v.is_valid() || v.is_null()) {
+      out = std::nullopt;
+      return;
+    }
     typename T::value_type inner{};
     from_json(v, inner);
     out = std::move(inner);
   } else if constexpr (JsonDetailSeq<T>) {
     out.clear();
-    for (const auto& elem : v.elements()) {
+    for (const auto &elem : v.elements()) {
       typename T::value_type item{};
       from_json(elem, item);
       out.push_back(std::move(item));
     }
   } else if constexpr (JsonDetailSet<T>) {
     out.clear();
-    for (const auto& elem : v.elements()) {
+    for (const auto &elem : v.elements()) {
       typename T::value_type item{};
       from_json(elem, item);
       out.insert(std::move(item));
     }
   } else if constexpr (JsonDetailMap<T>) {
     out.clear();
-    for (const auto& [k, val] : v.items()) {
+    for (const auto &[k, val] : v.items()) {
       typename T::mapped_type item{};
       from_json(val, item);
       out.emplace(std::string(k), std::move(item));
@@ -5322,62 +5772,78 @@ void from_json(const Value& v, T& out) {
   } else if constexpr (JsonDetailFixedArr<T>) {
     constexpr size_t N = std::tuple_size_v<T>;
     size_t i = 0;
-    for (const auto& elem : v.elements()) {
-      if (i >= N) break;
+    for (const auto &elem : v.elements()) {
+      if (i >= N)
+        break;
       from_json(elem, out[i++]);
     }
   } else if constexpr (JsonDetailTuple<T>) {
     from_json_tuple_(v, out);
   } else if constexpr (HasFromBeastJson<T>) {
-    from_beast_json(v, out);   // ADL: user-defined or BEAST_JSON_FIELDS-generated
+    from_beast_json(v, out); // ADL: user-defined or BEAST_JSON_FIELDS-generated
   } else {
     static_assert(sizeof(T) == 0,
-      "beast::read / from_json: no deserialization for T. "
-      "Use BEAST_JSON_FIELDS(Type, field...) or define "
-      "from_beast_json(const beast::Value&, T&).");
+                  "beast::read / from_json: no deserialization for T. "
+                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
+                  "from_beast_json(const beast::Value&, T&).");
   }
 }
 
 // ── to_json_str — concept-dispatched serialization ───────────────────────────
 
-template<typename T>
-std::string to_json_str(const T& in) {
+template <typename T> std::string to_json_str(const T &in) {
   if constexpr (std::is_same_v<T, std::nullptr_t>) {
     return "null";
   } else if constexpr (JsonDetailBool<T>) {
     return in ? "true" : "false";
   } else if constexpr (std::is_integral_v<T>) {
     char buf[32];
-    auto [p, ec] = std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(in));
+    auto [p, ec] =
+        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(in));
     return std::string(buf, p);
   } else if constexpr (std::is_floating_point_v<T>) {
-    if (std::isinf(in) || std::isnan(in)) return "null";
+    if (std::isinf(in) || std::isnan(in))
+      return "null";
     char buf[64];
     int n = std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(in));
     return std::string(buf, static_cast<size_t>(n > 0 ? n : 0));
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view>) {
-    std::string r; r.reserve(in.size() + 2); r += '"';
+    std::string r;
+    r.reserve(in.size() + 2);
+    r += '"';
     for (unsigned char c : in) {
-      if      (c == '"')  r += "\\\"";
-      else if (c == '\\') r += "\\\\";
-      else if (c == '\n') r += "\\n";
-      else if (c == '\r') r += "\\r";
-      else if (c == '\t') r += "\\t";
-      else if (c < 0x20)  { char esc[8]; std::snprintf(esc,sizeof(esc),"\\u%04x",c); r += esc; }
-      else r += static_cast<char>(c);
+      if (c == '"')
+        r += "\\\"";
+      else if (c == '\\')
+        r += "\\\\";
+      else if (c == '\n')
+        r += "\\n";
+      else if (c == '\r')
+        r += "\\r";
+      else if (c == '\t')
+        r += "\\t";
+      else if (c < 0x20) {
+        char esc[8];
+        std::snprintf(esc, sizeof(esc), "\\u%04x", c);
+        r += esc;
+      } else
+        r += static_cast<char>(c);
     }
-    r += '"'; return r;
-  } else if constexpr (std::is_same_v<T, const char*>) {
+    r += '"';
+    return r;
+  } else if constexpr (std::is_same_v<T, const char *>) {
     return to_json_str(std::string_view(in ? in : ""));
   } else if constexpr (JsonDetailOptional<T>) {
-    if (!in.has_value()) return "null";
+    if (!in.has_value())
+      return "null";
     return to_json_str(*in);
   } else if constexpr (JsonDetailSeq<T> || JsonDetailSet<T>) {
     std::string s = "[";
     bool first = true;
-    for (const auto& item : in) {
-      if (!first) s += ',';
+    for (const auto &item : in) {
+      if (!first)
+        s += ',';
       s += to_json_str(item);
       first = false;
     }
@@ -5385,8 +5851,9 @@ std::string to_json_str(const T& in) {
   } else if constexpr (JsonDetailMap<T>) {
     std::string s = "{";
     bool first = true;
-    for (const auto& [k, val] : in) {
-      if (!first) s += ',';
+    for (const auto &[k, val] : in) {
+      if (!first)
+        s += ',';
       s += to_json_str(k) + ':' + to_json_str(val);
       first = false;
     }
@@ -5395,42 +5862,150 @@ std::string to_json_str(const T& in) {
     constexpr size_t N = std::tuple_size_v<T>;
     std::string s = "[";
     for (size_t i = 0; i < N; ++i) {
-      if (i > 0) s += ',';
+      if (i > 0)
+        s += ',';
       s += to_json_str(in[i]);
     }
     return s + ']';
   } else if constexpr (JsonDetailTuple<T>) {
     return to_json_str_tuple_(in);
+  } else if constexpr (HasAppendBeastJson<T>) {
+    std::string s;
+    append_beast_json(s, in);
+    return s;
   } else if constexpr (HasToBeastJson<T>) {
     // User-defined: create temp document, call to_beast_json, dump
     std::string src = "{}";
     Document doc;
     Value root = parse(doc, src);
-    to_beast_json(root, in);   // ADL: user-defined or BEAST_JSON_FIELDS-generated
+    to_beast_json(root, in); // ADL: user-defined or BEAST_JSON_FIELDS-generated
     return root.dump();
   } else {
     static_assert(sizeof(T) == 0,
-      "beast::write / to_json_str: no serialization for T. "
-      "Use BEAST_JSON_FIELDS(Type, field...) or define "
-      "to_beast_json(beast::Value&, const T&).");
+                  "beast::write / to_json_str: no serialization for T. "
+                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
+                  "to_beast_json(beast::Value&, const T&).");
   }
 }
 
-// ── Per-field helpers for BEAST_JSON_FIELDS ───────────────────────────────────
+// ── append_json — zero-allocation concept-dispatched streaming ─────────────
 
-template<typename T>
-inline void from_json_field(const Value& obj, const char* key, T& field) {
-  auto opt = obj.find(key);
-  if (!opt) return;  // absent → keep default value
-  if constexpr (is_optional_trait<T>::value) {
-    from_json(*opt, field);            // optional handles null → nullopt
+template <typename T> void append_json(std::string &out, const T &in) {
+  if constexpr (std::is_same_v<T, std::nullptr_t>) {
+    out += "null";
+  } else if constexpr (JsonDetailBool<T>) {
+    out += in ? "true" : "false";
+  } else if constexpr (std::is_integral_v<T>) {
+    char buf[32];
+    auto [p, ec] =
+        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(in));
+    out.append(buf, p - buf);
+  } else if constexpr (std::is_floating_point_v<T>) {
+    if (std::isinf(in) || std::isnan(in)) {
+      out += "null";
+      return;
+    }
+    char buf[64];
+    int n = std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(in));
+    out.append(buf, static_cast<size_t>(n > 0 ? n : 0));
+  } else if constexpr (std::is_same_v<T, std::string> ||
+                       std::is_same_v<T, std::string_view>) {
+    out += '"';
+    for (unsigned char c : in) {
+      if (c == '"')
+        out += "\\\"";
+      else if (c == '\\')
+        out += "\\\\";
+      else if (c == '\n')
+        out += "\\n";
+      else if (c == '\r')
+        out += "\\r";
+      else if (c == '\t')
+        out += "\\t";
+      else if (c < 0x20) {
+        char esc[8];
+        std::snprintf(esc, sizeof(esc), "\\u%04x", c);
+        out += esc;
+      } else
+        out += static_cast<char>(c);
+    }
+    out += '"';
+  } else if constexpr (std::is_same_v<T, const char *>) {
+    append_json(out, std::string_view(in ? in : ""));
+  } else if constexpr (JsonDetailOptional<T>) {
+    if (!in.has_value()) {
+      out += "null";
+      return;
+    }
+    append_json(out, *in);
+  } else if constexpr (JsonDetailSeq<T> || JsonDetailSet<T>) {
+    out += '[';
+    bool first = true;
+    for (const auto &item : in) {
+      if (!first)
+        out += ',';
+      append_json(out, item);
+      first = false;
+    }
+    out += ']';
+  } else if constexpr (JsonDetailMap<T>) {
+    out += '{';
+    bool first = true;
+    for (const auto &[k, val] : in) {
+      if (!first)
+        out += ',';
+      append_json(out, k);
+      out += ':';
+      append_json(out, val);
+      first = false;
+    }
+    out += '}';
+  } else if constexpr (JsonDetailFixedArr<T>) {
+    constexpr size_t N = std::tuple_size_v<T>;
+    out += '[';
+    for (size_t i = 0; i < N; ++i) {
+      if (i > 0)
+        out += ',';
+      append_json(out, in[i]);
+    }
+    out += ']';
+  } else if constexpr (JsonDetailTuple<T>) {
+    append_json_tuple_(out, in);
+  } else if constexpr (HasAppendBeastJson<T>) {
+    append_beast_json(out, in);
+  } else if constexpr (HasToBeastJson<T>) {
+    // Fallback exactly like to_json_str
+    std::string src = "{}";
+    Document doc;
+    Value root = parse(doc, src);
+    to_beast_json(root, in);
+    out += root.dump();
   } else {
-    if (!opt->is_null()) from_json(*opt, field);  // skip null for non-optional
+    static_assert(sizeof(T) == 0,
+                  "beast::write / append_json: no serialization for T. "
+                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
+                  "append_beast_json(std::string&, const T&).");
   }
 }
 
-template<typename T>
-inline void to_json_field(Value& obj, const char* key, const T& val) {
+// ── Per-field helpers for BEAST_JSON_FIELDS
+// ───────────────────────────────────
+
+template <typename T>
+inline void from_json_field(const Value &obj, const char *key, T &field) {
+  auto opt = obj.find(key);
+  if (!opt)
+    return; // absent → keep default value
+  if constexpr (is_specialization_of<T, std::optional>::value) {
+    from_json(*opt, field); // optional handles null → nullopt
+  } else {
+    if (!opt->is_null())
+      from_json(*opt, field); // skip null for non-optional
+  }
+}
+
+template <typename T>
+inline void to_json_field(Value &obj, const char *key, const T &val) {
   obj.insert_json(key, to_json_str(val));
 }
 
@@ -5441,58 +6016,90 @@ inline void to_json_field(Value& obj, const char* key, const T& val) {
 // ============================================================================
 
 #define BEAST_DETAIL_EXPAND(x) x
-#define BEAST_DETAIL_CONCAT(a, b)  a##b
+#define BEAST_DETAIL_CONCAT(a, b) a##b
 // Two-step concat: expands arguments first, then concatenates
 #define BEAST_DETAIL_CONCAT2(a, b) BEAST_DETAIL_CONCAT(a, b)
 
 // Count args: BEAST_DETAIL_COUNT(a,b,c) → 3
-#define BEAST_DETAIL_COUNT(...) \
-  BEAST_DETAIL_EXPAND(BEAST_DETAIL_COUNT_I(__VA_ARGS__, \
-    32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17, \
-    16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0))
-#define BEAST_DETAIL_COUNT_I( \
-  _1,_2,_3,_4,_5,_6,_7,_8,_9,_10, \
-  _11,_12,_13,_14,_15,_16,_17,_18,_19,_20, \
-  _21,_22,_23,_24,_25,_26,_27,_28,_29,_30,_31,_32,N,...) N
+#define BEAST_DETAIL_COUNT(...)                                                \
+  BEAST_DETAIL_EXPAND(BEAST_DETAIL_COUNT_I(                                    \
+      __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, \
+      17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0))
+#define BEAST_DETAIL_COUNT_I(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11,     \
+                             _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, \
+                             _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, \
+                             _32, N, ...)                                      \
+  N
 
 // Recursive FE_N macros
-#define BEAST_DETAIL_FE_1( fn,a)            fn(a)
-#define BEAST_DETAIL_FE_2( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_1( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_3( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_2( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_4( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_3( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_5( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_4( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_6( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_5( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_7( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_6( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_8( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_7( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_9( fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_8( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_10(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_9( fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_11(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_10(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_12(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_11(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_13(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_12(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_14(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_13(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_15(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_14(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_16(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_15(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_17(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_16(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_18(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_17(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_19(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_18(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_20(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_19(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_21(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_20(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_22(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_21(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_23(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_22(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_24(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_23(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_25(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_24(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_26(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_25(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_27(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_26(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_28(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_27(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_29(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_28(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_30(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_29(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_31(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_30(fn,__VA_ARGS__))
-#define BEAST_DETAIL_FE_32(fn,a,...)        fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_31(fn,__VA_ARGS__))
+#define BEAST_DETAIL_FE_1(fn, a) fn(a)
+#define BEAST_DETAIL_FE_2(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_1(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_3(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_2(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_4(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_3(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_5(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_4(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_6(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_5(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_7(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_6(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_8(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_7(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_9(fn, a, ...)                                          \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_8(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_10(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_9(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_11(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_10(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_12(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_11(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_13(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_12(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_14(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_13(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_15(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_14(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_16(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_15(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_17(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_16(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_18(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_17(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_19(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_18(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_20(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_19(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_21(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_20(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_22(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_21(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_23(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_22(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_24(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_23(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_25(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_24(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_26(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_25(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_27(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_26(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_28(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_27(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_29(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_28(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_30(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_29(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_31(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_30(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_32(fn, a, ...)                                         \
+  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_31(fn, __VA_ARGS__))
 
 /// Apply fn to each variadic argument (up to 32).
-#define BEAST_FOR_EACH(fn, ...) \
-  BEAST_DETAIL_EXPAND(BEAST_DETAIL_CONCAT2(BEAST_DETAIL_FE_, \
-    BEAST_DETAIL_COUNT(__VA_ARGS__))(fn, __VA_ARGS__))
+#define BEAST_FOR_EACH(fn, ...)                                                \
+  BEAST_DETAIL_EXPAND(BEAST_DETAIL_CONCAT2(                                    \
+      BEAST_DETAIL_FE_, BEAST_DETAIL_COUNT(__VA_ARGS__))(fn, __VA_ARGS__))
 
 // ============================================================================
 // BEAST_JSON_FIELDS — one-line struct serialization/deserialization
@@ -5526,34 +6133,53 @@ inline void to_json_field(Value& obj, const char* key, const T& val) {
 //
 // Rules:
 //   • Place the macro in the same namespace as the struct.
-//   • All field types must themselves be supported (built-in or BEAST_JSON_FIELDS).
-//   • Missing JSON keys leave the field at its default-constructed value.
-//   • JSON null on a non-optional field is silently skipped.
-//   • JSON null on std::optional<T> field sets it to std::nullopt.
+//   • All field types must themselves be supported (built-in or
+//   BEAST_JSON_FIELDS). • Missing JSON keys leave the field at its
+//   default-constructed value. • JSON null on a non-optional field is silently
+//   skipped. • JSON null on std::optional<T> field sets it to std::nullopt.
 // ============================================================================
 
-#define BEAST_JSON_DETAIL_READ(f)  ::beast::detail::from_json_field(v, #f, obj.f);
-#define BEAST_JSON_DETAIL_WRITE(f) ::beast::detail::to_json_field  (v, #f, obj.f);
+#define BEAST_JSON_DETAIL_READ(f)                                              \
+  ::beast::detail::from_json_field(v, #f, obj.f);
+#define BEAST_JSON_DETAIL_WRITE(f) ::beast::detail::to_json_field(v, #f, obj.f);
+#define BEAST_JSON_DETAIL_APPEND(f)                                            \
+  out += "\"" #f "\":";                                                        \
+  ::beast::detail::append_json(out, obj.f);                                    \
+  out += ',';
 
-/// Register struct Type for automatic JSON serialization/deserialization.
-/// Place this macro after the struct definition (or inside it as a friend).
-/// Lists up to 32 member field names.
-#define BEAST_JSON_FIELDS(Type, ...)                                              \
-  inline void from_beast_json(const ::beast::Value& v, Type& obj) {              \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                           \
-  }                                                                               \
-  inline void to_beast_json(::beast::Value& v, const Type& obj) {                \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                          \
+/// @brief Register struct Type for automatic JSON
+/// serialization/deserialization.
+/// @details Place this macro after the struct definition (or inside it as a
+/// friend). This macro generates `to_beast_json()`, `from_beast_json()`, and
+/// `append_beast_json()` ADL overloads. Lists up to 32 member field names.
+/// @param Type The name of the struct or class to serialize.
+/// @param ... The member variables of the struct to serialize.
+#define BEAST_JSON_FIELDS(Type, ...)                                           \
+  inline void from_beast_json(const ::beast::Value &v, Type &obj) {            \
+    BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                        \
+  }                                                                            \
+  inline void to_beast_json(::beast::Value &v, const Type &obj) {              \
+    BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
+  }                                                                            \
+  inline void append_beast_json(std::string &out, const Type &obj) {           \
+    out += '{';                                                                \
+    size_t prev_len = out.size();                                              \
+    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND, __VA_ARGS__)                      \
+    if (out.size() > prev_len)                                                 \
+      out.pop_back();                                                          \
+    out += '}';                                                                \
   }
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
-/// Deserialize JSON string into T.
-/// Supports all STL types, std::optional, and structs registered with
-/// BEAST_JSON_FIELDS() or manual ADL from_beast_json().
-/// T must be default-constructible. Throws std::runtime_error on malformed JSON.
-template<typename T>
-T read(std::string_view json) {
+/// @brief Deserialize JSON string into a C++ object of type T.
+/// @details Supports all STL types, std::optional, and structs registered with
+/// `BEAST_JSON_FIELDS()` or manual ADL `from_beast_json()`.
+/// T must be default-constructible.
+/// @param json The JSON string to parse and deserialize.
+/// @return The deserialized C++ object.
+/// @throws std::runtime_error on malformed JSON or type mismatch.
+template <typename T> T read(std::string_view json) {
   Document doc;
   Value root = parse(doc, json);
   T obj{};
@@ -5561,23 +6187,25 @@ T read(std::string_view json) {
   return obj;
 }
 
-/// Serialize T to a JSON string.
-/// Supports all STL types, std::optional, and structs registered with
-/// BEAST_JSON_FIELDS() or manual ADL to_beast_json().
-template<typename T>
-std::string write(const T& obj) {
-  return detail::to_json_str(obj);
+/// @brief Serialize a C++ object of type T to a JSON string.
+/// @details Supports all STL types, std::optional, and structs registered with
+/// `BEAST_JSON_FIELDS()` or manual ADL `to_beast_json()`.
+/// @param obj The object to serialize.
+/// @return A std::string containing the serialized JSON.
+template <typename T> std::string write(const T &obj) {
+  std::string out;
+  out.reserve(512); // preallocate common initial size
+  detail::append_json(out, obj);
+  return out;
 }
 
 /// Deserialize a Value into T in place (partial-deserialization helper).
-template<typename T>
-void from_json(const Value& v, T& out) {
+template <typename T> void from_json(const Value &v, T &out) {
   detail::from_json(v, out);
 }
 
 /// Serialize T into a JSON string (alternative to beast::write for sub-values).
-template<typename T>
-std::string to_json_str(const T& val) {
+template <typename T> std::string to_json_str(const T &val) {
   return detail::to_json_str(val);
 }
 
