@@ -114,13 +114,13 @@ Table of Contents</h1>
 <li><a class="el" href="#mutating-documents" title="mutating-documents">Mutating Documents</a></li>
 <li><a class="el" href="#serialization" title="serialization">Serialization</a></li>
 <li><a class="el" href="#auto-serialization-structs" title="auto-serialization-structs">Auto-Serialization (Structs)</a></li>
-<li>RFC 8259 Strict Mode</li>
-<li>Buffer Reuse for Hot Loops</li>
-<li>Build Options Reference</li>
-<li>Running Tests</li>
-<li><a class="el" href="index.html#language-bindings" title="language-bindings">Language Bindings</a><ul>
-<li>C API</li>
-<li>Python</li>
+<li><a class="el" href="#strict-mode-validation" title="strict-mode-validation">RFC 8259 Strict Mode</a></li>
+<li><a class="el" href="#performance-tips-zero-allocation" title="performance-tips-zero-allocation">Buffer Reuse for Hot Loops</a></li>
+<li><a class="el" href="#build-options-reference" title="build-options-reference">Build Options Reference</a></li>
+<li><a class="el" href="#running-tests" title="running-tests">Running Tests</a></li>
+<li><a class="el" href="#gs-language-bindings" title="gs-language-bindings">Language Bindings</a><ul>
+<li><a class="el" href="#c-api" title="c-api">C API</a></li>
+<li><a class="el" href="#python" title="python">Python</a></li>
 </ul>
 </li>
 <li><a class="el" href="#common-pitfalls" title="common-pitfalls">Common Pitfalls</a></li>
@@ -562,6 +562,7 @@ Buffer Reuse for Hot Loops</h1>
 <li>Runs Stage 1 + Stage 2 (or single-pass) parser</li>
 </ol>
 <hr  />
+<p><a class="anchor" id="build-options-reference"></a> </p>
 <h1 class="doxsection"><a class="anchor" id="autotoc_md94"></a>
 Build Options Reference</h1>
 <table class="markdownTable">
@@ -599,6 +600,7 @@ Build Options Reference</h1>
 <div class="line">cmake --build build-san</div>
 <div class="line">ctest --test-dir build-san  # 368/368 PASS expected</div>
 </div><!-- fragment --><hr  />
+<p><a class="anchor" id="running-tests"></a> </p>
 <h1 class="doxsection"><a class="anchor" id="autotoc_md96"></a>
 Running Tests</h1>
 <div class="fragment"><div class="line"># Build and run all 368 tests</div>
@@ -637,8 +639,10 @@ Running Tests</h1>
 <td class="markdownTableBodyLeft">+ 17 other suites  </td><td class="markdownTableBodyRight">78  </td><td class="markdownTableBodyLeft">Unicode, escaping, concepts, etc.  </td></tr>
 </table>
 <hr  />
+<p><a class="anchor" id="gs-language-bindings"></a> </p>
 <h1 class="doxsection"><a class="anchor" id="autotoc_md98"></a>
 Language Bindings</h1>
+<p><a class="anchor" id="c-api"></a> </p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md99"></a>
 C API</h2>
 <div class="fragment"><div class="line"># Build shared library</div>
@@ -657,6 +661,7 @@ C API</h2>
 <div class="line"> </div>
 <div class="line">bjson_doc_destroy(doc);</div>
 </div><!-- fragment --><p>See <a href="API_REFERENCE.md#c-api-bindingsc">docs/API_REFERENCE.md#c-api</a> for the complete C API.</p>
+<p><a class="anchor" id="python"></a> </p>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md100"></a>
 Python</h2>
 <div class="fragment"><div class="line">export BEAST_JSON_LIB_PATH=./build/bindings/c</div>

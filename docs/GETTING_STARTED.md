@@ -18,11 +18,11 @@
 7. [Mutating Documents](#mutating-documents)
 8. [Serialization](#serialization)
 9. [Auto-Serialization (Structs)](#auto-serialization-structs)
-10. [RFC 8259 Strict Mode](#rfc-8259-strict-mode)
-11. [Buffer Reuse for Hot Loops](#buffer-reuse-for-hot-loops)
+10. [RFC 8259 Strict Mode](#strict-mode-validation)
+11. [Buffer Reuse for Hot Loops](#performance-tips-zero-allocation)
 12. [Build Options Reference](#build-options-reference)
 13. [Running Tests](#running-tests)
-14. [Language Bindings](#language-bindings)
+14. [Language Bindings](#gs-language-bindings)
     - [C API](#c-api)
     - [Python](#python)
 15. [Common Pitfalls](#common-pitfalls)
@@ -546,6 +546,7 @@ while (std::getline(std::cin, line)) {
 
 ---
 
+<a id="build-options-reference"></a>
 ## Build Options Reference
 
 | CMake Option | Default | Description |
@@ -583,6 +584,7 @@ ctest --test-dir build-san  # 368/368 PASS expected
 
 ---
 
+<a id="running-tests"></a>
 ## Running Tests
 
 ```bash
@@ -615,8 +617,10 @@ ctest --test-dir build -V
 
 ---
 
+<a id="gs-language-bindings"></a>
 ## Language Bindings
 
+<a id="c-api"></a>
 ### C API
 
 ```bash
@@ -642,6 +646,7 @@ bjson_doc_destroy(doc);
 
 See [docs/API_REFERENCE.md#c-api](API_REFERENCE.md#c-api-bindingsc) for the complete C API.
 
+<a id="python"></a>
 ### Python
 
 ```bash
