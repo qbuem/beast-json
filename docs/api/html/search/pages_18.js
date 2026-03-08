@@ -1,5 +1,12 @@
 var searchData=
 [
-  ['of_20contents_0',['Table of Contents',['../index.html#autotoc_md1',1,'']]],
-  ['optimization_20failures_20lessons_1',['8. Optimization Failures &amp;amp; Lessons',['../index.html#autotoc_md28',1,'']]]
+  ['object_20keys_20iterator_20out_20of_20bounds_20heap_20buffer_20overflow_0',['Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md44',1,'']]],
+  ['of_20bounds_20heap_20buffer_20overflow_1',['Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md44',1,'']]],
+  ['of_20bounds_20memcpy_20past_20source_20end_20heap_20buffer_20overflow_2',['Bug 5 — &lt;span class=&quot;tt&quot;&gt;skip_value_()&lt;/span&gt; Out-of-Bounds + &lt;span class=&quot;tt&quot;&gt;memcpy&lt;/span&gt; Past Source End &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md46',1,'']]],
+  ['of_20contents_3',['Table of Contents',['../index.html#autotoc_md4',1,'']]],
+  ['optimization_20failures_20lessons_4',['8. Optimization Failures &amp;amp; Lessons',['../index.html#autotoc_md34',1,'']]],
+  ['out_20of_20bounds_20heap_20buffer_20overflow_5',['Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md44',1,'']]],
+  ['out_20of_20bounds_20memcpy_20past_20source_20end_20heap_20buffer_20overflow_6',['Bug 5 — &lt;span class=&quot;tt&quot;&gt;skip_value_()&lt;/span&gt; Out-of-Bounds + &lt;span class=&quot;tt&quot;&gt;memcpy&lt;/span&gt; Past Source End &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md46',1,'']]],
+  ['overflow_7',['overflow',['../index.html#autotoc_md42',1,'Bug 1 — Null-Dereference in &lt;span class=&quot;tt&quot;&gt;skip_to_action()&lt;/span&gt; &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;'],['../index.html#autotoc_md43',1,'Bug 2 — Empty-Tape Read via Bare Separator &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;'],['../index.html#autotoc_md44',1,'Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;'],['../index.html#autotoc_md46',1,'Bug 5 — &lt;span class=&quot;tt&quot;&gt;skip_value_()&lt;/span&gt; Out-of-Bounds + &lt;span class=&quot;tt&quot;&gt;memcpy&lt;/span&gt; Past Source End &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;']]],
+  ['overlay_20maps_20stack_20underflow_20in_20dump_5fchanges_5f_20ubsan_20stack_20buffer_20underflow_8',['Bug 4 — Stale Overlay Maps + Stack Underflow in &lt;span class=&quot;tt&quot;&gt;dump_changes_()&lt;/span&gt; &lt;em&gt;(UBSan / stack-buffer-underflow)&lt;/em&gt;',['../index.html#autotoc_md45',1,'']]]
 ];

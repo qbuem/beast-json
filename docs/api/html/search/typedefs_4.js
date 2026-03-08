@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['safevalue_0',['SafeValue',['../namespacebeast.html#aa927d0caa2625ed5d7f92b75a22686b0',1,'beast']]],
-  ['stage1index_1',['Stage1Index',['../namespacebeast_1_1core.html#a7632fea48dfcec197b3f5669cdfd1a2e',1,'beast::core']]]
+  ['reference_0',['reference',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_key_iterator.html#a8c744d0279241cb1cbcfd9a9d4190df2',1,'beast::json::lazy::Value::KeyIterator::reference'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_object_value_iterator.html#a845cfc9b800771ab296fd3e47c0c1a28',1,'beast::json::lazy::Value::ObjectValueIterator::reference'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_iterator.html#ae41555ee95af04da07e0603019187709',1,'beast::json::lazy::Value::TypedArrayIterator::reference'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_optional_array_iterator.html#a076bf95f01a181fd1f68a2c079b7afcc',1,'beast::json::lazy::Value::OptionalArrayIterator::reference']]]
 ];

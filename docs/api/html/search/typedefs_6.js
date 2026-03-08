@@ -1,5 +1,6 @@
 var searchData=
 [
-  ['value_0',['Value',['../namespacebeast.html#abe9ce2ed4fb57c25aa6a7eed31343f11',1,'beast']]],
-  ['value_5ftype_1',['value_type',['../classbeast_1_1json_1_1lazy_1_1_value_1_1_object_iterator.html#a936415129093ca20c21f99e5d1457a55',1,'beast::json::lazy::Value::ObjectIterator::value_type'],['../classbeast_1_1json_1_1lazy_1_1_value_1_1_array_iterator.html#ab38224380d9e5e2245d1bf005c87b473',1,'beast::json::lazy::Value::ArrayIterator::value_type']]]
+  ['tapearena_0',['TapeArena',['../namespacebeast_1_1core.html#a685b1ba012a5920aecf542cfe8b70827',1,'beast::core']]],
+  ['tapenode_1',['TapeNode',['../namespacebeast_1_1core.html#ad5e9805928527c9d0746a5585dedad87',1,'beast::core']]],
+  ['tapenodetype_2',['TapeNodeType',['../namespacebeast_1_1core.html#a946f0b963abd0079795d293d6d8d3cc7',1,'beast::core']]]
 ];

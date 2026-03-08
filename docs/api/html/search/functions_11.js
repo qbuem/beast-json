@@ -7,7 +7,9 @@ var searchData=
   ['to_5fjson_5fstr_5ftuple_5f_4',['to_json_str_tuple_',['../namespacebeast_1_1detail.html#a2ac547e4aebba1d90347bafb43f4712b',1,'beast::detail']]],
   ['transform_5',['transform',['../classbeast_1_1json_1_1lazy_1_1_safe_value.html#a4b812d3f821a64e415314a6b0ce9439e',1,'beast::json::lazy::SafeValue']]],
   ['try_5fas_6',['try_as',['../classbeast_1_1json_1_1lazy_1_1_value.html#a1aa1e0278b22dc8f827c2297971f7efb',1,'beast::json::lazy::Value']]],
-  ['try_5fas_5farray_7',['try_as_array',['../classbeast_1_1json_1_1lazy_1_1_value.html#a9bc1e7989e0b5a1f557df8c35824e6a4',1,'beast::json::lazy::Value']]],
+  ['try_5fas_5farray_7',['try_as_array',['../classbeast_1_1json_1_1lazy_1_1_value.html#a95f0b90a49b2f2b5cec6eed0de77c0f8',1,'beast::json::lazy::Value']]],
   ['type_8',['type',['../structbeast_1_1json_1_1lazy_1_1_tape_node.html#ad18cb7b371a30429d0f67cc4ef727b3e',1,'beast::json::lazy::TapeNode']]],
-  ['type_5fname_9',['type_name',['../classbeast_1_1json_1_1lazy_1_1_value.html#a304530560c670b9fdb7a07d2b1c967b1',1,'beast::json::lazy::Value']]]
+  ['type_5fname_9',['type_name',['../classbeast_1_1json_1_1lazy_1_1_value.html#a304530560c670b9fdb7a07d2b1c967b1',1,'beast::json::lazy::Value']]],
+  ['typedarrayiterator_10',['TypedArrayIterator',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_iterator.html#a37c9dde160fc070223e395f411db914e',1,'beast::json::lazy::Value::TypedArrayIterator::TypedArrayIterator() noexcept=default'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_iterator.html#ab4ebd8e771129f33fd39fde2f1893b03',1,'beast::json::lazy::Value::TypedArrayIterator::TypedArrayIterator(ArrayIterator it) noexcept']]],
+  ['typedarrayrange_11',['TypedArrayRange',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_range.html#ac2de575485d179d0fa3d7c6acd441008',1,'beast::json::lazy::Value::TypedArrayRange']]]
 ];

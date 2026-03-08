@@ -93,7 +93,7 @@ $(function(){initNavTree('beast__json_8hpp.html','',''); });
 </div><!--header-->
 <div class="contents">
 
-<p>Beast JSON v3.1 - FINAL Complete Implementation.  
+<p>Beast JSON v1.0.3 - High-Performance C++20 JSON Parser.  
 <a href="#details">More...</a></p>
 <div class="textblock"><code>#include &lt;algorithm&gt;</code><br />
 <code>#include &lt;array&gt;</code><br />
@@ -109,6 +109,7 @@ $(function(){initNavTree('beast__json_8hpp.html','',''); });
 <code>#include &lt;cstdint&gt;</code><br />
 <code>#include &lt;cstdlib&gt;</code><br />
 <code>#include &lt;cstring&gt;</code><br />
+<code>#include &lt;functional&gt;</code><br />
 <code>#include &lt;list&gt;</code><br />
 <code>#include &lt;map&gt;</code><br />
 <code>#include &lt;memory&gt;</code><br />
@@ -145,6 +146,14 @@ Classes</h2></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AObjectRange" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AObjectRange"><td class="memItemLeft">class &#160;</td><td class="memItemRight"><a class="el" href="classbeast_1_1json_1_1lazy_1_1_value_1_1_object_range.html">beast::json::lazy::Value::ObjectRange</a></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AArrayIterator" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AArrayIterator"><td class="memItemLeft">class &#160;</td><td class="memItemRight"><a class="el" href="classbeast_1_1json_1_1lazy_1_1_value_1_1_array_iterator.html">beast::json::lazy::Value::ArrayIterator</a></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AArrayRange" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AArrayRange"><td class="memItemLeft">class &#160;</td><td class="memItemRight"><a class="el" href="classbeast_1_1json_1_1lazy_1_1_value_1_1_array_range.html">beast::json::lazy::Value::ArrayRange</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AKeyIterator" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AKeyIterator"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_key_iterator.html">beast::json::lazy::Value::KeyIterator</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AKeysRange" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AKeysRange"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_keys_range.html">beast::json::lazy::Value::KeysRange</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AObjectValueIterator" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AObjectValueIterator"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_object_value_iterator.html">beast::json::lazy::Value::ObjectValueIterator</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AValuesRange" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AValuesRange"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_values_range.html">beast::json::lazy::Value::ValuesRange</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3ATypedArrayIterator_3C_20T_20_3E" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3ATypedArrayIterator_3C_20T_20_3E"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_iterator.html">beast::json::lazy::Value::TypedArrayIterator&lt; T &gt;</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3ATypedArrayRange_3C_20T_20_3E" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3ATypedArrayRange_3C_20T_20_3E"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_range.html">beast::json::lazy::Value::TypedArrayRange&lt; T &gt;</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AOptionalArrayIterator_3C_20T_20_3E" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AOptionalArrayIterator_3C_20T_20_3E"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_optional_array_iterator.html">beast::json::lazy::Value::OptionalArrayIterator&lt; T &gt;</a></td></tr>
+<tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AOptionalArrayRange_3C_20T_20_3E" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AOptionalArrayRange_3C_20T_20_3E"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_optional_array_range.html">beast::json::lazy::Value::OptionalArrayRange&lt; T &gt;</a></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AJsonPointerLiteral_3C_20N_20_3E" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AValue_3A_3AJsonPointerLiteral_3C_20N_20_3E"><td class="memItemLeft">struct &#160;</td><td class="memItemRight"><a class="el" href="structbeast_1_1json_1_1lazy_1_1_value_1_1_json_pointer_literal.html">beast::json::lazy::Value::JsonPointerLiteral&lt; N &gt;</a></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3AParser" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3AParser"><td class="memItemLeft">class &#160;</td><td class="memItemRight"><a class="el" href="classbeast_1_1json_1_1lazy_1_1_parser.html">beast::json::lazy::Parser</a></td></tr>
 <tr class="memitem:beast_3A_3Ajson_3A_3Alazy_3A_3ASafeValue" id="r_beast_3A_3Ajson_3A_3Alazy_3A_3ASafeValue"><td class="memItemLeft">class &#160;</td><td class="memItemRight"><a class="el" href="classbeast_1_1json_1_1lazy_1_1_safe_value.html">beast::json::lazy::SafeValue</a></td></tr>
@@ -337,20 +346,42 @@ Variables</h2></td></tr>
 <tr class="memitem:a5516c3583ef4cf6c8d2fa8b72cddf890" id="r_a5516c3583ef4cf6c8d2fa8b72cddf890"><td class="memItemLeft">static constexpr auto&#160;</td><td class="memItemRight"><a class="el" href="namespacebeast_1_1json_1_1lazy.html#a5516c3583ef4cf6c8d2fa8b72cddf890">beast::json::lazy::kActionLut</a></td></tr>
 </table>
 <a name="details" id="details"></a><h2 id="header-details" class="groupheader">Detailed Description</h2>
-<div class="textblock"><p>Beast JSON v3.1 - FINAL Complete Implementation. </p>
-<dl class="section version"><dt>Version</dt><dd>3.1.0 </dd></dl>
-<dl class="section date"><dt>Date</dt><dd>2026-01-26 </dd></dl>
-<dl class="section author"><dt>Author</dt><dd>Kayden</dd></dl>
-<p>🏆 Ultimate C++17 JSON Library - 100% Complete!</p>
+<div class="textblock"><p>Beast JSON v1.0.3 - High-Performance C++20 JSON Parser. </p>
+<dl class="section version"><dt>Version</dt><dd>1.0.3</dd></dl>
+<p>🏆 Ultimate C++20 JSON Library - 100% Complete!</p>
 <p>Performance (ALL Optimizations): ✨ Parse: 1200-1400 MB/s (Russ Cox + SIMD) ✨ Serialize: 1200-1500 MB/s (Russ Cox + fast paths)</p>
-<p>Complete Features: ✅ Phase 1-5: All implemented ✅ Russ Cox: Unrounded scaling (COMPLETE!) ✅ Full SIMD: AVX2 + ARM NEON ✅ Modern API: nlohmann/json style ✅ Type-Safe: std::optional everywhere ✅ Zero dependencies: C++17 STL only</p>
+<p>Complete Features: ✅ All implemented ✅ Russ Cox: Unrounded scaling (COMPLETE!) ✅ Full SIMD: AVX2 + ARM NEON ✅ Modern API: nlohmann/json style ✅ Type-Safe: std::optional everywhere ✅ Zero dependencies: C++20 STL only</p>
 <p>Russ Cox Implementation:</p><ul>
 <li>Unrounded scaling with 128-bit precision</li>
 <li>Fast number parsing (5-15% faster)</li>
 <li>Fast number printing (20-30% faster)</li>
 <li>Single 64-bit multiplication (90%+ cases)</li>
 </ul>
-<p>License: MIT </p>
+<p>License: Apache License 2.0</p>
+<hr  />
+ <h1 class="doxsection"><a class="anchor" id="autotoc_md1"></a>
+🤖 AI &amp; Developer Context Guide</h1>
+<p>Welcome to the beast_json source! When modifying this file, keep the following architectural guidelines and constraints in mind:</p>
+<ol type="1">
+<li>The Value vs SafeValue Dichotomy<ul>
+<li><span class="tt">Value</span>: Strict, confident access. Returns an invalid <span class="tt">Value{}</span> on missing key, BUT throws <span class="tt">std::runtime_error</span> if you call <span class="tt">.as&lt;T&gt;()</span> and the type mismatches. Use <span class="tt">is_int()</span> etc. first if unsure.</li>
+<li><span class="tt">SafeValue</span>: Monadic, untrusted access. Created via <span class="tt">root.get("key")</span>. NEVER throws. Propagates missing keys or type mismatches across deep chains. Terminated by <span class="tt">.value_or(default)</span>.</li>
+</ul>
+</li>
+<li>Auto-Serialization &amp; ADL (Argument-Dependent Lookup)<ul>
+<li>The magic <span class="tt"><a class="el" href="#ae97b68b1fe33639fb05d4b3bce066ab8" title="Register struct Type for automatic JSON serialization/deserialization.">BEAST_JSON_FIELDS</a></span> macro works by generating <span class="tt">from_beast_json(const Value&amp;, T&amp;)</span> and <span class="tt">to_beast_json(Value&amp;, const T&amp;)</span> functions inside the struct's namespace.</li>
+<li>To support third-party types without macro injection, simply implement these two ADL functions manually in the target type's namespace.</li>
+</ul>
+</li>
+<li>High-Performance Constraints (PGO/LTO Sensitivities)<ul>
+<li>Tape nodes (TapeNode) are strictly 8 bytes.</li>
+<li>Adding new loop back-edges (<span class="tt">continue</span>, <span class="tt">break</span>) in the core serialization loop has historically devastated Apple Silicon (PGO/LTO) performance.</li>
+<li><span class="tt">std::to_chars</span> is the backbone of the "Beast Float/Int" serialization </li>
+</ul>
+</li>
+</ol>
+<h1 class="doxsection"><a class="anchor" id="autotoc_md2"></a>
+paths.</h1>
 
 <p class="definition">Definition in file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 </div><a name="doc-define-members" id="doc-define-members"></a><h2 id="header-doc-define-members" class="groupheader">Macro Definition Documentation</h2>
@@ -366,7 +397,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00212">212</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00241">241</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -386,7 +417,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">std::countl_zero(<span class="keyword">static_cast&lt;</span><span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span><span class="keyword">&gt;</span>(x))</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00246">246</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00275">275</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -406,7 +437,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">std::countr_zero(<span class="keyword">static_cast&lt;</span><span class="keywordtype">unsigned</span> <span class="keywordtype">long</span> <span class="keywordtype">long</span><span class="keyword">&gt;</span>(x))</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00247">247</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00276">276</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -430,7 +461,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">a##b</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06014">6014</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06135">6135</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -453,9 +484,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line"><a class="code hl_define" href="#aab888225bb0ed5d7837fd072b3e4c6a7">BEAST_DETAIL_CONCAT</a>(a, b)</div>
-<div class="ttc" id="abeast__json_8hpp_html_aab888225bb0ed5d7837fd072b3e4c6a7"><div class="ttname"><a href="#aab888225bb0ed5d7837fd072b3e4c6a7">BEAST_DETAIL_CONCAT</a></div><div class="ttdeci">#define BEAST_DETAIL_CONCAT(a, b)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06014">beast_json.hpp:6014</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aab888225bb0ed5d7837fd072b3e4c6a7"><div class="ttname"><a href="#aab888225bb0ed5d7837fd072b3e4c6a7">BEAST_DETAIL_CONCAT</a></div><div class="ttdeci">#define BEAST_DETAIL_CONCAT(a, b)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06135">beast_json.hpp:6135</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06016">6016</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06137">6137</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -476,10 +507,10 @@ Variables</h2></td></tr>
 <b>Value:</b><div class="fragment"><div class="line"><a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a74976c33b4fc269b4e11459e32f4bc2f">BEAST_DETAIL_COUNT_I</a>(                                    \</div>
 <div class="line">    __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, \</div>
 <div class="line">    17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a0afa5e6a05dd0e5901b8577fd01e2244"><div class="ttname"><a href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a></div><div class="ttdeci">#define BEAST_DETAIL_EXPAND(x)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06013">beast_json.hpp:6013</a></div></div>
-<div class="ttc" id="abeast__json_8hpp_html_a74976c33b4fc269b4e11459e32f4bc2f"><div class="ttname"><a href="#a74976c33b4fc269b4e11459e32f4bc2f">BEAST_DETAIL_COUNT_I</a></div><div class="ttdeci">#define BEAST_DETAIL_COUNT_I(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06023">beast_json.hpp:6023</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a0afa5e6a05dd0e5901b8577fd01e2244"><div class="ttname"><a href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a></div><div class="ttdeci">#define BEAST_DETAIL_EXPAND(x)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06134">beast_json.hpp:6134</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a74976c33b4fc269b4e11459e32f4bc2f"><div class="ttname"><a href="#a74976c33b4fc269b4e11459e32f4bc2f">BEAST_DETAIL_COUNT_I</a></div><div class="ttdeci">#define BEAST_DETAIL_COUNT_I(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, _17, _18, _19, _20, _21, _22, _23, _24, _25, _26, _27, _28, _29, _30, _31, _32, N,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06144">beast_json.hpp:6144</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06019">6019</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06140">6140</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -663,7 +694,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">N</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06023">6023</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06144">6144</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -683,7 +714,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">x</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06013">6013</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06134">6134</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -707,7 +738,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06030">6030</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06151">6151</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -735,9 +766,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a65eb386eac3c5bff60f35709fa315f45">BEAST_DETAIL_FE_9</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a65eb386eac3c5bff60f35709fa315f45"><div class="ttname"><a href="#a65eb386eac3c5bff60f35709fa315f45">BEAST_DETAIL_FE_9</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_9(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06045">beast_json.hpp:6045</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a65eb386eac3c5bff60f35709fa315f45"><div class="ttname"><a href="#a65eb386eac3c5bff60f35709fa315f45">BEAST_DETAIL_FE_9</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_9(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06166">beast_json.hpp:6166</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06047">6047</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06168">6168</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -765,9 +796,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ac4497fef04879e7fbf317947087d19b7">BEAST_DETAIL_FE_10</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ac4497fef04879e7fbf317947087d19b7"><div class="ttname"><a href="#ac4497fef04879e7fbf317947087d19b7">BEAST_DETAIL_FE_10</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_10(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06047">beast_json.hpp:6047</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ac4497fef04879e7fbf317947087d19b7"><div class="ttname"><a href="#ac4497fef04879e7fbf317947087d19b7">BEAST_DETAIL_FE_10</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_10(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06168">beast_json.hpp:6168</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06049">6049</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06170">6170</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -795,9 +826,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aa284d5c3fce6ccc8a27a53faabf78ae0">BEAST_DETAIL_FE_11</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aa284d5c3fce6ccc8a27a53faabf78ae0"><div class="ttname"><a href="#aa284d5c3fce6ccc8a27a53faabf78ae0">BEAST_DETAIL_FE_11</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_11(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06049">beast_json.hpp:6049</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aa284d5c3fce6ccc8a27a53faabf78ae0"><div class="ttname"><a href="#aa284d5c3fce6ccc8a27a53faabf78ae0">BEAST_DETAIL_FE_11</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_11(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06170">beast_json.hpp:6170</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06051">6051</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06172">6172</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -825,9 +856,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a74a56d692939c6ca74d7f4764ecdc683">BEAST_DETAIL_FE_12</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a74a56d692939c6ca74d7f4764ecdc683"><div class="ttname"><a href="#a74a56d692939c6ca74d7f4764ecdc683">BEAST_DETAIL_FE_12</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_12(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06051">beast_json.hpp:6051</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a74a56d692939c6ca74d7f4764ecdc683"><div class="ttname"><a href="#a74a56d692939c6ca74d7f4764ecdc683">BEAST_DETAIL_FE_12</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_12(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06172">beast_json.hpp:6172</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06053">6053</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06174">6174</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -855,9 +886,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aa5305ac05092c08cef8ef2f1b41bbfb5">BEAST_DETAIL_FE_13</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aa5305ac05092c08cef8ef2f1b41bbfb5"><div class="ttname"><a href="#aa5305ac05092c08cef8ef2f1b41bbfb5">BEAST_DETAIL_FE_13</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_13(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06053">beast_json.hpp:6053</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aa5305ac05092c08cef8ef2f1b41bbfb5"><div class="ttname"><a href="#aa5305ac05092c08cef8ef2f1b41bbfb5">BEAST_DETAIL_FE_13</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_13(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06174">beast_json.hpp:6174</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06055">6055</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06176">6176</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -885,9 +916,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a73ed9098b5eebf6e2ef89c2c806256df">BEAST_DETAIL_FE_14</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a73ed9098b5eebf6e2ef89c2c806256df"><div class="ttname"><a href="#a73ed9098b5eebf6e2ef89c2c806256df">BEAST_DETAIL_FE_14</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_14(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06055">beast_json.hpp:6055</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a73ed9098b5eebf6e2ef89c2c806256df"><div class="ttname"><a href="#a73ed9098b5eebf6e2ef89c2c806256df">BEAST_DETAIL_FE_14</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_14(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06176">beast_json.hpp:6176</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06057">6057</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06178">6178</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -915,9 +946,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a27efe41de3cad323a19e769598f4b81e">BEAST_DETAIL_FE_15</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a27efe41de3cad323a19e769598f4b81e"><div class="ttname"><a href="#a27efe41de3cad323a19e769598f4b81e">BEAST_DETAIL_FE_15</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_15(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06057">beast_json.hpp:6057</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a27efe41de3cad323a19e769598f4b81e"><div class="ttname"><a href="#a27efe41de3cad323a19e769598f4b81e">BEAST_DETAIL_FE_15</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_15(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06178">beast_json.hpp:6178</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06059">6059</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06180">6180</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -945,9 +976,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aba8cecdb5983e934e122199f0ca00d53">BEAST_DETAIL_FE_16</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aba8cecdb5983e934e122199f0ca00d53"><div class="ttname"><a href="#aba8cecdb5983e934e122199f0ca00d53">BEAST_DETAIL_FE_16</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_16(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06059">beast_json.hpp:6059</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aba8cecdb5983e934e122199f0ca00d53"><div class="ttname"><a href="#aba8cecdb5983e934e122199f0ca00d53">BEAST_DETAIL_FE_16</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_16(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06180">beast_json.hpp:6180</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06061">6061</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06182">6182</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -975,9 +1006,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aa1b74c6e332e5c78db8f5e31911d9e6a">BEAST_DETAIL_FE_17</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aa1b74c6e332e5c78db8f5e31911d9e6a"><div class="ttname"><a href="#aa1b74c6e332e5c78db8f5e31911d9e6a">BEAST_DETAIL_FE_17</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_17(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06061">beast_json.hpp:6061</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aa1b74c6e332e5c78db8f5e31911d9e6a"><div class="ttname"><a href="#aa1b74c6e332e5c78db8f5e31911d9e6a">BEAST_DETAIL_FE_17</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_17(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06182">beast_json.hpp:6182</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06063">6063</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06184">6184</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1005,9 +1036,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ab661b33f089e9d343381b8fd85688d8a">BEAST_DETAIL_FE_18</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ab661b33f089e9d343381b8fd85688d8a"><div class="ttname"><a href="#ab661b33f089e9d343381b8fd85688d8a">BEAST_DETAIL_FE_18</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_18(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06063">beast_json.hpp:6063</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ab661b33f089e9d343381b8fd85688d8a"><div class="ttname"><a href="#ab661b33f089e9d343381b8fd85688d8a">BEAST_DETAIL_FE_18</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_18(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06184">beast_json.hpp:6184</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06065">6065</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06186">6186</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1035,9 +1066,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a52009f987ab95f427c752f33a40f9a5c">BEAST_DETAIL_FE_1</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a52009f987ab95f427c752f33a40f9a5c"><div class="ttname"><a href="#a52009f987ab95f427c752f33a40f9a5c">BEAST_DETAIL_FE_1</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_1(fn, a)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06030">beast_json.hpp:6030</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a52009f987ab95f427c752f33a40f9a5c"><div class="ttname"><a href="#a52009f987ab95f427c752f33a40f9a5c">BEAST_DETAIL_FE_1</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_1(fn, a)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06151">beast_json.hpp:6151</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06031">6031</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06152">6152</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1065,9 +1096,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a33be85189ff2ae5750dba5b2ffb92775">BEAST_DETAIL_FE_19</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a33be85189ff2ae5750dba5b2ffb92775"><div class="ttname"><a href="#a33be85189ff2ae5750dba5b2ffb92775">BEAST_DETAIL_FE_19</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_19(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06065">beast_json.hpp:6065</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a33be85189ff2ae5750dba5b2ffb92775"><div class="ttname"><a href="#a33be85189ff2ae5750dba5b2ffb92775">BEAST_DETAIL_FE_19</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_19(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06186">beast_json.hpp:6186</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06067">6067</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06188">6188</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1095,9 +1126,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a239fe9a8d3c8cc34c92bd1fd42fe5193">BEAST_DETAIL_FE_20</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a239fe9a8d3c8cc34c92bd1fd42fe5193"><div class="ttname"><a href="#a239fe9a8d3c8cc34c92bd1fd42fe5193">BEAST_DETAIL_FE_20</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_20(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06067">beast_json.hpp:6067</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a239fe9a8d3c8cc34c92bd1fd42fe5193"><div class="ttname"><a href="#a239fe9a8d3c8cc34c92bd1fd42fe5193">BEAST_DETAIL_FE_20</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_20(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06188">beast_json.hpp:6188</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06069">6069</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06190">6190</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1125,9 +1156,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aca527528c181084ce574425acbb67d19">BEAST_DETAIL_FE_21</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aca527528c181084ce574425acbb67d19"><div class="ttname"><a href="#aca527528c181084ce574425acbb67d19">BEAST_DETAIL_FE_21</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_21(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06069">beast_json.hpp:6069</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aca527528c181084ce574425acbb67d19"><div class="ttname"><a href="#aca527528c181084ce574425acbb67d19">BEAST_DETAIL_FE_21</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_21(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06190">beast_json.hpp:6190</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06071">6071</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06192">6192</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1155,9 +1186,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a235e523220f68d18537edc925f6cf22c">BEAST_DETAIL_FE_22</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a235e523220f68d18537edc925f6cf22c"><div class="ttname"><a href="#a235e523220f68d18537edc925f6cf22c">BEAST_DETAIL_FE_22</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_22(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06071">beast_json.hpp:6071</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a235e523220f68d18537edc925f6cf22c"><div class="ttname"><a href="#a235e523220f68d18537edc925f6cf22c">BEAST_DETAIL_FE_22</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_22(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06192">beast_json.hpp:6192</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06073">6073</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06194">6194</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1185,9 +1216,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a991cb249a12608547e9df490b0405c3f">BEAST_DETAIL_FE_23</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a991cb249a12608547e9df490b0405c3f"><div class="ttname"><a href="#a991cb249a12608547e9df490b0405c3f">BEAST_DETAIL_FE_23</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_23(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06073">beast_json.hpp:6073</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a991cb249a12608547e9df490b0405c3f"><div class="ttname"><a href="#a991cb249a12608547e9df490b0405c3f">BEAST_DETAIL_FE_23</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_23(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06194">beast_json.hpp:6194</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06075">6075</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06196">6196</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1215,9 +1246,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a1aa2035798e8d0f46d367ce4b2828e64">BEAST_DETAIL_FE_24</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a1aa2035798e8d0f46d367ce4b2828e64"><div class="ttname"><a href="#a1aa2035798e8d0f46d367ce4b2828e64">BEAST_DETAIL_FE_24</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_24(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06075">beast_json.hpp:6075</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a1aa2035798e8d0f46d367ce4b2828e64"><div class="ttname"><a href="#a1aa2035798e8d0f46d367ce4b2828e64">BEAST_DETAIL_FE_24</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_24(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06196">beast_json.hpp:6196</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06077">6077</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06198">6198</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1245,9 +1276,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aff94d64f09eeb850287c05927be450c2">BEAST_DETAIL_FE_25</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aff94d64f09eeb850287c05927be450c2"><div class="ttname"><a href="#aff94d64f09eeb850287c05927be450c2">BEAST_DETAIL_FE_25</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_25(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06077">beast_json.hpp:6077</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aff94d64f09eeb850287c05927be450c2"><div class="ttname"><a href="#aff94d64f09eeb850287c05927be450c2">BEAST_DETAIL_FE_25</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_25(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06198">beast_json.hpp:6198</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06079">6079</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06200">6200</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1275,9 +1306,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a5ece4e1e5dd6a108ed816ab8065ca63f">BEAST_DETAIL_FE_26</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a5ece4e1e5dd6a108ed816ab8065ca63f"><div class="ttname"><a href="#a5ece4e1e5dd6a108ed816ab8065ca63f">BEAST_DETAIL_FE_26</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_26(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06079">beast_json.hpp:6079</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a5ece4e1e5dd6a108ed816ab8065ca63f"><div class="ttname"><a href="#a5ece4e1e5dd6a108ed816ab8065ca63f">BEAST_DETAIL_FE_26</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_26(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06200">beast_json.hpp:6200</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06081">6081</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06202">6202</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1305,9 +1336,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#aee01135cbd5f4f93785382d7bfaadc7a">BEAST_DETAIL_FE_27</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_aee01135cbd5f4f93785382d7bfaadc7a"><div class="ttname"><a href="#aee01135cbd5f4f93785382d7bfaadc7a">BEAST_DETAIL_FE_27</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_27(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06081">beast_json.hpp:6081</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_aee01135cbd5f4f93785382d7bfaadc7a"><div class="ttname"><a href="#aee01135cbd5f4f93785382d7bfaadc7a">BEAST_DETAIL_FE_27</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_27(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06202">beast_json.hpp:6202</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06083">6083</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06204">6204</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1335,9 +1366,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#abb56d0fb6448d13bd2f064de6637e2eb">BEAST_DETAIL_FE_28</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_abb56d0fb6448d13bd2f064de6637e2eb"><div class="ttname"><a href="#abb56d0fb6448d13bd2f064de6637e2eb">BEAST_DETAIL_FE_28</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_28(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06083">beast_json.hpp:6083</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_abb56d0fb6448d13bd2f064de6637e2eb"><div class="ttname"><a href="#abb56d0fb6448d13bd2f064de6637e2eb">BEAST_DETAIL_FE_28</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_28(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06204">beast_json.hpp:6204</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06085">6085</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06206">6206</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1365,9 +1396,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a05ae734634f7d2b35a8c74cf355d0229">BEAST_DETAIL_FE_2</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a05ae734634f7d2b35a8c74cf355d0229"><div class="ttname"><a href="#a05ae734634f7d2b35a8c74cf355d0229">BEAST_DETAIL_FE_2</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_2(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06031">beast_json.hpp:6031</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a05ae734634f7d2b35a8c74cf355d0229"><div class="ttname"><a href="#a05ae734634f7d2b35a8c74cf355d0229">BEAST_DETAIL_FE_2</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_2(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06152">beast_json.hpp:6152</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06033">6033</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06154">6154</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1395,9 +1426,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a4e46344b36fe5ed046130a6789a76bef">BEAST_DETAIL_FE_29</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a4e46344b36fe5ed046130a6789a76bef"><div class="ttname"><a href="#a4e46344b36fe5ed046130a6789a76bef">BEAST_DETAIL_FE_29</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_29(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06085">beast_json.hpp:6085</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a4e46344b36fe5ed046130a6789a76bef"><div class="ttname"><a href="#a4e46344b36fe5ed046130a6789a76bef">BEAST_DETAIL_FE_29</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_29(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06206">beast_json.hpp:6206</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06087">6087</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06208">6208</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1425,9 +1456,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ab8e28edfc920f170b6d4296be2f94117">BEAST_DETAIL_FE_30</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ab8e28edfc920f170b6d4296be2f94117"><div class="ttname"><a href="#ab8e28edfc920f170b6d4296be2f94117">BEAST_DETAIL_FE_30</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_30(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06087">beast_json.hpp:6087</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ab8e28edfc920f170b6d4296be2f94117"><div class="ttname"><a href="#ab8e28edfc920f170b6d4296be2f94117">BEAST_DETAIL_FE_30</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_30(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06208">beast_json.hpp:6208</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06089">6089</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06210">6210</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1455,9 +1486,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ac6467034aa4cc8f35d35c14627c63739">BEAST_DETAIL_FE_31</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ac6467034aa4cc8f35d35c14627c63739"><div class="ttname"><a href="#ac6467034aa4cc8f35d35c14627c63739">BEAST_DETAIL_FE_31</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_31(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06089">beast_json.hpp:6089</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ac6467034aa4cc8f35d35c14627c63739"><div class="ttname"><a href="#ac6467034aa4cc8f35d35c14627c63739">BEAST_DETAIL_FE_31</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_31(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06210">beast_json.hpp:6210</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06091">6091</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06212">6212</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1485,9 +1516,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ac36f22cc8cf78d0aa4f15258a5953e42">BEAST_DETAIL_FE_3</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ac36f22cc8cf78d0aa4f15258a5953e42"><div class="ttname"><a href="#ac36f22cc8cf78d0aa4f15258a5953e42">BEAST_DETAIL_FE_3</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_3(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06033">beast_json.hpp:6033</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ac36f22cc8cf78d0aa4f15258a5953e42"><div class="ttname"><a href="#ac36f22cc8cf78d0aa4f15258a5953e42">BEAST_DETAIL_FE_3</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_3(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06154">beast_json.hpp:6154</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06035">6035</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06156">6156</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1515,9 +1546,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a5b43bba1f8ee2aa993d046b8aa6820c4">BEAST_DETAIL_FE_4</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a5b43bba1f8ee2aa993d046b8aa6820c4"><div class="ttname"><a href="#a5b43bba1f8ee2aa993d046b8aa6820c4">BEAST_DETAIL_FE_4</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_4(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06035">beast_json.hpp:6035</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a5b43bba1f8ee2aa993d046b8aa6820c4"><div class="ttname"><a href="#a5b43bba1f8ee2aa993d046b8aa6820c4">BEAST_DETAIL_FE_4</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_4(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06156">beast_json.hpp:6156</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06037">6037</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06158">6158</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1545,9 +1576,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ad3b27193e7e867030db2f8260d3c2203">BEAST_DETAIL_FE_5</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ad3b27193e7e867030db2f8260d3c2203"><div class="ttname"><a href="#ad3b27193e7e867030db2f8260d3c2203">BEAST_DETAIL_FE_5</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_5(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06037">beast_json.hpp:6037</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ad3b27193e7e867030db2f8260d3c2203"><div class="ttname"><a href="#ad3b27193e7e867030db2f8260d3c2203">BEAST_DETAIL_FE_5</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_5(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06158">beast_json.hpp:6158</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06039">6039</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06160">6160</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1575,9 +1606,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ad1643adf9e4641e1c2e19299198cc4fb">BEAST_DETAIL_FE_6</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ad1643adf9e4641e1c2e19299198cc4fb"><div class="ttname"><a href="#ad1643adf9e4641e1c2e19299198cc4fb">BEAST_DETAIL_FE_6</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_6(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06039">beast_json.hpp:6039</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ad1643adf9e4641e1c2e19299198cc4fb"><div class="ttname"><a href="#ad1643adf9e4641e1c2e19299198cc4fb">BEAST_DETAIL_FE_6</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_6(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06160">beast_json.hpp:6160</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06041">6041</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06162">6162</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1605,9 +1636,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#ab0b140d939f89b77b039fd0927e6cdab">BEAST_DETAIL_FE_7</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_ab0b140d939f89b77b039fd0927e6cdab"><div class="ttname"><a href="#ab0b140d939f89b77b039fd0927e6cdab">BEAST_DETAIL_FE_7</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_7(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06041">beast_json.hpp:6041</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ab0b140d939f89b77b039fd0927e6cdab"><div class="ttname"><a href="#ab0b140d939f89b77b039fd0927e6cdab">BEAST_DETAIL_FE_7</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_7(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06162">beast_json.hpp:6162</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06043">6043</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06164">6164</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1635,9 +1666,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">fn(a) <a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a73dc5ee50e84ae6eef4fc25ac58f77b8">BEAST_DETAIL_FE_8</a>(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a73dc5ee50e84ae6eef4fc25ac58f77b8"><div class="ttname"><a href="#a73dc5ee50e84ae6eef4fc25ac58f77b8">BEAST_DETAIL_FE_8</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_8(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06043">beast_json.hpp:6043</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a73dc5ee50e84ae6eef4fc25ac58f77b8"><div class="ttname"><a href="#a73dc5ee50e84ae6eef4fc25ac58f77b8">BEAST_DETAIL_FE_8</a></div><div class="ttdeci">#define BEAST_DETAIL_FE_8(fn, a,...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06164">beast_json.hpp:6164</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06045">6045</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06166">6166</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1661,12 +1692,12 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line"><a class="code hl_define" href="#a0afa5e6a05dd0e5901b8577fd01e2244">BEAST_DETAIL_EXPAND</a>(<a class="code hl_define" href="#a5e5438bafb1a1513c74f6a6079c5f159">BEAST_DETAIL_CONCAT2</a>(                                    \</div>
 <div class="line">    BEAST_DETAIL_FE_, <a class="code hl_define" href="#a781c333011ccfbb382ceb31b83748d07">BEAST_DETAIL_COUNT</a>(__VA_ARGS__))(fn, __VA_ARGS__))</div>
-<div class="ttc" id="abeast__json_8hpp_html_a5e5438bafb1a1513c74f6a6079c5f159"><div class="ttname"><a href="#a5e5438bafb1a1513c74f6a6079c5f159">BEAST_DETAIL_CONCAT2</a></div><div class="ttdeci">#define BEAST_DETAIL_CONCAT2(a, b)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06016">beast_json.hpp:6016</a></div></div>
-<div class="ttc" id="abeast__json_8hpp_html_a781c333011ccfbb382ceb31b83748d07"><div class="ttname"><a href="#a781c333011ccfbb382ceb31b83748d07">BEAST_DETAIL_COUNT</a></div><div class="ttdeci">#define BEAST_DETAIL_COUNT(...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06019">beast_json.hpp:6019</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a5e5438bafb1a1513c74f6a6079c5f159"><div class="ttname"><a href="#a5e5438bafb1a1513c74f6a6079c5f159">BEAST_DETAIL_CONCAT2</a></div><div class="ttdeci">#define BEAST_DETAIL_CONCAT2(a, b)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06137">beast_json.hpp:6137</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a781c333011ccfbb382ceb31b83748d07"><div class="ttname"><a href="#a781c333011ccfbb382ceb31b83748d07">BEAST_DETAIL_COUNT</a></div><div class="ttdeci">#define BEAST_DETAIL_COUNT(...)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06140">beast_json.hpp:6140</a></div></div>
 </div><!-- fragment -->
 <p>Apply fn to each variadic argument (up to 32). </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06095">6095</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06216">6216</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1682,7 +1713,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00230">230</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00259">259</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1704,7 +1735,7 @@ Variables</h2></td></tr>
 <div class="line">::beast::detail::append_json(out, obj.f);                                    \</div>
 <div class="line">out += <span class="charliteral">&#39;,&#39;</span>;</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06140">6140</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06261">6261</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1723,9 +1754,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line"><a class="code hl_function" href="namespacebeast_1_1detail.html#a43ce59a2c5c99fdecda3c7ec11c276ae">::beast::detail::from_json_field</a>(v, #f, obj.f);</div>
-<div class="ttc" id="anamespacebeast_1_1detail_html_a43ce59a2c5c99fdecda3c7ec11c276ae"><div class="ttname"><a href="namespacebeast_1_1detail.html#a43ce59a2c5c99fdecda3c7ec11c276ae">beast::detail::from_json_field</a></div><div class="ttdeci">void from_json_field(const Value &amp;obj, const char *key, T &amp;field)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l05990">beast_json.hpp:5990</a></div></div>
+<div class="ttc" id="anamespacebeast_1_1detail_html_a43ce59a2c5c99fdecda3c7ec11c276ae"><div class="ttname"><a href="namespacebeast_1_1detail.html#a43ce59a2c5c99fdecda3c7ec11c276ae">beast::detail::from_json_field</a></div><div class="ttdeci">void from_json_field(const Value &amp;obj, const char *key, T &amp;field)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06111">beast_json.hpp:6111</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06137">6137</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06258">6258</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1744,9 +1775,9 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line"><a class="code hl_function" href="namespacebeast_1_1detail.html#a1a5900e3ab72b6fa7411f4a51a195d66">::beast::detail::to_json_field</a>(v, #f, obj.f);</div>
-<div class="ttc" id="anamespacebeast_1_1detail_html_a1a5900e3ab72b6fa7411f4a51a195d66"><div class="ttname"><a href="namespacebeast_1_1detail.html#a1a5900e3ab72b6fa7411f4a51a195d66">beast::detail::to_json_field</a></div><div class="ttdeci">void to_json_field(Value &amp;obj, const char *key, const T &amp;val)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06003">beast_json.hpp:6003</a></div></div>
+<div class="ttc" id="anamespacebeast_1_1detail_html_a1a5900e3ab72b6fa7411f4a51a195d66"><div class="ttname"><a href="namespacebeast_1_1detail.html#a1a5900e3ab72b6fa7411f4a51a195d66">beast::detail::to_json_field</a></div><div class="ttdeci">void to_json_field(Value &amp;obj, const char *key, const T &amp;val)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06124">beast_json.hpp:6124</a></div></div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06139">6139</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06260">6260</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1782,10 +1813,10 @@ Variables</h2></td></tr>
 <div class="line">    out.pop_back();                                                          \</div>
 <div class="line">  out += <span class="charliteral">&#39;}&#39;</span>;                                                                \</div>
 <div class="line">}</div>
-<div class="ttc" id="abeast__json_8hpp_html_a41d438828b8dbdee85a2288d1eb2958e"><div class="ttname"><a href="#a41d438828b8dbdee85a2288d1eb2958e">BEAST_JSON_DETAIL_APPEND</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_APPEND(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06140">beast_json.hpp:6140</a></div></div>
-<div class="ttc" id="abeast__json_8hpp_html_ac9bb5889d8b07ef40c713e811f423a6e"><div class="ttname"><a href="#ac9bb5889d8b07ef40c713e811f423a6e">BEAST_JSON_DETAIL_READ</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_READ(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06137">beast_json.hpp:6137</a></div></div>
-<div class="ttc" id="abeast__json_8hpp_html_adf09d50a2efc3d7ec073b536e069ac22"><div class="ttname"><a href="#adf09d50a2efc3d7ec073b536e069ac22">BEAST_JSON_DETAIL_WRITE</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_WRITE(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06139">beast_json.hpp:6139</a></div></div>
-<div class="ttc" id="anamespacebeast_html_abe9ce2ed4fb57c25aa6a7eed31343f11"><div class="ttname"><a href="namespacebeast.html#abe9ce2ed4fb57c25aa6a7eed31343f11">beast::Value</a></div><div class="ttdeci">beast::json::lazy::Value Value</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l05313">beast_json.hpp:5313</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_a41d438828b8dbdee85a2288d1eb2958e"><div class="ttname"><a href="#a41d438828b8dbdee85a2288d1eb2958e">BEAST_JSON_DETAIL_APPEND</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_APPEND(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06261">beast_json.hpp:6261</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ac9bb5889d8b07ef40c713e811f423a6e"><div class="ttname"><a href="#ac9bb5889d8b07ef40c713e811f423a6e">BEAST_JSON_DETAIL_READ</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_READ(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06258">beast_json.hpp:6258</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_adf09d50a2efc3d7ec073b536e069ac22"><div class="ttname"><a href="#adf09d50a2efc3d7ec073b536e069ac22">BEAST_JSON_DETAIL_WRITE</a></div><div class="ttdeci">#define BEAST_JSON_DETAIL_WRITE(f)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l06260">beast_json.hpp:6260</a></div></div>
+<div class="ttc" id="anamespacebeast_html_abe9ce2ed4fb57c25aa6a7eed31343f11"><div class="ttname"><a href="namespacebeast.html#abe9ce2ed4fb57c25aa6a7eed31343f11">beast::Value</a></div><div class="ttdeci">beast::json::lazy::Value Value</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l05436">beast_json.hpp:5436</a></div></div>
 </div><!-- fragment -->
 <p>Register struct Type for automatic JSON serialization/deserialization. </p>
 <p>Place this macro after the struct definition (or inside it as a friend). This macro generates <span class="tt">to_beast_json()</span>, <span class="tt">from_beast_json()</span>, and <span class="tt">append_beast_json()</span> ADL overloads. Lists up to 32 member field names. </p><dl class="params"><dt>Parameters</dt><dd>
@@ -1796,7 +1827,7 @@ Variables</h2></td></tr>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06152">6152</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06273">6273</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1816,7 +1847,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">(x)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00240">240</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00269">269</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1832,7 +1863,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00231">231</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00260">260</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1852,7 +1883,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">((void)0)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00232">232</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00261">261</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1868,7 +1899,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00213">213</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00242">242</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1884,7 +1915,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00214">214</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00243">243</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -1919,7 +1950,7 @@ Variables</h2></td></tr>
 <div class="line">  while (p_ &lt; end_ &amp;&amp; <span class="keyword">static_cast&lt;</span><span class="keywordtype">unsigned</span><span class="keyword">&gt;</span>(*p_ - <span class="charliteral">&#39;0&#39;</span>) &lt; 10u)                \</div>
 <div class="line">    ++p_;                                                                    \</div>
 <div class="line">} <span class="keywordflow">while</span> (0)</div>
-<div class="ttc" id="abeast__json_8hpp_html_ab2892928f3443c0b6cbb7081b0b80af8"><div class="ttname"><a href="#ab2892928f3443c0b6cbb7081b0b80af8">BEAST_CTZ</a></div><div class="ttdeci">#define BEAST_CTZ(x)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l00247">beast_json.hpp:247</a></div></div>
+<div class="ttc" id="abeast__json_8hpp_html_ab2892928f3443c0b6cbb7081b0b80af8"><div class="ttname"><a href="#ab2892928f3443c0b6cbb7081b0b80af8">BEAST_CTZ</a></div><div class="ttdeci">#define BEAST_CTZ(x)</div><div class="ttdef"><b>Definition</b> <a href="beast__json_8hpp_source.html#l00276">beast_json.hpp:276</a></div></div>
 </div><!-- fragment -->
 </div>
 </div>
@@ -1939,7 +1970,7 @@ Variables</h2></td></tr>
 </div><div class="memdoc">
 <b>Value:</b><div class="fragment"><div class="line">(x)</div>
 </div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00241">241</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l00270">270</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>

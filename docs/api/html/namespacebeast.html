@@ -138,7 +138,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 <p>Shared document state: tape arena + source reference. Create one per logical JSON document; reuse across re-parses. </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05309">5309</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05432">5432</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -155,7 +155,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 <p>Optional-propagating chain proxy returned by <a class="el" href="classbeast_1_1json_1_1lazy_1_1_value.html#a0a2b06a3adc863b6c9cee9ecb4ffc370">Value::get()</a>. Propagates std::nullopt silently through nested access — never throws. </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05327">5327</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05450">5450</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -172,7 +172,7 @@ Functions</h2></td></tr>
 </div><div class="memdoc">
 <p>Zero-copy lazy value: a (Document*, tape_index) pair. Lifetime tied to the originating <a class="el" href="#a935c88c55ef79ff1276d48580b6c7d49">Document</a>. </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05313">5313</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05436">5436</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -200,7 +200,7 @@ template&lt;typename T&gt; </div>
 
 <p>Deserialize a <a class="el" href="#abe9ce2ed4fb57c25aa6a7eed31343f11">Value</a> into T in place (partial-deserialization helper). </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06198">6198</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06319">6319</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -242,7 +242,7 @@ template&lt;typename T&gt; </div>
 <dl class="section return"><dt>Returns</dt><dd>A <a class="el" href="#abe9ce2ed4fb57c25aa6a7eed31343f11">beast::Value</a> handle representing the root of the parsed JSON tree. </dd></dl>
 <dl class="section note"><dt>Note</dt><dd>This function provides best-effort parsing. For strict RFC 8259 validation, use <span class="tt"><a class="el" href="#acee79c5b18bb019002a5b1b4f0c47522">parse_strict()</a></span> instead. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05321">5321</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05444">5444</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -274,7 +274,7 @@ template&lt;typename T&gt; </div>
 </div><div class="memdoc">
 <p>Parse <code class="param">json</code> into <code class="param">doc</code> with strict RFC 8259 compliance. Rejects: trailing commas, leading zeros, invalid escapes, unescaped control characters, trailing content, etc. Throws std::runtime_error describing the violation and its byte offset. </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05566">5566</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l05689">5689</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -310,7 +310,7 @@ template&lt;typename T&gt; </div>
   </dd>
 </dl>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06177">6177</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06298">6298</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -333,7 +333,7 @@ template&lt;typename T&gt; </div>
 
 <p>Serialize T into a JSON string (alternative to <a class="el" href="#ad2948cb59234eecf06173a5ecf44031b" title="Serialize a C++ object of type T to a JSON string.">beast::write</a> for sub-values). </p>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06203">6203</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06324">6324</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>
@@ -363,7 +363,7 @@ template&lt;typename T&gt; </div>
 </dl>
 <dl class="section return"><dt>Returns</dt><dd>A std::string containing the serialized JSON. </dd></dl>
 
-<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06190">6190</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="beast__json_8hpp_source.html#l06311">6311</a> of file <a class="el" href="beast__json_8hpp_source.html">beast_json.hpp</a>.</p>
 
 </div>
 </div>

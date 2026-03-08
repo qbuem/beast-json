@@ -1,5 +1,7 @@
 var searchData=
 [
-  ['validator_0',['Validator',['../structbeast_1_1rfc8259_1_1detail___1_1_validator.html',1,'beast::rfc8259::detail_']]],
-  ['value_1',['Value',['../classbeast_1_1json_1_1lazy_1_1_value.html',1,'beast::json::lazy']]]
+  ['tapearena_0',['TapeArena',['../structbeast_1_1json_1_1lazy_1_1_tape_arena.html',1,'beast::json::lazy']]],
+  ['tapenode_1',['TapeNode',['../structbeast_1_1json_1_1lazy_1_1_tape_node.html',1,'beast::json::lazy']]],
+  ['typedarrayiterator_2',['TypedArrayIterator',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_iterator.html',1,'beast::json::lazy::Value']]],
+  ['typedarrayrange_3',['TypedArrayRange',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_typed_array_range.html',1,'beast::json::lazy::Value']]]
 ];
