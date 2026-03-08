@@ -13,11 +13,11 @@
 | Clang | 10 | 17+ |
 
 | CMake | 3.14 | 3.28 |
-| OS | Linux, macOS, Windows | — |
+| OS | Linux, macOS | — |
 
 **Optional for best performance:**
 - AVX-512 CPU (Intel Skylake-X+, Ice Lake+) — enables 64B/iter whitespace skip and two-phase parsing.
-- PGO (Profile-Guided Optimization) — see [docs/OPTIMIZATION_PLAN.md](OPTIMIZATION_PLAN.md).
+- PGO (Profile-Guided Optimization)
 
 
 ## Installation
@@ -586,7 +586,7 @@ bjson_as_int(bjson_get_key(doc, root, "id", 2), &id);
 bjson_doc_destroy(doc);
 ```
 
-See [docs/API_REFERENCE.md#c-api](API_REFERENCE.md#c-api-bindingsc) for the complete C API.
+
 
 ### Python
 
@@ -608,7 +608,7 @@ print(root["score"])         # 99.0
 data = loads('[1, 2, {"x": 3}]')
 ```
 
-See [docs/API_REFERENCE.md#python-binding](API_REFERENCE.md#python-binding-bindingspython) for the complete Python API.
+
 
 
 ## Common Pitfalls

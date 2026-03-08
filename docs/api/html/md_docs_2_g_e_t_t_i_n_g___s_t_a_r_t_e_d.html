@@ -109,10 +109,10 @@ Requirements</h1>
 <tr class="markdownTableRowOdd">
 <td class="markdownTableBodyLeft">Clang  </td><td class="markdownTableBodyLeft">10  </td><td class="markdownTableBodyLeft">17+  </td></tr>
 </table>
-<p>| CMake | 3.14 | 3.28 | | OS | Linux, macOS, Windows | — |</p>
+<p>| CMake | 3.14 | 3.28 | | OS | Linux, macOS | — |</p>
 <p><b>Optional for best performance:</b></p><ul>
 <li>AVX-512 CPU (Intel Skylake-X+, Ice Lake+) — enables 64B/iter whitespace skip and two-phase parsing.</li>
-<li>PGO (Profile-Guided Optimization) — see docs/OPTIMIZATION_PLAN.md.</li>
+<li>PGO (Profile-Guided Optimization)</li>
 </ul>
 <h1 class="doxsection"><a class="anchor" id="autotoc_md40"></a>
 Installation</h1>
@@ -593,8 +593,7 @@ C API</h2>
 <div class="line">bjson_as_int(bjson_get_key(doc, root, <span class="stringliteral">&quot;id&quot;</span>, 2), &amp;<span class="keywordtype">id</span>);</div>
 <div class="line"> </div>
 <div class="line">bjson_doc_destroy(doc);</div>
-</div><!-- fragment --><p>See <a href="API_REFERENCE.md#c-api-bindingsc">docs/API_REFERENCE.md#c-api</a> for the complete C API.</p>
-<h2 class="doxsection"><a class="anchor" id="autotoc_md73"></a>
+</div><!-- fragment --><h2 class="doxsection"><a class="anchor" id="autotoc_md73"></a>
 Python</h2>
 <div class="fragment"><div class="line">export BEAST_JSON_LIB_PATH=./build/bindings/c</div>
 <div class="line">cd bindings/python</div>
@@ -608,8 +607,7 @@ Python</h2>
 <div class="line"> </div>
 <div class="line"><span class="comment"># Drop-in for json.loads()</span></div>
 <div class="line">data = loads(<span class="stringliteral">&#39;[1, 2, {&quot;x&quot;: 3}]&#39;</span>)</div>
-</div><!-- fragment --><p>See <a href="API_REFERENCE.md#python-binding-bindingspython">docs/API_REFERENCE.md#python-binding</a> for the complete Python API.</p>
-<h1 class="doxsection"><a class="anchor" id="autotoc_md74"></a>
+</div><!-- fragment --><h1 class="doxsection"><a class="anchor" id="autotoc_md74"></a>
 Common Pitfalls</h1>
 <h2 class="doxsection"><a class="anchor" id="autotoc_md75"></a>
 1. Document must outlive all Value objects</h2>
