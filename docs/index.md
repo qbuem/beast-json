@@ -6,7 +6,9 @@ hero:
   text: "The Ultimate High-Performance C++20 JSON Engine"
   tagline: "Single header. Zero dependencies. AVX-512 accelerated. Zero-allocation design."
   image:
-    src: /logo.png
+    src:
+      light: /logo-light.png
+      dark: /logo-dark.png
     alt: Beast JSON Logo
   actions:
     - theme: brand

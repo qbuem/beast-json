@@ -151,10 +151,27 @@ We believe that foundational infrastructure libraries—especially those handlin
 
 ## 💡 Inspiration & Acknowledgements
 
-This project was built on the shoulders of giants. Beast JSON exists because of the incredible open-source engineering efforts of the libraries we benchmark against:
+Beast JSON stands on the shoulders of giants. We are deeply grateful to the pioneers of high-performance JSON processing:
 
-* [yyjson](https://github.com/ibireme/yyjson): For pioneering the modern Array-Backed Tape DOM concept in pure C.
-* [simdjson](https://github.com/simdjson/simdjson): For proving that parsing JSON at gigabytes-per-second using SIMD was even possible.
-* [Glaze](https://github.com/stephenberry/glaze): For pushing the boundaries of what compile-time C++20/23 reflection could achieve for JSON.
-* [nlohmann/json](https://github.com/nlohmann/json): For setting the gold standard of what a beautiful, intuitive C++ API should feel like.
-* [RapidJSON](https://github.com/Tencent/rapidjson): For defining the standard of high-performance C++ JSON over the last decade.
+* **[Russ Cox](https://research.swtch.com/fp-all/)**: For the Fast Unrounded Scaling algorithm (2026), providing the mathematical foundation for our bit-accurate number parsing.
+* **[Daniel Lemire](https://github.com/lemire) & Michael Eisel**: For the Eisel-Lemire algorithm and the [`fast_float`](https://github.com/fastfloat/fast_float) library, which defined the modern standard for 64-bit parsing speed.
+* **[simdjson](https://github.com/simdjson/simdjson)**: For teaching the world how to use SIMD (AVX, NEON) to process JSON at the speed of the L1 cache.
+* **[yyjson](https://github.com/ibireme/yyjson)**: For the "Tape DOM" architecture that provides cache-local sequential access.
+* **[RapidJSON](https://github.com/Tencent/rapidjson)**: For a decade of excellence in C++ JSON processing.
+
+## 📝 Formal Technical References
+
+1. **Russ Cox**, *"Floating-Point Printing and Parsing Can Be Simple and Fast,"* 2026. [Technical Blog](https://research.swtch.com/fp-all/).
+2. **Daniel Lemire**, *"Number Parsing at Gigabytes per Second,"* Software: Practice and Experience, 2021. [PDF/Paper](https://arxiv.org/abs/2101.11408).
+3. **Michael Eisel & Daniel Lemire**, *"The Eisel-Lemire Algorithm,"* 2020. [Implementation Docs](https://github.com/fastfloat/fast_float).
+4. **Langdale & Lemire**, *"Parsing Gigabytes of JSON per Second,"* VLDB Journal, 2020. [DOI](https://doi.org/10.1007/s00778-019-00578-5).
+
+---
+
+## ⚖️ License & Legal
+
+Beast JSON is licensed under the **Apache License 2.0**.
+
+* **Independent Implementation**: Beast JSON is a clean-room C++20 implementation of the referenced algorithms. It does not contain code copied from the referenced libraries.
+* **Fair Use & Citation**: Citations of academic papers and technical blogs are provided for educational and attribution purposes under fair use.
+* **Corporate Branding**: "THE LKB" branding and associated logos are used with permission by LKB Innovations.

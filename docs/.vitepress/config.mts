@@ -18,7 +18,10 @@ export default withMermaid(
             ['meta', { name: 'twitter:card', content: 'summary_large_image' }]
         ],
         themeConfig: {
-            logo: '/logo.png',
+            logo: {
+                light: '/logo-light.png',
+                dark: '/logo-dark.png'
+            },
             nav: [
                 { text: 'Guide', link: '/guide/introduction' },
                 { text: 'Architecture', link: '/theory/architecture' },
@@ -33,7 +36,8 @@ export default withMermaid(
                         items: [
                             { text: 'What is Beast JSON?', link: '/guide/introduction' },
                             { text: 'Getting Started', link: '/guide/getting-started' },
-                            { text: 'Vision & Roadmap', link: '/guide/vision' }
+                            { text: 'Vision & Roadmap', link: '/guide/vision' },
+                            { text: 'Acknowledgments', link: '/guide/acknowledgments' }
                         ]
                     },
                     {

@@ -2,7 +2,29 @@
 
 Beast JSON operates on a **Linear Tape DOM** model. Unlike tree-based DOMs (like `nlohmann/json`) that use pointer-heavy node structures, Beast JSON linearizes the JSON structure into a single, cache-friendly array.
 
-![Tape Architecture Theory](/tape_dom_clean.png)
+## 🧱 Memory Layout: The Linear Tape
+
+```mermaid
+graph LR
+    subgraph JSON_Source["JSON Input"]
+    STR["{'id': 101, 'active': true}"]
+    end
+    
+    subgraph Tape_DOM["Beast JSON Tape (64-bit Blocks)"]
+    N1["[OBJ_START]"]
+    N2["['id']"]
+    N3["[101]"]
+    N4["['active']"]
+    N5["[TRUE]"]
+    N6["[OBJ_END]"]
+    
+    N1 --> N2 --> N3 --> N4 --> N5 --> N6
+    end
+    
+    STR -.-> Tape_DOM
+    
+    style Tape_DOM fill:#05070a,stroke:#00e5ff,stroke-width:2px
+```
 
 ## 🏗️ Sequential Tape Layout
 
