@@ -132,7 +132,7 @@ For a deep dive into the engineering behind Beast JSON, visit our **[Premium Doc
 | **Engineering Theory** | [Tape Architecture](https://the-lkb.github.io/beast-json/theory/architecture), [SIMD Acceleration](https://the-lkb.github.io/beast-json/theory/simd), [Russ Cox Algorithm](https://the-lkb.github.io/beast-json/theory/russ-cox) |
 | **Advanced Usage** | [HFT Optimization Patterns](https://the-lkb.github.io/beast-json/guide/hft-patterns), [Custom Allocators](https://the-lkb.github.io/beast-json/guide/allocators), [Language Bindings](https://the-lkb.github.io/beast-json/guide/bindings) |
 | **Guides** | [Getting Started](https://the-lkb.github.io/beast-json/guide/getting-started), [Object Mapping](https://the-lkb.github.io/beast-json/guide/mapping), [Error Handling](https://the-lkb.github.io/beast-json/guide/errors) |
-| **API Reference** | [Full C++ Doxygen Reference](https://the-lkb.github.io/beast-json/api/index.html) |
+| **API Reference** | [Full C++ Doxygen Reference](https://the-lkb.github.io/beast-json/api/reference/index.html) |
 
 ---
 

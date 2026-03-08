@@ -43,8 +43,8 @@ jobs:
 
       - name: Copy Doxygen to VitePress dist
         run: |
-          mkdir -p docs/.vitepress/dist/api
-          cp -r docs/api/html/* docs/.vitepress/dist/api/
+          mkdir -p docs/.vitepress/dist/api/reference
+          cp -r docs/api/reference/* docs/.vitepress/dist/api/reference/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

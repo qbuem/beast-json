@@ -31,8 +31,7 @@ EXCLUDE_PATTERNS       =
 USE_MDFILE_AS_MAINPAGE = docs/TECHNICAL_REFERENCE.md
 
 # HTML Related
-GENERATE_HTML          = YES
-HTML_OUTPUT            = html
+HTML_OUTPUT            = reference
 HTML_FILE_EXTENSION    = .html
 HTML_HEADER            =
 HTML_FOOTER            =
