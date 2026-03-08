@@ -86,10 +86,10 @@ Memory measured parsing `twitter.json` (631.5 KB) via MacOS `mach_task` Resident
 
 | Library | Peak RSS | DOM Memory | Overhead Ratio |
 |:---|---:|---:|---:|
-| **Beast JSON** | **2.76 MB** | **236 KB** | **0.37x** |
-| `simdjson` | 3.49 MB | - | - |
-| `yyjson` | 3.58 MB | - | - |
-| `Glaze` | 4.29 MB | - | - |
+| **Beast JSON** | **3.44 MB** | **0.23 MB** | **0.36x** |
+| `yyjson`       | 6.32 MB | 2.50 MB | 3.96x |
+| `Glaze`        | 5.58 MB | 1.80 MB | 2.85x |
+| `simdjson`     | 11.04 MB | 6.50 MB | 10.29x |
 
 > *Note: For deep-nesting custom types, Beast JSON outpaces C++23 Reflection-based `Glaze` natively due to fully inlined variadic macros.*
 
