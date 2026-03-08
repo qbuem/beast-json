@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['technical_5freference_2emd_0',['TECHNICAL_REFERENCE.md',['../_t_e_c_h_n_i_c_a_l___r_e_f_e_r_e_n_c_e_8md.html',1,'']]]
+  ['getting_5fstarted_2emd_0',['GETTING_STARTED.md',['../_g_e_t_t_i_n_g___s_t_a_r_t_e_d_8md.html',1,'']]]
 ];

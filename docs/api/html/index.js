@@ -5,7 +5,7 @@ var index =
     [ "2. Performance Benchmarks", "index.html#autotoc_md8", [
       [ "2.1 Linux x86_64 (GCC 13.3, AVX-512, PGO)", "index.html#autotoc_md9", null ],
       [ "2.2 Linux AArch64 (GCC/Clang)", "index.html#autotoc_md10", null ],
-      [ "2.3 Apple M1 Pro (macOS, Apple Clang, NEON, PGO)", "index.html#autotoc_md11", null ],
+      [ "2.3 Apple Silicon (macOS, Apple Clang, NEON, PGO)", "index.html#autotoc_md11", null ],
       [ "2.4 Sub-MegaByte Memory Efficiency", "index.html#autotoc_md12", null ],
       [ "2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)", "index.html#autotoc_md13", null ]
     ] ],
@@ -30,7 +30,7 @@ var index =
     [ "8. Optimization Failures &amp; Lessons", "index.html#autotoc_md34", [
       [ "8.1 AArch64", "index.html#autotoc_md35", null ],
       [ "8.2 x86_64", "index.html#autotoc_md36", null ],
-      [ "8.3 M1 PGO/LTO Golden Rules", "index.html#autotoc_md37", null ]
+      [ "8.3 Apple Silicon PGO/LTO Golden Rules", "index.html#autotoc_md37", null ]
     ] ],
     [ "9. Development Roadmap &amp; History", "index.html#autotoc_md39", null ],
     [ "10. Security &amp; Memory-Safety Hardening", "index.html#autotoc_md40", [

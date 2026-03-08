@@ -1,7 +1,7 @@
 # Doxyfile 1.9.1
 
 PROJECT_NAME           = "Beast JSON"
-PROJECT_NUMBER         = "1.0.0"
+PROJECT_NUMBER         = "1.0.3"
 PROJECT_BRIEF          = "The fastest C++20 JSON library you can drop into any project — single header, zero dependencies."
 
 OUTPUT_DIRECTORY       = docs/api/
@@ -24,7 +24,7 @@ HIDE_IN_BODY_DOCS      = NO
 INTERNAL_DOCS          = NO
 
 # Input Related
-INPUT                  = include/beast_json/beast_json.hpp docs/TECHNICAL_REFERENCE.md
+INPUT                  = include/beast_json/beast_json.hpp docs/TECHNICAL_REFERENCE.md docs/GETTING_STARTED.md
 FILE_PATTERNS          = *.hpp *.h *.md
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       =

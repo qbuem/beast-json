@@ -164,7 +164,7 @@
 // SVE: ARM Scalable Vector Extension (variable-width SIMD: 128–2048 bits).
 //   Available on: AWS Graviton 3 (Neoverse V1, 256-bit), Neoverse V2,
 //   Cortex-X4. NOT available on Apple Silicon (AMX is Apple's proprietary
-//   equivalent). NOT exposed on Android kernels < 5.16 even when hardware
+//   equivalent). NOT exposed on Linux kernels < 5.16 even when hardware
 //   supports it. Use only with explicit -march=armv8.4-a+sve guard or runtime
 //   detection.
 #if defined(__ARM_FEATURE_SVE)
@@ -213,7 +213,7 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 //
 //  BEAST_PREFETCH_DISTANCE: bytes to look ahead in __builtin_prefetch.
 //    Optimal = (pipeline depth × clock speed × bytes/cycle).
-//    Apple M1 Pro L2 latency ≈ 10ns × 3.2 GHz ≈ 32 cycles.
+//    Apple Silicon L2 latency ≈ 10ns × 3.2 GHz ≈ 32 cycles.
 //      At 10 bytes/cycle parse throughput → 320B ideal; round to 384B
 //      (3 × 128B cache lines). Using 512B (4 lines) gives headroom.
 //    Cortex-X3 L2 latency ≈ 12ns × 3.4 GHz ≈ 40 cycles.

@@ -8,7 +8,9 @@ var searchData=
   ['end_20heap_20buffer_20overflow_5',['Bug 5 — &lt;span class=&quot;tt&quot;&gt;skip_value_()&lt;/span&gt; Out-of-Bounds + &lt;span class=&quot;tt&quot;&gt;memcpy&lt;/span&gt; Past Source End &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md46',1,'']]],
   ['environment_6',['2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)',['../index.html#autotoc_md13',1,'']]],
   ['erase_7',['erase',['../classbeast_1_1json_1_1lazy_1_1_value.html#a09614f2f5ff4e9982ab681db2229beb6',1,'beast::json::lazy::Value::erase(std::string_view key)'],['../classbeast_1_1json_1_1lazy_1_1_value.html#a6df8845bcbb7e56865ae42d0827f598b',1,'beast::json::lazy::Value::erase(const char *key)'],['../classbeast_1_1json_1_1lazy_1_1_value.html#a4ca9d44bb19568fc3e7593af7520eeee',1,'beast::json::lazy::Value::erase(size_t idx)'],['../classbeast_1_1json_1_1lazy_1_1_value.html#afd7bcdbf2fd37c99c57728434cda2569',1,'beast::json::lazy::Value::erase(int idx)']]],
-  ['example_8',['Python Example',['../index.html#autotoc_md32',1,'']]],
-  ['expect_5fliteral_9',['expect_literal',['../structbeast_1_1rfc8259_1_1detail___1_1_validator.html#a0440819bbf13ccb39c0c423fc5d9bad5',1,'beast::rfc8259::detail_::Validator']]],
-  ['extreme_20heavy_20load_20benchmarks_20harsh_20environment_10',['2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)',['../index.html#autotoc_md13',1,'']]]
+  ['error_8',['5. as&amp;lt;int&amp;gt; on a double returns a cast, not an error',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md107',1,'']]],
+  ['example_9',['Python Example',['../index.html#autotoc_md32',1,'']]],
+  ['existing_20buffer_10',['dump(out) — reuse existing buffer',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md84',1,'']]],
+  ['expect_5fliteral_11',['expect_literal',['../structbeast_1_1rfc8259_1_1detail___1_1_validator.html#a0440819bbf13ccb39c0c423fc5d9bad5',1,'beast::rfc8259::detail_::Validator']]],
+  ['extreme_20heavy_20load_20benchmarks_20harsh_20environment_12',['2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)',['../index.html#autotoc_md13',1,'']]]
 ];

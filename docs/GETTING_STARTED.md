@@ -29,16 +29,17 @@
 
 ---
 
+<a id="requirements"></a>
 ## Requirements
 
 | Requirement | Minimum | Recommended |
 |:---|:---|:---|
 | C++ Standard | C++20 | C++20 |
 | GCC | 10 | 13.3 |
-| Clang | 10 | 17 (Apple) / 21 (Android) |
+| Clang | 10 | 17+ |
 | MSVC | 19.29 (VS 2019 16.10) | 19.40+ |
 | CMake | 3.14 | 3.28 |
-| OS | Linux, macOS, Windows, Android | — |
+| OS | Linux, macOS, Windows | — |
 
 **Optional for best performance:**
 - AVX-512 CPU (Intel Skylake-X+, Ice Lake+) — enables 64B/iter whitespace skip and two-phase parsing.
@@ -46,8 +47,10 @@
 
 ---
 
+<a id="installation"></a>
 ## Installation
 
+<a id="option-a-single-header-drop-in"></a>
 ### Option A: Single Header Drop-in
 
 Beast JSON is a **single header library**. Copy the header into your project — no CMake required.
@@ -66,6 +69,7 @@ Compile with C++20:
 g++ -std=c++20 -O3 main.cpp -o main
 ```
 
+<a id="option-b-cmake-fetchcontent"></a>
 ### Option B: CMake FetchContent
 
 ```cmake
@@ -80,6 +84,7 @@ FetchContent_MakeAvailable(beast_json)
 target_link_libraries(your_target PRIVATE beast_json)
 ```
 
+<a id="option-c-clone--build"></a>
 ### Option C: Clone & Build
 
 ```bash
@@ -104,6 +109,7 @@ cmake --install build --prefix /usr/local
 
 ---
 
+<a id="first-parse"></a>
 ## First Parse
 
 ```cpp
@@ -136,6 +142,7 @@ int main() {
 
 ---
 
+<a id="reading-values"></a>
 ## Reading Values
 
 ### Type-checked access (throws on mismatch)
@@ -195,6 +202,7 @@ std::string_view missing = root["a"]["b"]["c"] | std::string_view{"default"};
 
 ---
 
+<a id="safe-access-patterns"></a>
 ## Safe Access Patterns
 
 When you need to distinguish "key absent" from "key with wrong type" without exceptions, use `find()` or `SafeValue`:
@@ -236,6 +244,7 @@ std::string mode = root.value("mode", std::string{"fast"});
 
 ---
 
+<a id="iterating-objects-and-arrays"></a>
 ## Iterating Objects and Arrays
 
 ### Object iteration
@@ -296,6 +305,7 @@ std::cout << it->as<int>() << "\n";  // 30
 
 ---
 
+<a id="mutating-documents"></a>
 ## Mutating Documents
 
 ### Value mutation (scalar overlay)
@@ -351,6 +361,7 @@ std::cout << root.dump() << "\n";
 
 ---
 
+<a id="serialization"></a>
 ## Serialization
 
 ### dump() — allocates a new string
@@ -377,6 +388,7 @@ for (int i = 0; i < 1'000'000; ++i) {
 
 ---
 
+<a id="auto-serialization-structs"></a>
 ## Auto-Serialization (Structs)
 
 ```cpp
@@ -432,6 +444,45 @@ int main() {
 
 ---
 
+<a id="third-party-types-adl"></a>
+### Serializing Third-Party Types (ADL)
+
+If you cannot modify a struct (e.g., `glm::vec3` from an external library), you cannot use the `BEAST_JSON_FIELDS` macro. Instead, you can define two **Argument-Dependent Lookup (ADL)** functions inside the *same namespace* as your target type:
+
+```cpp
+#include <glm/vec3.hpp>
+
+// 1. Open the namespace of the target type
+namespace glm {
+    
+    // 2. Define the parsing hook: from_beast_json
+    inline void from_beast_json(const beast::json::Value& v, vec3& out) {
+        // Assuming we want to parse it from a JSON Array: [x, y, z]
+        out.x = v[0].as_double();
+        out.y = v[1].as_double();
+        out.z = v[2].as_double();
+    }
+
+    // 3. Define the serialization hook: to_beast_json
+    inline void to_beast_json(beast::json::Value& root, const vec3& in) {
+        // Construct a JSON array and push the values
+        root = beast::json::Value::Array();
+        root.push_back(beast::json::Value(in.x));
+        root.push_back(beast::json::Value(in.y));
+        root.push_back(beast::json::Value(in.z));
+    }
+}
+
+// Now you can natively read/write glm::vec3 safely
+int main() {
+    glm::vec3 position = beast::read<glm::vec3>("[1.0, 2.0, 3.5]");
+    std::string json = beast::write(position);
+}
+```
+
+---
+
+<a id="strict-mode-validation"></a>
 ## RFC 8259 Strict Mode
 
 By default, `beast::parse()` is lenient. Use `beast::parse_strict()` or `beast::rfc8259::validate()` when you need guaranteed RFC 8259 compliance.
@@ -468,6 +519,7 @@ int main() {
 
 ---
 
+<a id="performance-tips-zero-allocation"></a>
 ## Buffer Reuse for Hot Loops
 
 For maximum performance when parsing multiple documents (e.g., a JSON stream), reuse the `Document`:
@@ -614,6 +666,7 @@ See [docs/API_REFERENCE.md#python-binding](API_REFERENCE.md#python-binding-bindi
 
 ---
 
+<a id="common-pitfalls"></a>
 ## Common Pitfalls
 
 ### 1. Document must outlive all Value objects

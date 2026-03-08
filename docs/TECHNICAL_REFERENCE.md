@@ -16,12 +16,14 @@
 
 ---
 
+<a id="introduction"></a>
 ## 1. Introduction
 
 Beast JSON is a high-performance, header-only C++20 JSON parser and serializer. It operates on a **tape-based lazy DOM** and utilizes SIMD instructions (AVX-512, NEON) or SWAR (SIMD Within A Register) for peak performance. It is designed to be a drop-in single header library without dependencies.
 
 ---
 
+<a id="performance-benchmarks"></a>
 ## 2. Performance Benchmarks
 
 All measurements are taken on dedicated bare-metal hardware. `yyjson` is the primary benchmark target.
@@ -32,14 +34,14 @@ All measurements are taken on dedicated bare-metal hardware. `yyjson` is the pri
   * `gsoc-2018.json`: 731 μs (4.45 GB/s)
 * **Serialize**: Up to 4.18× faster than `yyjson` on specific files (e.g., `canada.json` 789μs vs 3301μs).
 
-### 2.2 AArch64 (Android, Clang 21)
+### 2.2 Linux AArch64 (GCC/Clang)
 * **Parse & Serialize**: Completely sweeps `yyjson` (Phase 73).
   * Parse: +67% to +153% faster.
   * Serialize: 2.2× to 5.6× faster.
 
-### 2.3 Apple M1 Pro (macOS, Apple Clang, NEON, PGO)
+### 2.3 Apple Silicon (macOS, Apple Clang, NEON, PGO)
 * **Serialize**: Sweeps `yyjson` (Phase 80-M1). Up to 4.2× faster (`gsoc-2018.json`).
-* **Parse**: Trails `yyjson` slightly on 3/4 files due to architectural limits (M1's extreme 576-entry ROB favors flat arrays over tape indirection).
+* **Parse**: Trails `yyjson` slightly on 3/4 files due to architectural limits (Apple Silicon's extreme 576-entry ROB favors flat arrays over tape indirection).
 
 ### 2.4 Sub-MegaByte Memory Efficiency
 Beast JSON uses a compact 8-byte `TapeNode` and zero-copy string references to achieve the lowest memory overhead in the C++ ecosystem. Measured via MacOS `mach_task` Resident Set Size (RSS) parsing `twitter.json` (631.5 KB):
@@ -49,17 +51,20 @@ Beast JSON uses a compact 8-byte `TapeNode` and zero-copy string references to a
 * **Glaze**: 4.29 MB Peak RSS
 
 ### 2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)
-Performance under extreme stress: measuring a massive 5.5MB file containing 50,000 deeply nested objects, arrays, floats, and heavily escaped strings (`\n\t\r\"`). This tests the parser's absolute worst-case fallback performance.
+Performance under extreme stress: measuring a massive 5.5MB file containing 50,000 deeply nested objects, arrays, floats, and heavily escaped strings (containing `\n`, `\t`, `\r`, and escaped quotes). This tests the parser's absolute worst-case fallback performance.
 
 | Library | Parse Time | Serialize Time | Overall Edge |
 |:---|---:|---:|:---:|
-| **Beast JSON** | 5.19 ms | **2.27 ms** | **Fastest Serialization** |
-| `yyjson` | **4.09 ms** | 2.85 ms | Fastest Parse |
-| `Glaze DOM`| 35.25 ms | 9.87 ms | Dynamic-type penalty |
+| **Beast JSON** | 5.28 ms | **2.32 ms** | **Fastest Serialization** |
+| `simdjson` | **4.89 ms** | 12.16 ms | Fastest Parse |
+| `yyjson` | 5.29 ms | 3.53 ms | - |
+| `RapidJSON` | 13.15 ms | 11.90 ms | - |
+| `Glaze DOM`| 35.96 ms | 10.69 ms | Dynamic-type penalty |
 | `nlohmann` | 58.94 ms | 14.93 ms | - |
 
 ---
 
+<a id="architecture--internals"></a>
 ## 3. Architecture & Internals
 
 Beast JSON stores every JSON token as a flat `TapeNode` array (8 bytes/node) inside a pre-allocated `TapeArena`.
@@ -89,6 +94,7 @@ For repeated object schemas (e.g., `citm_catalog.json`), Beast caches the length
 
 ---
 
+<a id="api-reference"></a>
 ## 4. API Reference
 
 ### 4.1 `beast::Document` and `beast::Value`
@@ -127,6 +133,7 @@ auto big = root["scores"].elements() | std::views::filter([](auto v){ return v.a
 
 ---
 
+<a id="auto-serialization-macro"></a>
 ## 5. Auto-Serialization Macro
 
 Zero-boilerplate serialization utilizing C++20 Concepts. Built-in support for all STL containers.
@@ -147,15 +154,32 @@ std::string json = beast::write(user);
 If a type cannot be modified to use `BEAST_JSON_FIELDS` (e.g., a third-party struct like `glm::vec3`), you can opt into auto-serialization by defining two Argument-Dependent Lookup (ADL) functions in the same namespace as the type:
 
 ```cpp
-namespace third_party {
-    void from_beast_json(const beast::json::Value& v, MyStruct& out) { /* manual deserialization */ }
-    void to_beast_json(beast::json::Value& root, const MyStruct& in) { /* manual serialization */ }
+#include <glm/vec3.hpp>
+
+namespace glm {
+    // 1. Define from_beast_json for parsing (must be in the same namespace)
+    inline void from_beast_json(const beast::json::Value& v, vec3& out) {
+        // Read directly from the JSON array
+        out.x = v[0].as_double();
+        out.y = v[1].as_double();
+        out.z = v[2].as_double();
+    }
+
+    // 2. Define to_beast_json for serialization
+    inline void to_beast_json(beast::json::Value& root, const vec3& in) {
+        // Construct the expected structure (e.g., a JSON array)
+        root = beast::json::Value::Array();
+        root.push_back(beast::json::Value(in.x));
+        root.push_back(beast::json::Value(in.y));
+        root.push_back(beast::json::Value(in.z));
+    }
 }
 ```
-`beast::read<T>` and `beast::write(T)` natively search for these ADL hooks.
+`beast::read<T>` and `beast::write(T)` natively search for these ADL hooks during compile-time resolution.
 
 ---
 
+<a id="rfc-8259-validator"></a>
 ## 6. RFC 8259 Validator
 
 Strict validation mode that throws an exception with offset details on RFC violations (trailing commas, leading zeros, etc.).
@@ -166,6 +190,7 @@ auto root = beast::parse_strict(doc, "[1, 2,]"); // Throws std::runtime_error
 
 ---
 
+<a id="language-bindings"></a>
 ## 7. Language Bindings
 
 Beast JSON provides a C API and a Python `ctypes` wrapper.
@@ -179,6 +204,7 @@ print(doc.root()["name"])
 
 ---
 
+<a id="optimization-failures--lessons"></a>
 ## 8. Optimization Failures & Lessons
 
 Optimization attempts that caused performance regressions provide vital architectural insights.
@@ -192,12 +218,13 @@ Optimization attempts that caused performance regressions provide vital architec
 * **Rule**: AVX2 constant hoisting increases register pressure and causes spills. Declare `_mm256_set1` immediately near use.
 * **Rule**: Overlapping SIMD intensive loops (e.g., AVX2 digit parsing and AVX2 string parsing) in the same function breaks YMM register limits causing spills.
 
-### 8.3 M1 PGO/LTO Golden Rules
+### 8.3 Apple Silicon PGO/LTO Golden Rules
 * **Rule**: Adding *any* new loop back-edges (`continue`, `break`) confuses LTO optimization.
 * **Rule**: Code size additions in serialize functions increase I-cache pressure and cause regressions in parse performance due to LTO layout changes.
 
 ---
 
+<a id="development-roadmap--history"></a>
 ## 9. Development Roadmap & History
 
 Beast JSON achieved v1.0 goals entirely through an AI-driven optimization pipeline crossing 80+ distinct phases.
@@ -206,10 +233,11 @@ Beast JSON achieved v1.0 goals entirely through an AI-driven optimization pipeli
 * **Phase 44-53 (x86_64)**: AVX-512 integration, Stage 1/2 parsing, yielding massive parse throughput gains.
 * **Phase 57-64 (AArch64)**: Perfecting the Pure NEON pipeline and compact state machines.
 * **Phase 65**: KeyLenCache for O(1) object key lookups.
-* **Phase 72-81 (Apple M1)**: Uncovering extreme PGO/LTO sensitivities and completing the fastest JSON serializer for Apple hardware.
+* **Phase 72-81 (Apple Silicon)**: Uncovering extreme PGO/LTO sensitivities and completing the fastest JSON serializer for Apple hardware.
 * **Phase 82-100+**: Legacy DOM removal, introduction of Monadic `SafeValue`, C++20 modernizations, and final v1.0 stabilization.
 
 
+<a id="security--memory-safety-hardening"></a>
 ## 10. Security & Memory-Safety Hardening
 
 > **Summary**: 5 memory-safety vulnerabilities were discovered through AddressSanitizer (ASan),

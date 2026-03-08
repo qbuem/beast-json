@@ -1,6 +1,6 @@
 var searchData=
 [
-  ['language_20bindings_0',['7. Language Bindings',['../index.html#autotoc_md31',1,'']]],
+  ['language_20bindings_0',['Language Bindings',['../index.html#autotoc_md31',1,'7. Language Bindings'],['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md98',1,'Language Bindings']]],
   ['last_5fdump_5fsize_5f_1',['last_dump_size_',['../classbeast_1_1json_1_1lazy_1_1_document_view.html#a4b8437c6af2090430150649cbd3fd748',1,'beast::json::lazy::DocumentView']]],
   ['layout_2',['3.1 TapeNode Layout',['../index.html#autotoc_md16',1,'']]],
   ['length_3',['length',['../structbeast_1_1json_1_1lazy_1_1_tape_node.html#a6db3bda919656490042e82d5442461b2',1,'beast::json::lazy::TapeNode']]],
@@ -9,5 +9,6 @@ var searchData=
   ['linux_20x86_5f64_20gcc_2013_203_20avx_20512_20pgo_6',['2.1 Linux x86_64 (GCC 13.3, AVX-512, PGO)',['../index.html#autotoc_md9',1,'']]],
   ['load_20benchmarks_20harsh_20environment_7',['2.5 Extreme Heavy-Load Benchmarks (Harsh Environment)',['../index.html#autotoc_md13',1,'']]],
   ['load64_8',['load64',['../namespacebeast_1_1json_1_1lazy.html#a06a8b2c77466ea405ffb1d50c0112057',1,'beast::json::lazy']]],
-  ['lto_20golden_20rules_9',['8.3 M1 PGO/LTO Golden Rules',['../index.html#autotoc_md37',1,'']]]
+  ['loops_9',['Buffer Reuse for Hot Loops',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md92',1,'']]],
+  ['lto_20golden_20rules_10',['8.3 Apple Silicon PGO/LTO Golden Rules',['../index.html#autotoc_md37',1,'']]]
 ];
