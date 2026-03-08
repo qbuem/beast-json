@@ -19,7 +19,7 @@ By fully leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, **SWAR (SIMD W
 
 ## 🚀 Features at a Glance
 
-* **World-Class Performance**: Outperforms `yyjson`, `simdjson`, `glaze`, and `rapidjson` in parsing and serialization speed on both `x86_64` (Intel/AMD) and `AArch64` (Apple Silicon M-Series, Snapdragon).
+* **World-Class Performance**: Outperforms `yyjson`, `simdjson`, `glaze`, and `rapidjson` in parsing and serialization speed on both `x86_64` (Intel/AMD) and `AArch64` (Apple Silicon, ARM64).
 * **Zero-Allocation Execution**: Memory-mapped zero-copy strings for parsing, and direct-to-buffer stream pushing for serialization. The ultimate zero-cost abstraction.
 * **C++20 Native**: Clean, elegant integration using C++20 standard Concepts and fold expressions. No legacy SFINAE hacks. Range-based iterations directly supported.
 * **Auto-Serialization Macro**: One-line macro (`BEAST_JSON_FIELDS`) generates 100% automated struct-to-JSON and JSON-to-struct mapping with zero boilerplate.
@@ -209,7 +209,7 @@ Requires a C++20 compliant compiler:
 ## 🏗 Architecture Highlight: The Tape DOM
 
 Unlike traditional JSON parsers like `nlohmann/json` or `rapidjson` that allocate countless 32-byte tree nodes scattered across the heap, Beast JSON writes **64-bit TapeNodes** continuously to a single flat array.
-- **Cache-Locality**: A 128-byte Apple M-series L1 Cache line holds exactly 16 JSON nodes. Fetching an object immediately prefetches all of its keys and values into the L1.
+- **Cache-Locality**: A 128-byte Apple Silicon L1 Cache line holds exactly 16 JSON nodes. Fetching an object immediately prefetches all of its keys and values into the L1.
 - **Zero Cache Misses**: Traversing a Beast JSON DOM is purely sequential array access.
 - **Immutable Parsing**: Mutations (`set`, `insert`, `erase`) leverage a side-channel C++ `unordered_map` overlay network. The core immutable tape is NEVER rewritten until `dump()` is called.
 

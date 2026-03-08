@@ -32,7 +32,7 @@ All measurements are taken on dedicated bare-metal hardware. `yyjson` is the pri
   * `gsoc-2018.json`: 731 μs (4.45 GB/s)
 * **Serialize**: Up to 4.18× faster than `yyjson` on specific files (e.g., `canada.json` 789μs vs 3301μs).
 
-### 2.2 Snapdragon 8 Gen 2 (Android, Clang 21)
+### 2.2 AArch64 (Android, Clang 21)
 * **Parse & Serialize**: Completely sweeps `yyjson` (Phase 73).
   * Parse: +67% to +153% faster.
   * Serialize: 2.2× to 5.6× faster.
@@ -172,9 +172,9 @@ print(doc.root()["name"])
 
 Optimization attempts that caused performance regressions provide vital architectural insights.
 
-### 8.1 AArch64 (Apple Silicon, Snapdragon)
+### 8.1 AArch64
 * **Rule**: NEON is supreme. Never mix scalar `while` loops or SWAR with NEON fast-paths (e.g., for pre-gating). GPR-to-SIMD branch dependence breaks the pipeline.
-* **Rule**: 32B/64B manual unrolling degrades I-cache without improving ILP on M1/Snapdragon. 16B is the sweet spot.
+* **Rule**: 32B/64B manual unrolling degrades I-cache without improving ILP on AArch64. 16B is the sweet spot.
 * **Rule**: Two-phase parsing using NEON movemask emulation is far slower than single-pass linear scanning on AArch64.
 
 ### 8.2 x86_64

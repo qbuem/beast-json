@@ -12,7 +12,7 @@
  * ✨ Serialize: 1200-1500 MB/s (Russ Cox + fast paths)
  *
  * Complete Features:
- * ✅ Phase 1-5: All implemented
+ * ✅ All implemented
  * ✅ Russ Cox: Unrounded scaling (COMPLETE!)
  * ✅ Full SIMD: AVX2 + ARM NEON
  * ✅ Modern API: nlohmann/json style
@@ -85,8 +85,8 @@
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #define BEAST_ARCH_ARM64 1
 // Apple Silicon (M1/M2/M3/M4 family) — distinct from generic AArch64:
-//   • 128-byte L1/L2 cache lines (vs 64-byte on Cortex/Graviton)
-//   • ~576-entry ROB (vs ~200 on Cortex-X3, ~300 on Neoverse V2)
+//   • 128-byte L1/L2 cache lines (vs 64-byte generic ARM64)
+//   • ~576-entry ROB (vs ~200 generic ARM64, ~300 on Neoverse)
 //   • No SVE/SVE2 exposure — SIGILL risk does NOT exist here
 //   • DOTPROD (UDOT/SDOT) always available
 //   • SHA3 (EOR3) available on M2+ but not M1
@@ -128,7 +128,7 @@
 #endif
 // ARM ISA extension detection — all require -march=native or explicit target
 // flags DOTPROD: UDOT/SDOT 4×uint8 multiply-accumulate.
-//   Available on: Apple M1/M2/M3, Cortex-A76+, Cortex-X1+, Neoverse V1/N2.
+//   Available on: Apple Silicon, ARM v8.2+ CPUs.
 //   Enables branchless 4-byte character classification in a single instruction.
 #if defined(__ARM_FEATURE_DOTPROD)
 #define BEAST_HAS_DOTPROD 1
@@ -144,7 +144,7 @@
 #include <arm_sve.h>
 #endif
 // SHA3/EOR3: 3-way XOR (EOR3), rotate-XOR (RAX1), XOR-accumulate (XAR).
-//   Available on: Apple M2/M3/M4, Cortex-A710+, Neoverse V2.
+//   Available on: Apple Silicon (M2+), ARM v8.4+ CPUs.
 //   NOT available on Apple M1.
 //   EOR3 enables single-instruction backslash-escape propagation in Stage 1.
 #if defined(__ARM_FEATURE_SHA3)
@@ -165,7 +165,7 @@ using String = std::pmr::string;
 template <typename T> using Vector = std::pmr::vector<T>;
 using Allocator = std::pmr::polymorphic_allocator<char>;
 #else
-#error "Beast JSON Phase 16 (Zero-SIMD) requires a C++20 compatible compiler."
+#error "Beast JSON (Zero-SIMD) requires a C++20 compatible compiler."
 #endif
 
 } // namespace json
@@ -180,7 +180,7 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 //  BEAST_CACHE_LINE_SIZE: L1 cache line size in bytes.
 //    Apple Silicon (M1/M2/M3): 128 bytes — double the ARM standard.
 //      Impacts: alignas() for hot tables, prefetch stride granularity.
-//    All other AArch64 (Cortex-X, Neoverse): 64 bytes (ARM standard).
+//    All other AArch64: 64 bytes (ARM standard).
 //    x86_64: 64 bytes (Intel/AMD standard).
 //
 //  BEAST_PREFETCH_DISTANCE: bytes to look ahead in __builtin_prefetch.
@@ -189,8 +189,8 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 //      At 10 bytes/cycle parse throughput → 320B ideal; round to 384B
 //      (3 × 128B cache lines). Using 512B (4 lines) gives headroom.
 //    Cortex-X3 L2 latency ≈ 12ns × 3.4 GHz ≈ 40 cycles.
-//      Phase 58-A A/B result: 256B optimal (4 × 64B cache lines).
-//    x86_64 (Phase 48): 192B optimal (measured on Raptor Lake).
+//      A/B result: 256B optimal (4 × 64B cache lines).
+//    x86_64: 192B optimal (measured on Raptor Lake).
 //
 //  BEAST_PREFETCH_LOCALITY: __builtin_prefetch 'locality' hint (0-3).
 //    0 = NTA (non-temporal, bypass L1/L2 — for once-through streaming)
@@ -203,11 +203,11 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 #define BEAST_PREFETCH_LOCALITY 1   // L2 hint; parse consumes sequentially
 #elif defined(BEAST_ARCH_ARM64)
 #define BEAST_CACHE_LINE_SIZE 64
-#define BEAST_PREFETCH_DISTANCE 256 // 4 × 64B; Phase 58-A A/B winner
-#define BEAST_PREFETCH_LOCALITY 1   // L2 hint (NTA hurt: Phase 58-A)
+#define BEAST_PREFETCH_DISTANCE 256 // 4 × 64B; A/B winner
+#define BEAST_PREFETCH_LOCALITY 1   // L2 hint (NTA hurt: )
 #elif defined(BEAST_ARCH_X86_64)
 #define BEAST_CACHE_LINE_SIZE 64
-#define BEAST_PREFETCH_DISTANCE 192 // Phase 48 measured optimum
+#define BEAST_PREFETCH_DISTANCE 192 // measured optimum
 #define BEAST_PREFETCH_LOCALITY 1   // L2 hint
 #else
 #define BEAST_CACHE_LINE_SIZE 64
@@ -251,7 +251,7 @@ namespace beast {
 namespace json {
 namespace simd {
 // prefix_xor: compute prefix-XOR of a 64-bit mask.
-// Used by Stage 1 two-phase parser (AVX-512/NEON) to track in-string state.
+// Used by Stage 1 two-(AVX-512/NEON) to track in-string state.
 // If mask has 1s at quote positions, prefix_xor(mask) has 1s inside strings.
 BEAST_INLINE uint64_t prefix_xor(uint64_t x) noexcept {
   x ^= x << 1;
@@ -270,8 +270,7 @@ namespace beast {
 namespace json {
 namespace lazy {
 
-// ─────────────────────────────────────────────────────────────
-// TapeNode — 8 bytes (Phase D1 compaction)
+// TapeNode — 8 bytes (compaction)
 //
 // meta layout (uint32_t):
 //   bits 31-24 : TapeNodeType  (8 bits, values 0-10)
@@ -281,7 +280,6 @@ namespace lazy {
 // Dropped: next_sib (4 bytes) — was written but never read.
 // Halves store operations per push(): 5 → 2.
 // Fits 8 nodes per 64-byte cache line (vs ~5 before).
-// ─────────────────────────────────────────────────────────────
 
 enum class TapeNodeType : uint8_t {
   Null = 0,
@@ -320,9 +318,7 @@ struct TapeNode {
 };
 static_assert(sizeof(TapeNode) == 8, "TapeNode must be exactly 8 bytes");
 
-// ─────────────────────────────────────────────────────────────
-// TapeArena — Beast Flat Arena (Phase B)
-// ─────────────────────────────────────────────────────────────
+// TapeArena — Beast Flat Arena
 
 struct TapeArena {
   TapeNode *base = nullptr;
@@ -360,10 +356,8 @@ struct TapeArena {
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// Phase 50: Stage1Index — flat array of structural char offsets
+// Stage1Index — flat array of structural char offsets
 // Reused across parse_reuse() calls (amortises malloc cost).
-// ─────────────────────────────────────────────────────────────
 
 struct Stage1Index {
   uint32_t *positions = nullptr;
@@ -395,9 +389,7 @@ struct Stage1Index {
   void reset() noexcept { count = 0; }
 };
 
-// ─────────────────────────────────────────────────────────────
 // DocumentView
-// ─────────────────────────────────────────────────────────────
 
 // Mutation overlay entry: stores the new type + serialized content for a
 // value that has been set() since parse.  Keyed by tape index.
@@ -408,9 +400,7 @@ struct MutationEntry {
                     // empty for Null/BooleanTrue/BooleanFalse
 };
 
-// ─────────────────────────────────────────────────────────────
 // DocumentView
-// ─────────────────────────────────────────────────────────────
 
 /// @brief An opaque view over a parsed JSON document's memory arena and tape.
 /// @details A `DocumentView` can be reused across multiple parses. Reusing a
@@ -420,9 +410,9 @@ class DocumentView {
 public:
   std::string_view source;
   TapeArena tape;
-  Stage1Index idx; // Phase 50: structural index reused across calls
+  Stage1Index idx; // structural index reused across calls
   int ref_count = 0;
-  // Phase 75: cache actual serialised size from the last dump(string&) call.
+  // cache actual serialised size from the last dump(string&) call.
   // On repeated calls with the same document, resize(last_dump_size_) is a
   // no-op (out.size() already equals last_dump_size_) → zero zero-fill cost.
   mutable size_t last_dump_size_ = 0;
@@ -484,9 +474,7 @@ public:
   size_t size() const { return source.size(); }
 };
 
-// ─────────────────────────────────────────────────────────────
 // C++20 Concepts — named constraints used throughout Value/SafeValue
-// ─────────────────────────────────────────────────────────────
 
 /// Matches any integral type except bool (maps to JSON integer).
 template <typename T>
@@ -516,15 +504,11 @@ concept JsonScalarOnly =
     std::same_as<T, std::nullptr_t> || std::same_as<T, bool> ||
     JsonInteger<T> || JsonFloat<T>;
 
-// ─────────────────────────────────────────────────────────────
 // Forward declarations
-// ─────────────────────────────────────────────────────────────
 
 class SafeValue; // optional-propagating proxy (defined after Value)
 
-// ─────────────────────────────────────────────────────────────
 // Value + zero-copy dump()
-// ─────────────────────────────────────────────────────────────
 
 /// @brief The primary accessor type for the Beast JSON DOM.
 /// @details `Value` is a lightweight handle consisting of a pointer to the
@@ -554,7 +538,6 @@ private:
 
 public:
   // ── Type checkers
-  // ───────────────────────────────────────────────────────────
 
   /// Returns true if this Value points to a valid parsed node.
   /// A default-constructed or missing Value returns false.
@@ -606,7 +589,6 @@ public:
   }
 
   // ── set<T>(): write / mutate a value
-  // ─────────────────────────────────────────
   //
   // Replaces the value at this tape position with a new value.
   // The mutation is stored in doc_->mutations_ (overlay map).
@@ -742,7 +724,6 @@ private:
 
 public:
   // ── Navigation: operator[] and find
-  // ─────────────────────────────────────────
   //
   // Beast API philosophy:
   //   operator[](key/idx)   — throws on miss (like STL at())
@@ -892,7 +873,6 @@ public:
   bool empty() const noexcept { return size() == 0; }
 
   // ── as<T>(): typed value extraction
-  // ─────────────────────────────────────────
   //
   // Beast unique pattern: as<T>() is the single canonical accessor.
   // Throws std::runtime_error on type mismatch.
@@ -1027,7 +1007,6 @@ public:
   }
 
   // ── Implicit conversion
-  // ───────────────────────────────────────────────────────
   //
   // Enables: int age = doc["age"];  std::string name = doc["name"];
   // Restricted to arithmetic types and std::string/string_view to prevent
@@ -1036,7 +1015,6 @@ public:
   template <JsonReadable T> operator T() const { return as<T>(); }
 
   // ── Null / validity check
-  // ─────────────────────────────────────────────────────
 
   explicit operator bool() const noexcept { return doc_ != nullptr; }
 
@@ -1046,7 +1024,7 @@ public:
   // dump(string&)    — buffer-reuse variant
   // dump(int indent) — pretty-printed with 'indent' spaces per level
   //
-  // Phase Serialize: flat-buffer rewrite.
+  // flat-buffer rewrite.
   // Instead of 3 × std::string::append per token (with bounds-check +
   // size-update overhead on every call), we pre-allocate a raw char buffer
   // and write directly via a pointer.  The buffer is large enough to hold
@@ -1072,7 +1050,7 @@ public:
     [[maybe_unused]] const size_t src_sz = doc_->source.size();
     const size_t ntape = doc_->tape.size();
 
-    // Phase E: separators pre-computed by parser into meta bits 23-16.
+    // separators pre-computed by parser into meta bits 23-16.
     //   sep == 0x00 → no separator   sep == 0x01 → comma   sep == 0x02 → colon
     // Hot path: root dump (idx_==0) — original loop, zero extra overhead.
     size_t mutation_extra = 0;
@@ -1091,13 +1069,13 @@ public:
       const uint8_t sep = (meta >> 16) & 0xFFu;
 
       // Write pre-computed separator (branch-free for common case)
-      // Phase 67 attempt (sep-per-case + StringRaw batch write) REVERTED:
+      // attempt (sep-per-case + StringRaw batch write) REVERTED:
       // moving sep write inside each switch case changed the LTO code layout,
       // causing citm parse to regress from +21% to +4.5% vs yyjson.
-      // Root cause: same PGO/LTO cross-contamination pattern as Phase 66/66-B.
+      // Root cause: same PGO/LTO cross-contamination pattern as /66-B.
       // The serialize loop and parse code share one LTO unit — any structural
       // change to the serialize switch affects parse I-cache layout.
-      // Phase 79-M1: branchless sep write — table lookup + conditional advance.
+      // branchless sep write — table lookup + conditional advance.
       // sep=0 writes '\0' harmlessly; switch case always overwrites it.
       // Saves 2 instructions + eliminates 1 branch vs conditional write.
 #if BEAST_ARCH_APPLE_SILICON
@@ -1165,7 +1143,7 @@ public:
         const char *sp = src + nd.offset;
         *w++ = '"';
 #if BEAST_HAS_NEON
-        // Phase 61: NEON overlapping-pair copy for 17–31-byte strings.
+        // NEON overlapping-pair copy for 17–31-byte strings.
         // For slen in [17,31]: two 16B VLD1Q+VST1Q stores cover all bytes.
         //   Store 1: w[0..15]  (first 16B of string)
         //   Store 2: w[slen-16..slen-1]  (last 16B of string, overlaps)
@@ -1175,10 +1153,10 @@ public:
         //
         // For slen ≤ 16: scalar 8-4-1 cascade (fast for short keys).
         // For slen ≥ 32: std::memcpy (large values, dispatch overhead
-        // amortised). Phase 80-M1: Restructured branch order — slen 1-16 (95%+
+        // amortised). : Restructured branch order — slen 1-16 (95%+
         // of citm/twitter) checked FIRST → 2 branches in hot path vs 3 (saves 1
         // branch/string). Code size: ~13 instructions vs ~16 → smaller hot-path
-        // I-cache footprint. Generic NEON (non-M1): Phase 61 structure
+        // I-cache footprint. Generic NEON (non-M1): structure
         // unchanged.
 #if BEAST_ARCH_APPLE_SILICON
         if (BEAST_LIKELY(slen <= 16)) {
@@ -1200,7 +1178,7 @@ public:
           std::memcpy(w, sp, slen);
           w += slen;
         }
-#else  // generic NEON (non-Apple-Silicon): Phase 61 structure
+#else  // generic NEON (non-Apple-Silicon): structure
         if (BEAST_LIKELY(slen <= 31)) {
           if (slen >= 17) {
             const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
@@ -1245,9 +1223,9 @@ public:
         }
 #endif // BEAST_ARCH_APPLE_SILICON
 #else
-        // Unrolled 16-8-4-1 copy (Phase D3): avoids glibc dispatch overhead
+        // Unrolled 16-8-4-1 copy: avoids glibc dispatch overhead
         // for short strings (twitter.json avg 16.9 chars, 84% ≤ 24 chars).
-        // Phase 66 attempt: SSE2 overlapping-pair for 17–31B was REVERTED.
+        // attempt: SSE2 overlapping-pair for 17–31B was REVERTED.
         // The SSE2 stores altered the PGO profile (LTO cross-contamination),
         // causing citm parse to regress +14% (598→684μs) for only −5% serialize
         // gain. Scalar 16-8-4-1 preserves parse performance.
@@ -1321,7 +1299,7 @@ public:
     return out;
   }
 
-  // Phase 75: Buffer-reuse dump() overload.
+  // Buffer-reuse dump() overload.
   //
   // Serializes into a caller-provided std::string, amortising malloc+free
   // across repeated calls on the same document (streaming, hot loops).
@@ -1330,13 +1308,13 @@ public:
   //   std::string buf;
   //   for (...) { root.dump(buf); process(buf); }
   //
-  // Phase 75: uses last_dump_size_ to resize to the exact output size from
+  // uses last_dump_size_ to resize to the exact output size from
   // the previous call instead of buf_cap.  For a fixed document the output
   // size is constant, so resize(last_dump_size_) is a no-op on the 2nd+
   // call (out.size() already equals last_dump_size_) — zero zero-fill cost.
   // The first call still uses buf_cap to guarantee sufficient capacity.
   //
-  // LTO safety (Phase 66-B lesson): do NOT mark this NOINLINE.  The compiler
+  // LTO safety: do NOT mark this NOINLINE.  The compiler
   // will inline it at call sites, keeping code layout identical to dump().
   // NOINLINE caused parse regression on x86 PGO/LTO builds.
   void dump(std::string &out) const {
@@ -1361,7 +1339,7 @@ public:
       mutation_extra2 += m.data.size() + 16;
     const size_t buf_cap = doc_->source.size() + 16 + mutation_extra2;
 
-    // Phase 75: last_dump_size_ cache — root-only (avoids cross-contamination
+    // last_dump_size_ cache — root-only (avoids cross-contamination
     // with subtree dump sizes which would undersize the buffer and overflow).
     const size_t target =
         (doc_->last_dump_size_ > 0) ? doc_->last_dump_size_ : buf_cap;
@@ -1438,7 +1416,7 @@ public:
         const char *sp = src + nd.offset;
         *w++ = '"';
 #if BEAST_HAS_NEON
-        // Phase 80-M1: see dump() above for rationale.
+        // see dump() above for rationale.
 #if BEAST_ARCH_APPLE_SILICON
         if (BEAST_LIKELY(slen <= 16)) {
           if (BEAST_LIKELY(sp + 16 <= src + src_sz)) {
@@ -1459,7 +1437,7 @@ public:
           std::memcpy(w, sp, slen);
           w += slen;
         }
-#else  // generic NEON (non-Apple-Silicon): Phase 61 structure
+#else  // generic NEON (non-Apple-Silicon): structure
         if (BEAST_LIKELY(slen <= 31)) {
           if (slen >= 17) {
             const uint8_t *up = reinterpret_cast<const uint8_t *>(sp);
@@ -1900,90 +1878,136 @@ public:
 
   struct KeyIterator {
     ObjectIterator it_;
-    using value_type        = std::string_view;
-    using reference         = std::string_view;
-    using difference_type   = std::ptrdiff_t;
+    using value_type = std::string_view;
+    using reference = std::string_view;
+    using difference_type = std::ptrdiff_t;
     using iterator_category = std::forward_iterator_tag;
-    using iterator_concept  = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
     KeyIterator() noexcept = default;
     explicit KeyIterator(ObjectIterator it) noexcept : it_(it) {}
     std::string_view operator*() const noexcept { return (*it_).first; }
-    KeyIterator &operator++() noexcept { ++it_; return *this; }
-    KeyIterator  operator++(int) noexcept { auto t = *this; ++it_; return t; }
-    bool operator==(const KeyIterator &o) const noexcept { return it_ == o.it_; }
+    KeyIterator &operator++() noexcept {
+      ++it_;
+      return *this;
+    }
+    KeyIterator operator++(int) noexcept {
+      auto t = *this;
+      ++it_;
+      return t;
+    }
+    bool operator==(const KeyIterator &o) const noexcept {
+      return it_ == o.it_;
+    }
   };
   struct KeysRange {
     ObjectRange r_;
     explicit KeysRange(ObjectRange r) noexcept : r_(r) {}
     KeyIterator begin() const noexcept { return KeyIterator{r_.begin()}; }
-    KeyIterator end()   const noexcept { return KeyIterator{r_.end()}; }
+    KeyIterator end() const noexcept { return KeyIterator{r_.end()}; }
   };
 
   struct ObjectValueIterator {
     ObjectIterator it_;
-    using value_type        = Value;
-    using reference         = Value;
-    using difference_type   = std::ptrdiff_t;
+    using value_type = Value;
+    using reference = Value;
+    using difference_type = std::ptrdiff_t;
     using iterator_category = std::forward_iterator_tag;
-    using iterator_concept  = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
     ObjectValueIterator() noexcept = default;
     explicit ObjectValueIterator(ObjectIterator it) noexcept : it_(it) {}
     Value operator*() const noexcept { return (*it_).second; }
-    ObjectValueIterator &operator++() noexcept { ++it_; return *this; }
-    ObjectValueIterator  operator++(int) noexcept { auto t = *this; ++it_; return t; }
-    bool operator==(const ObjectValueIterator &o) const noexcept { return it_ == o.it_; }
+    ObjectValueIterator &operator++() noexcept {
+      ++it_;
+      return *this;
+    }
+    ObjectValueIterator operator++(int) noexcept {
+      auto t = *this;
+      ++it_;
+      return t;
+    }
+    bool operator==(const ObjectValueIterator &o) const noexcept {
+      return it_ == o.it_;
+    }
   };
   struct ValuesRange {
     ObjectRange r_;
     explicit ValuesRange(ObjectRange r) noexcept : r_(r) {}
-    ObjectValueIterator begin() const noexcept { return ObjectValueIterator{r_.begin()}; }
-    ObjectValueIterator end()   const noexcept { return ObjectValueIterator{r_.end()}; }
+    ObjectValueIterator begin() const noexcept {
+      return ObjectValueIterator{r_.begin()};
+    }
+    ObjectValueIterator end() const noexcept {
+      return ObjectValueIterator{r_.end()};
+    }
   };
 
-  template <JsonReadable T>
-  struct TypedArrayIterator {
+  template <JsonReadable T> struct TypedArrayIterator {
     ArrayIterator it_;
-    using value_type        = T;
-    using reference         = T;
-    using difference_type   = std::ptrdiff_t;
+    using value_type = T;
+    using reference = T;
+    using difference_type = std::ptrdiff_t;
     using iterator_category = std::forward_iterator_tag;
-    using iterator_concept  = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
     TypedArrayIterator() noexcept = default;
     explicit TypedArrayIterator(ArrayIterator it) noexcept : it_(it) {}
     T operator*() const { return (*it_).template as<T>(); }
-    TypedArrayIterator &operator++() noexcept { ++it_; return *this; }
-    TypedArrayIterator  operator++(int) noexcept { auto t = *this; ++it_; return t; }
-    bool operator==(const TypedArrayIterator &o) const noexcept { return it_ == o.it_; }
+    TypedArrayIterator &operator++() noexcept {
+      ++it_;
+      return *this;
+    }
+    TypedArrayIterator operator++(int) noexcept {
+      auto t = *this;
+      ++it_;
+      return t;
+    }
+    bool operator==(const TypedArrayIterator &o) const noexcept {
+      return it_ == o.it_;
+    }
   };
-  template <JsonReadable T>
-  struct TypedArrayRange {
+  template <JsonReadable T> struct TypedArrayRange {
     ArrayRange r_;
     explicit TypedArrayRange(ArrayRange r) noexcept : r_(r) {}
-    TypedArrayIterator<T> begin() const noexcept { return TypedArrayIterator<T>{r_.begin()}; }
-    TypedArrayIterator<T> end()   const noexcept { return TypedArrayIterator<T>{r_.end()}; }
+    TypedArrayIterator<T> begin() const noexcept {
+      return TypedArrayIterator<T>{r_.begin()};
+    }
+    TypedArrayIterator<T> end() const noexcept {
+      return TypedArrayIterator<T>{r_.end()};
+    }
   };
 
-  template <JsonReadable T>
-  struct OptionalArrayIterator {
+  template <JsonReadable T> struct OptionalArrayIterator {
     ArrayIterator it_;
-    using value_type        = std::optional<T>;
-    using reference         = std::optional<T>;
-    using difference_type   = std::ptrdiff_t;
+    using value_type = std::optional<T>;
+    using reference = std::optional<T>;
+    using difference_type = std::ptrdiff_t;
     using iterator_category = std::forward_iterator_tag;
-    using iterator_concept  = std::forward_iterator_tag;
+    using iterator_concept = std::forward_iterator_tag;
     OptionalArrayIterator() noexcept = default;
     explicit OptionalArrayIterator(ArrayIterator it) noexcept : it_(it) {}
-    std::optional<T> operator*() const noexcept { return (*it_).template try_as<T>(); }
-    OptionalArrayIterator &operator++() noexcept { ++it_; return *this; }
-    OptionalArrayIterator  operator++(int) noexcept { auto t = *this; ++it_; return t; }
-    bool operator==(const OptionalArrayIterator &o) const noexcept { return it_ == o.it_; }
+    std::optional<T> operator*() const noexcept {
+      return (*it_).template try_as<T>();
+    }
+    OptionalArrayIterator &operator++() noexcept {
+      ++it_;
+      return *this;
+    }
+    OptionalArrayIterator operator++(int) noexcept {
+      auto t = *this;
+      ++it_;
+      return t;
+    }
+    bool operator==(const OptionalArrayIterator &o) const noexcept {
+      return it_ == o.it_;
+    }
   };
-  template <JsonReadable T>
-  struct OptionalArrayRange {
+  template <JsonReadable T> struct OptionalArrayRange {
     ArrayRange r_;
     explicit OptionalArrayRange(ArrayRange r) noexcept : r_(r) {}
-    OptionalArrayIterator<T> begin() const noexcept { return OptionalArrayIterator<T>{r_.begin()}; }
-    OptionalArrayIterator<T> end()   const noexcept { return OptionalArrayIterator<T>{r_.end()}; }
+    OptionalArrayIterator<T> begin() const noexcept {
+      return OptionalArrayIterator<T>{r_.begin()};
+    }
+    OptionalArrayIterator<T> end() const noexcept {
+      return OptionalArrayIterator<T>{r_.end()};
+    }
   };
 
   // ── Public type aliases for use in lambdas ──────────────────────────────
@@ -2135,7 +2159,7 @@ public:
   //   for (beast::Value     v : root.values()) { ... }
   //   auto first_key = *root.keys().begin();
 
-  KeysRange  keys()   const noexcept { return KeysRange{items()}; }
+  KeysRange keys() const noexcept { return KeysRange{items()}; }
   ValuesRange values() const noexcept { return ValuesRange{items()}; }
 
   // ── as_array<T>() / try_as_array<T>() — typed element views ──────────────
@@ -2152,8 +2176,13 @@ public:
   //   for (auto maybe : doc["mixed"].try_as_array<int>())
   //       if (maybe) total += *maybe;
 
-  template <JsonReadable T> TypedArrayRange<T>    as_array()     const { return TypedArrayRange<T>{elements()}; }
-  template <JsonReadable T> OptionalArrayRange<T> try_as_array() const noexcept { return OptionalArrayRange<T>{elements()}; }
+  template <JsonReadable T> TypedArrayRange<T> as_array() const {
+    return TypedArrayRange<T>{elements()};
+  }
+  template <JsonReadable T>
+  OptionalArrayRange<T> try_as_array() const noexcept {
+    return OptionalArrayRange<T>{elements()};
+  }
 
   // ── at(path) — Runtime JSON Pointer (RFC 6901) ────────────────────────────
   //
@@ -2793,11 +2822,9 @@ private:
   }
 };
 
-// ─────────────────────────────────────────────────────────────
-// Phase 19: NEON Structural Scanner utilities
+// NEON Structural Scanner utilities
 //
 // Verified correct via phase19_test.cpp before integration.
-// ─────────────────────────────────────────────────────────────
 
 // Load 8 bytes without UB
 static BEAST_INLINE uint64_t load64(const char *p) noexcept {
@@ -2843,8 +2870,7 @@ static BEAST_INLINE uint16_t neon_movemask(uint8x16_t mask) noexcept {
 
 #endif // BEAST_HAS_NEON
 
-// ─────────────────────────────────────────────────────────────
-// Phase 50: Stage 1 AVX-512 Structural Scanner
+// Stage 1 AVX-512 Structural Scanner
 //
 // Scans json[0..len) and writes byte offsets to:
 //   '{' '}' '[' ']' ':' ','  — outside strings
@@ -2856,7 +2882,6 @@ static BEAST_INLINE uint16_t neon_movemask(uint8x16_t mask) noexcept {
 //   • Compute string length as O(1): close_offset - open_offset - 1
 //
 // Uses same escape / in-string algorithm as fill_bitmap() for correctness.
-// ─────────────────────────────────────────────────────────────
 #if BEAST_HAS_AVX512
 BEAST_INLINE void stage1_scan_avx512(const char *src, size_t len,
                                      Stage1Index &idx) {
@@ -2889,7 +2914,7 @@ BEAST_INLINE void stage1_scan_avx512(const char *src, size_t len,
 
     uint64_t q_bits = _mm512_cmpeq_epi8_mask(v, v_quote);
     uint64_t bs_bits = _mm512_cmpeq_epi8_mask(v, v_backslash);
-    // Phase 53: split structural chars into bracket_bits ({}[]) and sep_bits
+    // split structural chars into bracket_bits ({}[]) and sep_bits
     // (:,). sep_bits participates in ws_like/vstart computation (so values
     // after :, are still detected as vstart), but is NOT included in the
     // emitted structural bitmask — shrinks positions[] by ~33% for string-heavy
@@ -2949,7 +2974,7 @@ BEAST_INLINE void stage1_scan_avx512(const char *src, size_t len,
     uint64_t vstart = (external_non_ws & ~external_symbols) &
                       (ws_like << 1 | (prev_non_ws >> 63));
 
-    // Phase 53: emit bracket_bits ({[}]) + quotes + vstart — omit sep_bits
+    // emit bracket_bits ({[}]) + quotes + vstart — omit sep_bits
     // (:,). sep_bits is still in external_symbols (for correct ws_like/vstart),
     // but Stage 2 (parse_staged) infers context from the push() bit-stack
     // without needing explicit :, position entries.
@@ -3033,7 +3058,7 @@ BEAST_INLINE void stage1_scan_avx512(const char *src, size_t len,
     uint64_t vstart = (external_non_ws & ~external_symbols) &
                       (ws_like << 1 | (prev_non_ws >> 63));
 
-    // Phase 53: emit only bracket_bits + quotes + vstart (no :,)
+    // emit only bracket_bits + quotes + vstart (no :,)
     uint64_t structural =
         (((bracket_bits & ~inside) | clean_quotes) | vstart) & m;
 
@@ -3048,9 +3073,7 @@ BEAST_INLINE void stage1_scan_avx512(const char *src, size_t len,
   idx.count = count;
 }
 #elif BEAST_HAS_NEON
-// ─────────────────────────────────────────────────────────────
-// Phase 50: Stage 1 NEON Structural Scanner
-// ─────────────────────────────────────────────────────────────
+// Stage 1 NEON Structural Scanner
 BEAST_INLINE void stage1_scan_neon(const char *src, size_t len,
                                    Stage1Index &idx) {
   idx.reserve(len + 1);
@@ -3250,8 +3273,7 @@ BEAST_INLINE void stage1_scan_neon(const char *src, size_t len,
 }
 #endif // BEAST_HAS_AVX512
 
-// ─────────────────────────────────────────────────────────────
-// Phase 32: 256-Entry constexpr Action LUT
+// 256-Entry constexpr Action LUT
 //
 // Replaces the 17-case switch(c) in parse() with an 11-entry
 // switch(kActionLut[c]). Fewer cases → better Branch Target Buffer
@@ -3259,7 +3281,6 @@ BEAST_INLINE void stage1_scan_neon(const char *src, size_t len,
 // The 256-byte table fits in 4 L1 cache lines and is hoisted to a
 // register by the compiler after the first access.
 // Architecture-agnostic pure C++ — no SIMD required.
-// ─────────────────────────────────────────────────────────────
 
 enum ActionId : uint8_t {
   kActNone = 0, // whitespace or unknown — should not reach switch
@@ -3302,9 +3323,7 @@ static constexpr auto kActionLut = []() consteval {
   return t;
 }();
 
-// ─────────────────────────────────────────────────────────────
-// Parser — Phase 19 hot loop
-// ─────────────────────────────────────────────────────────────
+// Parser — hot loop
 
 class Parser {
   const char *p_;
@@ -3313,7 +3332,7 @@ class Parser {
   DocumentView *doc_;
   size_t depth_ = 0;
 
-  // Phase 60-A: compact per-depth context state.
+  // compact per-depth context state.
   // Replaces 3×64-bit bit-stacks + overflow array with one byte per depth.
   //   bit0 = is_key  (next push is an object key)
   //   bit1 = in_obj  (current depth is an object, not array)
@@ -3326,20 +3345,20 @@ class Parser {
   uint8_t cur_state_ = 0;
   uint8_t cstate_stack_[1088] = {};
 
-  // Phase 19 Technique 8: local tape_head_ register variable.
+  // Technique 8: local tape_head_ register variable.
   // Kept as a field but initialized from doc_->tape.base in parse().
   // The compiler will register-allocate this across the entire parse() body,
   // eliminating the pointer-chain access doc_->tape.head on every push().
   TapeNode *tape_head_ = nullptr;
 
-  // Phase 59: Key Length Cache — schema-prediction key scanner bypass.
+  // Key Length Cache — schema-prediction key scanner bypass.
   // For each nesting depth, caches JSON source lengths of object keys seen in
   // the first object at that depth. Subsequent same-schema objects skip the
   // SIMD key-end scan: a single byte comparison s[cached_len]=='"' suffices.
   //
   // citm_catalog.json: 243 performances × 9 keys = 2187 SIMD scans replaced
   // by byte comparisons.
-  // Phase 65-M1: twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
+  // twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
   // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to
   // 32 covers all twitter keys and citm's worst-case depth (9 keys per
   // performance). Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets;
@@ -3370,14 +3389,13 @@ class Parser {
       return static_cast<char>(c);
 
 #if BEAST_HAS_AVX512
-    // ── Phase 46: AVX-512 64B batch whitespace skip ──────────────────────────
+    // ── AVX-512 64B batch whitespace skip ──────────────────────────
     // _mm512_cmpgt_epi8_mask vs 0x20 is 1 op (vs AVX2's 8 ops for 32B).
     // 64B/iter vs SWAR-32's 32B/iter → ~2× throughput for whitespace-heavy
     // JSON.
     //
     // SWAR-8 pre-gate: twitter.json has 2-8 WS bytes between tokens; absorb
-    // them here before paying any 512-bit register setup cost (Phase 37
-    // lesson).
+    // them here before paying any 512-bit register setup cost (    // lesson).
     {
       uint64_t am = swar_action_mask(load64(p_));
       if (BEAST_LIKELY(am != 0)) {
@@ -3410,7 +3428,7 @@ class Parser {
       p_ += 8;
     }
 #elif BEAST_HAS_NEON
-    // ── Phase 57: Global AArch64 NEON Loop ──────────────────────────────────
+    // ── Global AArch64 NEON Loop ──────────────────────────────────
     // SWAR pre-gates are strictly avoided on AArch64 because vector setup
     // (vld1q) and max-reduce (vmaxvq) have significantly lower latency and
     // higher throughput than scalar GPR dependencies on both Apple Silicon
@@ -3474,9 +3492,9 @@ class Parser {
     return 0;
   }
 
-  // ── Phase 31: Contextual SIMD Gate String Scanner ─────────────
+  // ── Contextual SIMD Gate String Scanner ─────────────
   //
-  // Theory: Phase 30 reverted NEON because it added startup overhead on
+  // Theory: reverted NEON because it added startup overhead on
   // short strings. Root fix: an 8B SWAR gate runs first. Short strings
   // (≤8 chars, ≈36% of twitter.json) exit immediately at ZERO SIMD cost.
   // Only when the string is confirmed > 8 chars do we enter the SIMD loop.
@@ -3530,10 +3548,10 @@ class Parser {
     }
 #elif BEAST_HAS_AVX2
     // x86_64 AVX2/AVX-512: SIMD string scanner.
-    // Phase 34: AVX2 32B. Phase 42: AVX-512 64B outer loop (when available).
+    // AVX2 32B. : AVX-512 64B outer loop (when available).
     // aarch64 agents: inactive on M1 builds. x86_64: build with -march=native.
 #if BEAST_HAS_AVX512
-    // Phase 42: AVX-512 64B per iteration — halves loop count vs AVX2.
+    // AVX-512 64B per iteration — halves loop count vs AVX2.
     // _mm512_cmpeq_epi8_mask → uint64_t mask directly (no vpor needed).
     {
       const __m512i vq512 = _mm512_set1_epi8('"');
@@ -3645,10 +3663,10 @@ class Parser {
     return p;
   }
 
-  // ── Phase 41: skip_string_from32
+  // ── skip_string_from32
   // ───────────────────────────────────────── Like skip_string(s+32) but
   // skips the SWAR-8 gate in scan_string_end. Called when bytes [s, s+32)
-  // are already confirmed clean by kActString's Phase 36 AVX2 inline scan.
+  // are already confirmed clean by kActString's AVX2 inline scan.
   // Saves ~11 scalar instructions per call by using AVX2 directly at p =
   // s+32 (no 8-byte prologue). For strings 32-63 chars: 1 AVX2 op total vs
   // SWAR-8+AVX2 (17 instructions).
@@ -3702,7 +3720,7 @@ class Parser {
     return p;
   }
 
-  // ── Phase 43: skip_string_from64
+  // ── skip_string_from64
   // ───────────────────────────────────────── Like skip_string_from32 but
   // starts 64B further (s+64). Called when bytes [s, s+64) are confirmed
   // clean by an AVX-512 inline scan. For strings 64-127 chars: 1 AVX-512 op
@@ -3784,14 +3802,14 @@ class Parser {
   // skip. Returns the char that follows the ':' (the start of the value, or
   // 0 on error). Also sets p_ to the position of that char.
   //
-  // Phase B1 upgrade: SWAR-24 fast path (same as main switch case '"':)
+  // upgrade: SWAR-24 fast path (same as main switch case '"':)
   // covers ≤24-byte keys with no backslash, accounting for 90%+ of
   // twitter.json keys.
   BEAST_INLINE char scan_key_colon_next(const char *s,
                                         const char **key_end_out) noexcept {
     // s is the char after the opening '"' of the key.
     const char *e;
-    // Phase 59: KeyCache fast path — O(1) key-end detection.
+    // KeyCache fast path — O(1) key-end detection.
     // In valid JSON, any '"' inside a string is escaped as '\"', so
     // s[cached_len] == '"' unambiguously identifies the closing quote.
     // Skips the full SIMD scan for repeated same-schema objects (citm: 2187×).
@@ -3803,7 +3821,7 @@ class Parser {
       if (kidx < KeyLenCache::MAX_KEYS) {
         const uint16_t cl = kc_.lens[kd][kidx];
         if (cl != 0) {
-          // Phase 65: simplified KeyLenCache guard — s[cl+1]==':' only.
+          // simplified KeyLenCache guard — s[cl+1]==':' only.
           // A true cache hit: s[cl] == '"' (key's closing quote) and
           // s[cl+1] == ':' (the key-value separator that follows immediately).
           // This single check rejects all known false-positive patterns:
@@ -3826,7 +3844,7 @@ class Parser {
     }
 #if BEAST_HAS_AVX2
 #if BEAST_HAS_AVX512
-    // ── Phase 43: AVX-512 64B one-shot key scan
+    // ── AVX-512 64B one-shot key scan
     // ───────────────────────────── Handles keys ≤63 chars in one 512-bit
     // operation.
     if (BEAST_LIKELY(s + 64 <= end_)) {
@@ -3850,7 +3868,7 @@ class Parser {
     }
     // s+64 > end_: fall through to AVX2 32B
 #endif
-    // ── Phase 36: AVX2 32B key scan
+    // ── AVX2 32B key scan
     // ───────────────────────────────────────── Handles keys ≤31 chars in
     // one 256-bit operation. mask==0 or backslash → goto skn_slow directly
     // (no SWAR-24 redundancy).
@@ -3868,7 +3886,7 @@ class Parser {
         }
         goto skn_slow; // backslash → full scanner
       }
-      // ── Phase 41: mask==0 — bytes [s, s+32) are clean ────────────────
+      // ── mask==0 — bytes [s, s+32) are clean ────────────────
       // skip_string_from32 starts AVX2 at s+32 directly, skipping
       // scan_string_end's SWAR-8 gate (~11 instructions saved per call).
       e = skip_string_from32(s);
@@ -3876,7 +3894,7 @@ class Parser {
         return 0;
       goto skn_found;
     }
-    // ── Phase 45: near end of buffer on AVX2+ → skn_slow directly
+    // ── near end of buffer on AVX2+ → skn_slow directly
     // ────────── SWAR-24 is dead code on AVX2/AVX-512 machines (only
     // reached for keys within the last 31B of input, i.e. essentially never
     // on real files). Removing it shrinks the function → better L1 I-cache
@@ -3884,12 +3902,12 @@ class Parser {
     goto skn_slow;
 #elif BEAST_HAS_NEON
 #if defined(BEAST_ARCH_APPLE_SILICON)
-    // ── Phase 60-C / 65-M1: Apple Silicon 3×16B NEON key scanner ────────────
+    // ── / 65-M1: Apple Silicon 3×16B NEON key scanner ────────────
     // M1/M2/M3 characteristics that enable this extension:
     //   - 128B L1/L2 cache lines: 3×16B loads (48B) still within one cache line
     //     on aligned access → 3rd load is effectively free after the 1st miss.
     //   - 576-entry ROB: wider speculative window absorbs the extra branch vs
-    //     Cortex-X3 (~200 ROB entries) where Phase 60-B showed +5.6%
+    //     generic ARM64 (~200 ROB entries) where showed +5.6%
     //     regression.
     //   - Pure NEON: no scalar pre-gates; all loads are vector instructions.
     //
@@ -3979,9 +3997,9 @@ class Parser {
     }
     goto skn_slow;
 #else
-    // ── Phase 57: Generic AArch64 Pure NEON 2×16B ────────────────────────────
+    // ── Generic AArch64 Pure NEON 2×16B ────────────────────────────
     // NEON vectorization outperforms scalar SWAR-24 globally across all AArch64
-    // (Graviton, Cortex-X, Neoverse) due to wide vector pipelines.
+    // generic ARM64 due to wide vector pipelines.
     //
     // Cycle Latency & ILP Analysis vs SWAR:
     // 1. SWAR GPR: ldr(8B) -> eor -> sub -> bic -> and
@@ -3989,13 +4007,13 @@ class Parser {
     // 2. NEON SIMD: vld1q(16B) -> vceqq -> vmaxvq
     //    Dependencies: 2 Vector ALU ops. Critical path: ~5-6 cycles/16B.
     //
-    // Phase 60-B result (Cortex-X3 pinned, 500 iter):
+    // result (ARM64 pinned, 500 iter):
     //   Pure NEON baseline: 243.7 μs
     //   + 8B scalar while pre-scan: 257.5 μs (+5.6% regression)
     //   Root cause: branch dependency stalls NEON pipeline in ~200-entry ROB.
     //   → Do NOT add scalar pre-gates here; keep purely vectorised.
     //
-    // Phase 65-M1: when both 16B checks are clean (key >32B), call
+    // when both 16B checks are clean (key >32B), call
     // skip_string(s+32) instead of goto skn_slow to avoid rescanning [s,s+32).
     if (BEAST_LIKELY(s + 32 <= end_)) {
       const uint8x16_t vq = vdupq_n_u8('"');
@@ -4033,9 +4051,9 @@ class Parser {
 #endif // BEAST_ARCH_APPLE_SILICON vs generic AArch64
 #else
     // ── SWAR-24 (non-SIMD fallback: no AVX2, no NEON) ───────────────────────
-    // Phase 56-5 finding: On Apple Silicon, this scalar SWAR path is faster
+    // finding: On Apple Silicon, this scalar SWAR path is faster
     // than NEON for short keys due to massive OoO windows and fast predictors.
-    // Phase D2: load v0 first; exit immediately for ≤8-char keys (most common
+    // load v0 first; exit immediately for ≤8-char keys (most common
     // twitter.json keys: "id", "text", "user", "lang" etc.) before loading
     // v1/v2.
     {
@@ -4086,7 +4104,7 @@ class Parser {
     if (BEAST_UNLIKELY(e >= end_ || *e != '"'))
       return 0; // malformed
   skn_found:
-    // Phase 59: record key length for future cache hits (first-pass learning).
+    // record key length for future cache hits (first-pass learning).
     if (BEAST_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
       const uint8_t kidx = kc_.key_idx[kd];
       if (kidx < KeyLenCache::MAX_KEYS) {
@@ -4123,7 +4141,7 @@ class Parser {
     return skip_to_action();
   }
 
-  // ── Phase 19 Technique 8: tape push via local register pointer ─
+  // ── Technique 8: tape push via local register pointer ─
   // tape_head_ is kept in a CPU register across the parse() body.
   // No pointer chain: doc_->tape.head is only synced at the very end.
   // push(): for every token EXCEPT ObjectEnd/ArrayEnd.
@@ -4133,13 +4151,13 @@ class Parser {
   //   key) sep = 1  → comma         (non-first array element or object key)
   //   sep = 2  → colon         (object value, always)
   BEAST_INLINE void push(TapeNodeType t, uint16_t l, uint32_t o) noexcept {
-    // Phase 58-A: prefetch tape write slot 16 TapeNodes (192B) ahead — store
+    // prefetch tape write slot 16 TapeNodes (192B) ahead — store
     // hint. Hides tape-arena write latency; significant gain on large files
     // (canada).
     __builtin_prefetch(tape_head_ + 16, 1, 1);
     uint8_t sep = 0;
     if (BEAST_LIKELY(depth_ > 0)) {
-      // Phase 64 (x86_64): LUT-based sep+state computation.
+      // (x86_64): LUT-based sep+state computation.
       // Replaces 14-instruction bit arithmetic with 2 table loads.
       // Valid states: 0(arr,no-elem), 3(obj,key,no-elem), 4(arr,has-elem),
       //               6(obj,val), 7(obj,key,has-elem).
@@ -4182,8 +4200,8 @@ public:
         tape_head_(doc->tape.base) // initialize local head from arena base
   {}
 
-  // ── Phase 19: main parse loop ──────────────────────────────
-  // Key changes vs Phase 18:
+  // ── main parse loop ──────────────────────────────
+  // Key changes vs :
   //   1. char c = skip_to_action()  → switch(c) avoids re-read of *p_
   //   2. tape_head_ is local → no doc_->tape.size() pointer chain
   //   3. NEON 16-byte WS skip in skip_to_action() path
@@ -4197,13 +4215,13 @@ public:
     }
 
     while (p_ < end_) {
-      // Phase 58-A / Apple Silicon: prefetch BEAST_PREFETCH_DISTANCE bytes
+      // / Apple Silicon: prefetch BEAST_PREFETCH_DISTANCE bytes
       // ahead with L2 locality hint. Distance is arch-tuned at compile time:
       //   Apple Silicon (M1/M2/M3): 512B (4 × 128B cache lines)
-      //   Cortex-X3 / generic ARM64: 256B (4 × 64B; Phase 58-A winner)
-      //   x86_64: 192B (Phase 48 measured optimum)
+      //   Generic ARM64: 256B (4 × 64B; winner)
+      //   x86_64: 192B
       BEAST_PREFETCH(p_ + BEAST_PREFETCH_DISTANCE);
-      // Phase 32: LUT dispatch — 11 ActionId cases vs 17 raw char cases.
+      // LUT dispatch — 11 ActionId cases vs 17 raw char cases.
       // kActionLut[c] maps every byte to an ActionId in one L1 cache
       // access.
       switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
@@ -4213,12 +4231,12 @@ public:
         if (BEAST_UNLIKELY(cur_state_ & 0b001u))
           goto fail;
         push(TapeNodeType::ObjectStart, 0, static_cast<uint32_t>(p_ - data_));
-        // Phase 60-A: save parent state, init new object context.
+        // save parent state, init new object context.
         // cstate_stack_[depth_] saves cur_state_ for restore on close.
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
         ++depth_;
-        // Phase 59: reset key index for newly entered object depth.
+        // reset key index for newly entered object depth.
         if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
           kc_.key_idx[depth_] = 0;
         ++p_;
@@ -4235,7 +4253,7 @@ public:
         if (BEAST_UNLIKELY(cur_state_ & 0b001u))
           goto fail;
         push(TapeNodeType::ArrayStart, 0, static_cast<uint32_t>(p_ - data_));
-        // Phase 60-A: save parent state, init new array context.
+        // save parent state, init new array context.
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
         ++depth_;
@@ -4253,7 +4271,7 @@ public:
         if (BEAST_UNLIKELY(depth_ == 0))
           goto fail;
         --depth_;
-        // Phase 60-A: restore parent depth's state (no mask arithmetic).
+        // restore parent depth's state (no mask arithmetic).
         cur_state_ = cstate_stack_[depth_];
         push_end(c == '}' ? TapeNodeType::ObjectEnd : TapeNodeType::ArrayEnd,
                  static_cast<uint32_t>(p_ - data_));
@@ -4268,7 +4286,7 @@ public:
         const uint64_t bsm = K * static_cast<uint8_t>('\\');
 #if BEAST_HAS_AVX2
 #if BEAST_HAS_AVX512
-        // ── Phase 43: AVX-512 64B one-shot string scan
+        // ── AVX-512 64B one-shot string scan
         // ────────────────────── One 512-bit load handles ≤63-char strings
         // in a single zmm op. Expected gain: citm (long keys) −5~10%,
         // twitter moderate.
@@ -4300,7 +4318,7 @@ public:
         }
         // s+64 > end_: fall through to AVX2 32B
 #endif
-        // ── Phase 36: AVX2 32B inline string scan
+        // ── AVX2 32B inline string scan
         // ───────────────────────── One 256-bit load handles strings up to
         // 31 chars in 1 SIMD op. twitter.json: 84% of strings ≤24 chars —
         // major hot-path speedup. mask==0 or backslash → goto str_slow
@@ -4322,7 +4340,7 @@ public:
             }
             goto str_slow; // backslash first → full scanner
           }
-          // ── Phase 41: mask==0 — bytes [s, s+32) are clean ──────────────
+          // ── mask==0 — bytes [s, s+32) are clean ──────────────
           // skip_string_from32 starts AVX2 at s+32 directly, skipping
           // scan_string_end's SWAR-8 gate (~11 instructions saved per
           // call).
@@ -4336,7 +4354,7 @@ public:
         }
         // near end of buffer: fall through to SWAR-24
 #elif BEAST_HAS_NEON
-        // ── Phase 62: NEON 32B inline value-string scan ─────────────────
+        // ── NEON 32B inline value-string scan ─────────────────
         // Mirrors the NEON path in scan_key_colon_next(): two 16B loads
         // cover strings up to 31 chars (the majority of twitter.json
         // value strings: tweet dates, screen names, short URLs).
@@ -4386,7 +4404,7 @@ public:
         // near end of buffer: fall through to SWAR-24
 #endif
         // SWAR cascaded: load v0 first, early exit for ≤8-char strings
-        // (Phase D2: covers 36% of twitter.json strings without loading
+        // (: covers 36% of twitter.json strings without loading
         // v1/v2). twitter.json coverage: ≤8 (36%), ≤16 (64%), ≤24 (84%)
         if (BEAST_LIKELY(s + 24 <= end_)) {
           uint64_t v0;
@@ -4454,7 +4472,7 @@ public:
         p_ = e + 1;
 
       str_done:
-        // ── Phase 26 + B1: String Double Pump with fused key scanner ──
+        // ── + B1: String Double Pump with fused key scanner ──
         // Strings are almost always followed by ':', ',', '}', or ']'.
         if (BEAST_LIKELY(p_ < end_)) {
           unsigned char nc = static_cast<unsigned char>(*p_);
@@ -4475,12 +4493,12 @@ public:
           if (nc == ',') {
             // After a value: consume ',' and find next token.
             ++p_;
-            // ── Phase B1: fused val→sep→key scanner ───────────────────
+            // ── fused val→sep→key scanner ───────────────────
             // If inside an object (depth ≤ 64), the next token is a key.
             // Fuse: skip WS + scan key + consume ':' + skip WS in one shot,
             // eliminating one switch dispatch and one extra
             // skip_to_action().
-            // Phase 60-A: in_obj = bit1 of cur_state_ (register-resident)
+            // in_obj = bit1 of cur_state_ (register-resident)
             if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
               // In object: expect next key string
               if (BEAST_LIKELY(p_ < end_)) {
@@ -4516,7 +4534,7 @@ public:
             if (BEAST_UNLIKELY(depth_ == 0))
               goto fail;
             --depth_;
-            // Phase 60-A: restore parent state (no mask arithmetic needed)
+            // restore parent state (no mask arithmetic needed)
             cur_state_ = cstate_stack_[depth_];
             push_end(nc == '}' ? TapeNodeType::ObjectEnd
                                : TapeNodeType::ArrayEnd,
@@ -4559,9 +4577,9 @@ public:
         } else
           goto fail;
       bool_null_done:
-        // ── Phase 44: Double-pump bool/null with fused key scanner ──────
+        // ── Double-pump bool/null with fused key scanner ──────
         // true/false/null are values; always followed by ',', ']', or '}'.
-        // Mirrors the Phase B1 number fusion: avoid re-entering switch top,
+        // Mirrors the number fusion: avoid re-entering switch top,
         // and in object context fuse the next key scan after ','.
         if (BEAST_LIKELY(p_ < end_)) {
           unsigned char nc = static_cast<unsigned char>(*p_);
@@ -4573,7 +4591,7 @@ public:
           }
           if (BEAST_LIKELY(nc == ',')) {
             ++p_;
-            // Phase 60-A: in_obj = bit1 of cur_state_
+            // in_obj = bit1 of cur_state_
             if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
               if (BEAST_LIKELY(p_ < end_)) {
                 unsigned char fc = static_cast<unsigned char>(*p_);
@@ -4605,7 +4623,7 @@ public:
             if (BEAST_UNLIKELY(depth_ == 0))
               goto fail;
             --depth_;
-            // Phase 60-A: restore parent state
+            // restore parent state
             cur_state_ = cstate_stack_[depth_];
             push_end(nc == '}' ? TapeNodeType::ObjectEnd
                                : TapeNodeType::ArrayEnd,
@@ -4630,7 +4648,7 @@ public:
         const char *s = p_;
         if (*p_ == '-')
           ++p_;
-        // ── Phase 66-M1: NEON 16B integer scanner ──────────────────────
+        // ── NEON 16B integer scanner ──────────────────────
         // Replaces SWAR-8 (8B/iter) with NEON (16B/iter) on AArch64.
         // canada.json: integer parts are short (1-5 digits) → minimal gain
         //   but consistent with the fractional-part NEON approach below.
@@ -4680,7 +4698,7 @@ public:
           ++p_;
           if (p_ < end_ && (*p_ == '+' || *p_ == '-'))
             ++p_;
-          // ── Phase 66-M1: NEON 16B float digit scanner (fractional) ─
+          // ── NEON 16B float digit scanner (fractional) ─
           // canada.json: 2.32M floats, avg ~14 fractional digits.
           //   SWAR-8: 2 iterations/float (8B + 6B tail) = 16 ops/float.
           //   NEON-16: 1 iteration/float (14B in 16B chunk) = 8 ops/float.
@@ -4692,7 +4710,7 @@ public:
           // Pure NEON: vmaxvq_u32 → branch → scalar pinpoint (identical
           // pattern to scan_string_end NEON; proven safe on all AArch64).
           //
-          // Phase 70-M1 FAILED: vgetq_lane_u64 + ctzll in exit path
+          // FAILED: vgetq_lane_u64 + ctzll in exit path
           // improved canada +8.8% but caused twitter +128% regression
           // even with fresh profdata. Root cause: additional basic blocks
           // in parse() change PGO+LTO code layout → twitter L1 I-cache
@@ -4750,7 +4768,7 @@ public:
         push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
              static_cast<uint16_t>(p_ - s), static_cast<uint32_t>(s - data_));
 
-        // ── Phase 25 + B1: Double-pump Number Parsing with fused key
+        // ── + B1: Double-pump Number Parsing with fused key
         // scanner ─ Numbers are values. They are ALWAYS followed by ',' or
         // ']' or '}'. Instead of falling back to the top of the switch
         // loop, we peek at the next char. If it's ',' in an object, fuse
@@ -4765,7 +4783,7 @@ public:
           }
           if (BEAST_LIKELY(nc == ',')) {
             ++p_;
-            // Phase B1 + 60-A: fused key scan; in_obj = bit1 of cur_state_
+            // + 60-A: fused key scan; in_obj = bit1 of cur_state_
             if (BEAST_LIKELY(depth_ > 0 && (cur_state_ & 0b010u))) {
               if (BEAST_LIKELY(p_ < end_)) {
                 unsigned char fc = static_cast<unsigned char>(*p_);
@@ -4798,7 +4816,7 @@ public:
             if (BEAST_UNLIKELY(depth_ == 0))
               goto fail;
             --depth_;
-            // Phase 60-A: restore parent state
+            // restore parent state
             cur_state_ = cstate_stack_[depth_];
             push_end(nc == '}' ? TapeNodeType::ObjectEnd
                                : TapeNodeType::ArrayEnd,
@@ -4816,7 +4834,7 @@ public:
         goto fail;
       } // switch
 
-      // ── Phase 19b: Inline separator + peek-next optimization ─────────
+      // ── Inline separator + peek-next optimization ─────────
       // After each token, consume ':' or ',' inline (no switch iteration).
       // After the separator, try a direct *p_ peek before calling
       // skip_to_action. For JSON like "key":value or value,"next", the char
@@ -4857,7 +4875,7 @@ public:
   }
 
 #if BEAST_HAS_AVX512 || BEAST_HAS_NEON
-  // ── Phase 50: Stage 2 — index-based parse loop ───────────────────────
+  // ── Stage 2 — index-based parse loop ───────────────────────
   //
   // Key differences from parse():
   //   • No skip_to_action() calls — structural positions pre-computed by
@@ -4892,11 +4910,11 @@ public:
 
       case kActObjOpen: {
         push(TapeNodeType::ObjectStart, 0, off);
-        // Phase 60-A: save parent state, init new object context.
+        // save parent state, init new object context.
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
         ++depth_;
-        // Phase 59: reset key index for newly entered object depth.
+        // reset key index for newly entered object depth.
         if (BEAST_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
           kc_.key_idx[depth_] = 0;
         last_off = off + 1;
@@ -4905,7 +4923,7 @@ public:
 
       case kActArrOpen: {
         push(TapeNodeType::ArrayStart, 0, off);
-        // Phase 60-A: save parent state, init new array context.
+        // save parent state, init new array context.
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b000u; // in_obj=0, is_key=0, has_elem=0
         ++depth_;
@@ -4917,7 +4935,7 @@ public:
         if (BEAST_UNLIKELY(depth_ == 0))
           goto s2_fail;
         --depth_;
-        // Phase 60-A: restore parent state (no mask arithmetic needed).
+        // restore parent state (no mask arithmetic needed).
         cur_state_ = cstate_stack_[depth_];
         push_end(c == '}' ? TapeNodeType::ObjectEnd : TapeNodeType::ArrayEnd,
                  off);
@@ -4937,9 +4955,9 @@ public:
         break;
       }
 
-        // Phase 53: kActColon / kActComma are no longer emitted by
+        // kActColon / kActComma are no longer emitted by
         // stage1_scan_avx512. push() cur_state_ handles key↔value
-        // alternation internally (Phase 60-A).
+        // alternation internally.
 
       case kActNumber: {
         // Scan integer/float from data_[off]; push raw token.
@@ -5065,9 +5083,7 @@ public:
 #endif // BEAST_HAS_AVX512
 };
 
-// ─────────────────────────────────────────────────────────────
 // Public API
-// ─────────────────────────────────────────────────────────────
 
 inline Value parse_reuse(DocumentView &doc, std::string_view json) {
   doc.source = json;
@@ -5088,7 +5104,7 @@ inline Value parse_reuse(DocumentView &doc, std::string_view json) {
     doc.tape.reset(); // hot path: head = base (1 instruction)
   }
 #if BEAST_HAS_AVX512
-  // Phase 50: Stage 1+2 is beneficial when the positions array fits in
+  // Stage 1+2 is beneficial when the positions array fits in
   // L2/L3 cache and the JSON is string-heavy (e.g. twitter.json,
   // citm.json). Large number-heavy files (canada.json, gsoc-2018.json) have
   // too many positions (~1M+) causing L3 pressure: Stage 1 overhead exceeds
@@ -5122,7 +5138,6 @@ inline void Value::merge_patch(std::string_view patch_json) {
   merge_patch_impl_(patch);
 }
 
-// ───────────────────────────────────────────────────────────────────────────
 // SafeValue — optional-propagating chain proxy
 //
 // Returned by Value::get(key/idx).  Every subsequent operator[] propagates
@@ -5137,7 +5152,6 @@ inline void Value::merge_patch(std::string_view patch_json) {
 // SafeValue is std::optional<Value>-compatible: has_value(), operator bool,
 // operator* and operator-> all work, so existing code using optional<Value>
 // patterns compiles unchanged.
-// ───────────────────────────────────────────────────────────────────────────
 
 /// @brief An optional-propagating proxy for safe JSON navigation.
 /// @details `SafeValue` is obtained via `Value::get()`. It propagates absence
@@ -5682,7 +5696,6 @@ inline Value parse_strict(Document &doc, std::string_view json) {
 namespace detail {
 
 // ── Type trait helpers
-// ────────────────────────────────────────────────────────
 
 template <typename T, template <typename...> class U>
 struct is_specialization_of : std::false_type {};
@@ -5691,7 +5704,6 @@ template <template <typename...> class U, typename... Args>
 struct is_specialization_of<U<Args...>, U> : std::true_type {};
 
 // ── Concepts
-// ──────────────────────────────────────────────────────────────────
 
 template <typename T>
 concept JsonDetailBool =
@@ -5755,14 +5767,12 @@ concept HasAppendBeastJson =
     requires(std::string &out, const T &t) { append_beast_json(out, t); };
 
 // ── Forward declarations
-// ──────────────────────────────────────────────────────
 
 template <typename T> void from_json(const Value &v, T &out);
 template <typename T> std::string to_json_str(const T &in);
 template <typename T> void append_json(std::string &out, const T &in);
 
 // ── Tuple/pair helpers
-// ────────────────────────────────────────────────────────
 
 template <typename Tup> void from_json_tuple_(const Value &v, Tup &out) {
   std::vector<Value> elems;
@@ -6068,7 +6078,6 @@ template <typename T> void append_json(std::string &out, const T &in) {
 }
 
 // ── Per-field helpers for BEAST_JSON_FIELDS
-// ───────────────────────────────────
 
 template <typename T>
 inline void from_json_field(const Value &obj, const char *key, T &field) {
