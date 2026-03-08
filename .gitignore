@@ -36,3 +36,4 @@ gsoc-2018.json
 # CTest temporary output
 Testing/
 __pycache__/
+**/node_modules
