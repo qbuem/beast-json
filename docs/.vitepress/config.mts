@@ -18,10 +18,7 @@ export default withMermaid(
             ['meta', { name: 'twitter:card', content: 'summary_large_image' }]
         ],
         themeConfig: {
-            logo: {
-                light: '/logo-light.png',
-                dark: '/logo-dark.png'
-            },
+            logo: '/logo.png',
             nav: [
                 { text: 'Guide', link: '/guide/introduction' },
                 { text: 'Architecture', link: '/theory/architecture' },
