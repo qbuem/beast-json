@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
     title: "Beast JSON",
     description: "The Ultimate High-Performance C++20 JSON Library",
+    base: '/beast-json/',
     themeConfig: {
         logo: '/logo.png',
         nav: [
@@ -59,7 +60,7 @@ export default defineConfig({
 
         footer: {
             message: 'Released under the Apache 2.0 License.',
-            copyright: 'Copyright © 2024-present Beast JSON Authors'
+            copyright: 'Copyright © 2024-2026 Beast JSON Authors'
         }
     }
 })

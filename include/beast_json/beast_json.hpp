@@ -4,6 +4,8 @@
  *
  * 🏆 Ultimate C++20 JSON Library - 100% Complete!
  *
+ * (c) 2024-2026 The LKB Innovations.
+ *
  * Performance (ALL Optimizations):
  * ✨ Parse:     1200-1400 MB/s (Russ Cox + SIMD)
  * ✨ Serialize: 1200-1500 MB/s (Russ Cox + fast paths)
