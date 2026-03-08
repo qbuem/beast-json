@@ -9,6 +9,9 @@ export default withMermaid(
         sitemap: {
             hostname: 'https://the-lkb.github.io/beast-json/'
         },
+        markdown: {
+            math: true
+        },
         head: [
             ['meta', { name: 'keywords', content: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer' }],
             ['meta', { property: 'og:title', content: 'Beast JSON - Ultimate C++20 JSON Engine' }],

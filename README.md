@@ -23,6 +23,18 @@ By fully leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, **SWAR (SIMD W
 * **World-Class Performance**: Outperforms `yyjson`, `simdjson`, `glaze`, and `rapidjson` in parsing and serialization speed on both `x86_64` (Intel/AMD) and `AArch64` (Apple Silicon, ARM64).
 * **Zero-Allocation Execution**: Memory-mapped zero-copy strings for parsing, and direct-to-buffer stream pushing for serialization. The ultimate zero-cost abstraction.
 * **C++20 Native**: Clean, elegant integration using C++20 standard Concepts and fold expressions. No legacy SFINAE hacks. Range-based iterations directly supported.
+
+```cpp
+struct User {
+    uint64_t id;
+    std::string username;
+    std::vector<std::string> tags;
+    bool active;
+};
+
+// Registers all fields for automation
+BEAST_JSON_FIELDS(User, id, username, tags, active)
+```
 * **Auto-Serialization Macro**: One-line macro (`BEAST_JSON_FIELDS`) generates 100% automated struct-to-JSON and JSON-to-struct mapping with zero boilerplate.
 * **Safe Monadic Interface**: Never throw exceptions nor segfault using the `SafeValue` (`std::optional`-propagating) interface for deep traversal arrays.
 * **Single Header**: Drop `beast_json.hpp` into your project. That's it.

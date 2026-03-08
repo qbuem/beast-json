@@ -5,12 +5,12 @@ Beast JSON operates on a **Linear Tape DOM** model. Unlike tree-based DOMs (like
 ## 🧱 Memory Layout: The Linear Tape
 
 ```mermaid
-graph LR
+graph TD
     subgraph JSON_Source["JSON Input"]
     STR["{'id': 101, 'active': true}"]
     end
     
-    subgraph Tape_DOM["Beast JSON Tape (64-bit Blocks)"]
+    subgraph Tape_DOM["Beast JSON Tape<br/>(64-bit Blocks)"]
     N1["[OBJ_START]"]
     N2["['id']"]
     N3["[101]"]

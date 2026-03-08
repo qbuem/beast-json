@@ -44,9 +44,10 @@ struct Config {
     std::string host;
     int port;
     bool secure;
-
-    BEAST_JSON_FIELDS(host, port, secure)
 };
+
+// Registers all fields for automation
+BEAST_JSON_FIELDS(Config, host, port, secure)
 
 Config cfg{"localhost", 8080, true};
 std::string out = beast::json::dump(cfg);

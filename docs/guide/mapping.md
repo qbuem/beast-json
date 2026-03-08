@@ -32,10 +32,10 @@ struct UserProfile {
     std::string username;
     std::vector<std::string> tags;
     bool active;
-
-    // Registers all fields for automation
-    BEAST_JSON_FIELDS(id, username, tags, active)
 };
+
+// Registers all fields for automation
+BEAST_JSON_FIELDS(UserProfile, id, username, tags, active)
 ```
 
 ### 🏎️ Why use the macro?
