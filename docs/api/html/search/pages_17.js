@@ -9,5 +9,6 @@ var searchData=
   ['non_20string_20object_20keys_20iterator_20out_20of_20bounds_20heap_20buffer_20overflow_6',['Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md34',1,'']]],
   ['non_20throwing_20access_20try_5fas_7',['Non-throwing access (&lt;span class=&quot;tt&quot;&gt;try_as&lt;/span&gt;)',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md48',1,'']]],
   ['not_20an_20error_8',['5. as&amp;lt;int&amp;gt; on a double returns a cast, not an error',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md79',1,'']]],
-  ['null_20dereference_20in_20skip_5fto_5faction_20heap_20buffer_20overflow_9',['Bug 1 — Null-Dereference in &lt;span class=&quot;tt&quot;&gt;skip_to_action()&lt;/span&gt; &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md32',1,'']]]
+  ['null_20dereference_20in_20skip_5fto_5faction_20heap_20buffer_20overflow_9',['Bug 1 — Null-Dereference in &lt;span class=&quot;tt&quot;&gt;skip_to_action()&lt;/span&gt; &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md32',1,'']]],
+  ['number_20format_20test_5fstrict_5fnumber_20cpp_10',['2.2 Strict Number Format (&lt;span class=&quot;tt&quot;&gt;test_strict_number.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md85',1,'']]]
 ];

@@ -78,6 +78,28 @@ var NAVTREE =
         [ "5. as&lt;int&gt; on a double returns a cast, not an error", "md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md79", null ]
       ] ]
     ] ],
+    [ "Beast JSON — Test Cases (TC) Specification", "md_docs_2_t_e_s_t___c_a_s_e_s.html", [
+      [ "1. Overview of the Verification Strategy", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md81", null ],
+      [ "2. Core Compliance &amp; Standard Verification", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md83", [
+        [ "2.1 RFC 8259 Compliance (<span class=\"tt\">test_compliance.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md84", null ],
+        [ "2.2 Strict Number Format (<span class=\"tt\">test_strict_number.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md85", null ],
+        [ "2.3 UTF-8 and Unicode Safety (<span class=\"tt\">test_unicode.cpp</span>, <span class=\"tt\">test_utf8_validation.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md86", null ],
+        [ "2.4 Unescaped Control Characters (<span class=\"tt\">test_control_char.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md87", null ]
+      ] ],
+      [ "3. DOM &amp; Abstract API Verification", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md89", [
+        [ "3.1 Lazy Type Inference (<span class=\"tt\">test_lazy_types.cpp</span>, <span class=\"tt\">test_lazy_roundtrip.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md90", null ],
+        [ "3.2 Value Accessors (<span class=\"tt\">test_value_accessors.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md91", null ]
+      ] ],
+      [ "4. Extensions &amp; Syntactic Sugar", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md93", [
+        [ "4.1 Relaxed Syntax Parsing (<span class=\"tt\">test_relaxed.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md94", null ],
+        [ "4.2 Duplicate Keys Strategy (<span class=\"tt\">test_duplicate_keys.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md95", null ],
+        [ "4.3 Serializer Engine (<span class=\"tt\">test_serializer.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md96", null ]
+      ] ],
+      [ "5. Defense-in-Depth (Fuzzing)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md98", [
+        [ "5.1 libFuzzer Suites (<span class=\"tt\">fuzz/fuzz_*.cpp</span>)", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md99", null ]
+      ] ],
+      [ "6. How to Run the Tests Locally", "md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md101", null ]
+    ] ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
       [ "Namespace Members", "namespacemembers.html", [
@@ -117,7 +139,7 @@ var NAVTREEINDEX =
 "annotated.html",
 "classbeast_1_1json_1_1lazy_1_1_value.html#a6df8845bcbb7e56865ae42d0827f598b",
 "index.html#autotoc_md10",
-"structbeast_1_1json_1_1lazy_1_1_value_1_1_key_iterator.html#aa9aa3f748b9dd5032e38820a7cfb730f"
+"structbeast_1_1json_1_1lazy_1_1_value_1_1_key_iterator.html#a17e1d0c003edbc3cba25a5673af2dbb4"
 ];
 
 var SYNCONMSG = 'click to disable panel synchronization';

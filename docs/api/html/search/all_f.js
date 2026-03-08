@@ -10,8 +10,12 @@ var searchData=
   ['flags_7',['flags',['../structbeast_1_1json_1_1lazy_1_1_tape_node.html#ae35232c41a0362c4979ba41f5aaac273',1,'beast::json::lazy::TapeNode']]],
   ['for_20array_20index_8',['4. int ambiguity — use size_t for array index',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md78',1,'']]],
   ['for_20hot_20loops_9',['Buffer Reuse for Hot Loops',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md68',1,'']]],
-  ['from_5fjson_10',['from_json',['../namespacebeast_1_1detail.html#aac88462bb6e0bce3e2762cf770909f8a',1,'beast::detail::from_json()'],['../namespacebeast.html#ac368fa14935f31d94e04d3cba6bdb681',1,'beast::from_json()']]],
-  ['from_5fjson_5ffield_11',['from_json_field',['../namespacebeast_1_1detail.html#a43ce59a2c5c99fdecda3c7ec11c276ae',1,'beast::detail']]],
-  ['from_5fjson_5ftuple_5f_12',['from_json_tuple_',['../namespacebeast_1_1detail.html#abadd450d39d8686c9076472875497a88',1,'beast::detail']]],
-  ['fuzz_20infrastructure_13',['10.2 Fuzz Infrastructure',['../index.html#autotoc_md37',1,'']]]
+  ['format_20test_5fstrict_5fnumber_20cpp_10',['2.2 Strict Number Format (&lt;span class=&quot;tt&quot;&gt;test_strict_number.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md85',1,'']]],
+  ['from_5fjson_11',['from_json',['../namespacebeast_1_1detail.html#aac88462bb6e0bce3e2762cf770909f8a',1,'beast::detail::from_json()'],['../namespacebeast.html#ac368fa14935f31d94e04d3cba6bdb681',1,'beast::from_json()']]],
+  ['from_5fjson_5ffield_12',['from_json_field',['../namespacebeast_1_1detail.html#a43ce59a2c5c99fdecda3c7ec11c276ae',1,'beast::detail']]],
+  ['from_5fjson_5ftuple_5f_13',['from_json_tuple_',['../namespacebeast_1_1detail.html#abadd450d39d8686c9076472875497a88',1,'beast::detail']]],
+  ['fuzz_20fuzz_5f_20cpp_14',['5.1 libFuzzer Suites (&lt;span class=&quot;tt&quot;&gt;fuzz/fuzz_*.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md99',1,'']]],
+  ['fuzz_20infrastructure_15',['10.2 Fuzz Infrastructure',['../index.html#autotoc_md37',1,'']]],
+  ['fuzz_5f_20cpp_16',['5.1 libFuzzer Suites (&lt;span class=&quot;tt&quot;&gt;fuzz/fuzz_*.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md99',1,'']]],
+  ['fuzzing_17',['5. Defense-in-Depth (Fuzzing)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md98',1,'']]]
 ];

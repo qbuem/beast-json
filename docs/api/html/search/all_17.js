@@ -11,5 +11,6 @@ var searchData=
   ['not_20an_20error_8',['5. as&amp;lt;int&amp;gt; on a double returns a cast, not an error',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md79',1,'']]],
   ['null_9',['Null',['../namespacebeast_1_1json_1_1lazy.html#a8d658fc69eaf93ed0f0c3ff566e22b17abbb93ef26e3c101ff11cdd21cab08a94',1,'beast::json::lazy']]],
   ['null_20dereference_20in_20skip_5fto_5faction_20heap_20buffer_20overflow_10',['Bug 1 — Null-Dereference in &lt;span class=&quot;tt&quot;&gt;skip_to_action()&lt;/span&gt; &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md32',1,'']]],
-  ['numberraw_11',['NumberRaw',['../namespacebeast_1_1json_1_1lazy.html#a8d658fc69eaf93ed0f0c3ff566e22b17a3c802df9bc8c2049f419f26b7d56c0ba',1,'beast::json::lazy']]]
+  ['number_20format_20test_5fstrict_5fnumber_20cpp_11',['2.2 Strict Number Format (&lt;span class=&quot;tt&quot;&gt;test_strict_number.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md85',1,'']]],
+  ['numberraw_12',['NumberRaw',['../namespacebeast_1_1json_1_1lazy.html#a8d658fc69eaf93ed0f0c3ff566e22b17a3c802df9bc8c2049f419f26b7d56c0ba',1,'beast::json::lazy']]]
 ];

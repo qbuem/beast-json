@@ -11,5 +11,6 @@ var searchData=
   ['—_20skip_5fvalue_5f_20out_20of_20bounds_20memcpy_20past_20source_20end_20heap_20buffer_20overflow_8',['Bug 5 — &lt;span class=&quot;tt&quot;&gt;skip_value_()&lt;/span&gt; Out-of-Bounds + &lt;span class=&quot;tt&quot;&gt;memcpy&lt;/span&gt; Past Source End &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md36',1,'']]],
   ['—_20stale_20overlay_20maps_20stack_20underflow_20in_20dump_5fchanges_5f_20ubsan_20stack_20buffer_20underflow_9',['Bug 4 — Stale Overlay Maps + Stack Underflow in &lt;span class=&quot;tt&quot;&gt;dump_changes_()&lt;/span&gt; &lt;em&gt;(UBSan / stack-buffer-underflow)&lt;/em&gt;',['../index.html#autotoc_md35',1,'']]],
   ['—_20technical_20reference_20v1_200_10',['Beast JSON — Technical Reference (v1.0)',['../index.html',1,'']]],
-  ['—_20use_20size_5ft_20for_20array_20index_11',['4. int ambiguity — use size_t for array index',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md78',1,'']]]
+  ['—_20test_20cases_20tc_20specification_11',['Beast JSON — Test Cases (TC) Specification',['../md_docs_2_t_e_s_t___c_a_s_e_s.html',1,'']]],
+  ['—_20use_20size_5ft_20for_20array_20index_12',['4. int ambiguity — use size_t for array index',['../md_docs_2_g_e_t_t_i_n_g___s_t_a_r_t_e_d.html#autotoc_md78',1,'']]]
 ];

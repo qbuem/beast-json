@@ -128,6 +128,7 @@ Detailed documentation has been consolidated into a central technical reference:
 |:---|:---|
 | **Getting Started** | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) (Install, first parse, mutation, pitfalls) |
 | **Technical Reference** | [docs/TECHNICAL_REFERENCE.md](docs/TECHNICAL_REFERENCE.md) (API, Architecture, Performance, Optimization History, Security) |
+| **Test Cases Specification** | [docs/TEST_CASES.md](docs/TEST_CASES.md) (Core Compliance, Fuzzing, DOM Safety, Extensions) |
 
 ## 🛠 Usage Example
 

@@ -16,5 +16,6 @@ var searchData=
   ['keylencache_13',['3.4 KeyLenCache',['../index.html#autotoc_md15',1,'']]],
   ['keys_14',['keys',['../classbeast_1_1json_1_1lazy_1_1_value.html#a0807eec7881914b4d17446890324c37d',1,'beast::json::lazy::Value']]],
   ['keys_20iterator_20out_20of_20bounds_20heap_20buffer_20overflow_15',['Bug 3 — Non-String Object Keys + Iterator Out-of-Bounds &lt;em&gt;(heap-buffer-overflow)&lt;/em&gt;',['../index.html#autotoc_md34',1,'']]],
-  ['keysrange_16',['KeysRange',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_keys_range.html',1,'beast::json::lazy::Value::KeysRange'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_keys_range.html#a6a5b96b2a2f65d24a331f1cfad45ca5a',1,'beast::json::lazy::Value::KeysRange::KeysRange()']]]
+  ['keys_20strategy_20test_5fduplicate_5fkeys_20cpp_16',['4.2 Duplicate Keys Strategy (&lt;span class=&quot;tt&quot;&gt;test_duplicate_keys.cpp&lt;/span&gt;)',['../md_docs_2_t_e_s_t___c_a_s_e_s.html#autotoc_md95',1,'']]],
+  ['keysrange_17',['KeysRange',['../structbeast_1_1json_1_1lazy_1_1_value_1_1_keys_range.html',1,'beast::json::lazy::Value::KeysRange'],['../structbeast_1_1json_1_1lazy_1_1_value_1_1_keys_range.html#a6a5b96b2a2f65d24a331f1cfad45ca5a',1,'beast::json::lazy::Value::KeysRange::KeysRange()']]]
 ];
