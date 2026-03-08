@@ -1,0 +1,6 @@
+name: "beast-json CodeQL config"
+
+paths-ignore:
+  - build/_deps
+  - external
+  - benchmarks
