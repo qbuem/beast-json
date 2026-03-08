@@ -58,8 +58,8 @@ beast::Value root = beast::parse(doc, R"({"id": 1, "active": true})");
 | `doc` | `Document&` | The document that will own the tape. |
 | `json` | `std::string_view` | The JSON text to parse. |
 
-**Returns**: `beast::Value` pointing at the root of the parsed document.  
-**Throws**: `std::runtime_error` if JSON is malformed.
+**Returns**: `beast::Value` pointing at the root of the parsed document.
+**Does not throw.** Malformed or non-standard JSON is parsed on a best-effort basis. For strict RFC 8259 enforcement with exception-based error handling, use `beast::parse_strict`.
 
 ---
 
@@ -613,7 +613,7 @@ std::string json = beast::write(pos); // "[1.0,2.0,3.5]"
 
 | API | Throws? | Returns | Use When |
 | :--- | :---: | :--- | :--- |
-| `beast::parse(doc, s)` | ✅ | `Value` | Standard parsing |
+| `beast::parse(doc, s)` | ❌ | `Value` | Standard lenient parsing |
 | `beast::parse_strict(doc, s)` | ✅ | `Value` | Need RFC 8259 compliance |
 | `beast::rfc8259::validate(s)` | ✅ | `void` | Validation without DOM |
 | `beast::read<T>(s)` | ✅ | `T` | Deserialize directly |
