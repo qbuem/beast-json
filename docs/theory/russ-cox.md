@@ -37,7 +37,7 @@ Beast JSON is the first library to combine the **Eisel-Lemire bit-manipulation s
 ## 📊 Scaling Pipeline Schematic
 
 ```mermaid
-graph LR
+graph TD
     subgraph Input
     S["Decimal String<br/>1.23e4"]
     end

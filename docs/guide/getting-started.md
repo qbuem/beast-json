@@ -52,6 +52,26 @@ Config cfg{"localhost", 8080, true};
 std::string out = beast::json::dump(cfg);
 ```
 
+### 3. 🪄 Magic STL Conversions
+
+Beast JSON natively understands standard C++ containers out-of-the-box. No boilerplate, no configuration needed.
+
+```cpp
+std::map<std::string, std::vector<int>> data = {
+    {"eu-west", {1, 2, 3}},
+    {"us-east", {4, 5}}
+};
+
+// Dump directly to string!
+std::string json = beast::json::dump(data); 
+
+// Parse directly back into your complex STL type!
+auto parsed = beast::json::parse(json).as<std::map<std::string, std::vector<int>>>();
+```
+
+> [!TIP]
+> Curious about exactly how C++ types map to JSON schemas? Check out the [Type Mapping Schema](/guide/mapping)!
+
 ## 🛠️ Build Configuration
 
 Beast JSON targets **C++20**. Ensure your compiler flags are set accordingly:

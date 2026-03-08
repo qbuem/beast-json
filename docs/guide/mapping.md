@@ -1,7 +1,27 @@
-# Object Mapping (Macros)
+# Type Mapping & Macros
 
-Beast JSON provides a powerful, zero-boilerplate way to map C++ structs to JSON using the `BEAST_JSON_FIELDS` macro. This leverages C++20 standard compile-time reflection patterns.
+Beast JSON uses a **Zero-Boilerplate Design**. It automatically deduces exactly how your C++ types should be represented in JSON.
 
+## 🪄 STL Type Mapping Schema
+
+You don't need to write conversion code for standard library containers. Just pass them to `dump()` or `parse()`!
+
+| C++ Type | JSON Schema | C++ Example | JSON Example |
+| :--- | :--- | :--- | :--- |
+| **`std::vector<T>`**<br/>`std::list`, `std::array` | **Array** `[ ... ]` | `std::vector<int> v = {1, 2};` | `[1, 2]` |
+| **`std::map<string, T>`**<br/>`std::unordered_map` | **Object** `{ ... }` | `std::map<std::string, int> m = {{"a", 1}};` | `{"a": 1}` |
+| **`std::optional<T>`** | **Value / null** | `std::optional<int> o = std::nullopt;` | `null` |
+| **`std::tuple<T1, T2>`**<br/>`std::pair<T1, T2>` | **Heterogeneous Array** | `std::tuple<int, string> t = {1, "A"};` | `[1, "A"]` |
+| **`std::variant<T...>`** | **Dynamic Value Match** | `std::variant<int, string> v = 123;` | `123` |
+
+> [!TIP]
+> **This mapping is recursive!** A complex type like `std::map<std::string, std::vector<std::optional<int>>>` works perfectly out of the box with zero configuration.
+
+---
+
+## 🛠️ Custom Structs (`BEAST_JSON_FIELDS`)
+
+For your own domain objects, Beast JSON provides a powerful macro that leverages C++20 reflection patterns to automatically generate optimized mapping code.
 ## 🛠️ The `BEAST_JSON_FIELDS` Macro
 
 Simply place the macro inside your struct or class. It automatically generates optimized `from_beast_json` and `to_beast_json` functions.
