@@ -2,6 +2,8 @@
 
 > This document is the unified technical reference for Beast JSON. It combines architecture details, performance data, the optimization roadmap, API reference, and lessons learned from optimization failures.
 
+[TOC]
+
 
 ## 1. Introduction
 

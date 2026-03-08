@@ -2,6 +2,8 @@
 
 > C++20 · Single Header · CMake 3.14+
 
+[TOC]
+
 
 
 ## Requirements

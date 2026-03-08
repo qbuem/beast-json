@@ -1,7 +1,14 @@
 /* Fix Doxygen scroll spy hiding anchors under sticky nav header */
 :target {
-    scroll-margin-top: 100px; /* Offset to clear the fixed top navbar */
+    scroll-margin-top: 90px;
 }
-h1.doxsection, h2.doxsection, h3.doxsection, h4.doxsection {
-    scroll-margin-top: 100px;
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.doxsection {
+    scroll-margin-top: 90px;
 }

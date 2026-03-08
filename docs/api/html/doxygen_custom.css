@@ -1,18 +1,14 @@
 /* Fix Doxygen scroll spy hiding anchors under sticky nav header */
-/* JS offset().top calculation ignores scroll-margin-top, so we use physical padding + negative margin */
-h1.doxsection,
-h2.doxsection,
-h3.doxsection,
-h4.doxsection,
-h5.doxsection {
-    padding-top: 90px !important;
-    margin-top: -90px !important;
+:target {
+    scroll-margin-top: 90px;
 }
 
-/* For anchors placed directly */
-a.anchor {
-    display: block;
-    padding-top: 90px;
-    margin-top: -90px;
-    visibility: hidden;
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.doxsection {
+    scroll-margin-top: 90px;
 }
