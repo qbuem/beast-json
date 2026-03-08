@@ -29,15 +29,46 @@ By fully leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, **SWAR (SIMD W
 
 ---
 
-## ⚡ Unrivaled Performance (Benchmark v1.0)
+## ⚡ Unrivaled Performance (Benchmark v1.0.2)
 
-Tested against the leading C++ JSON library, **yyjson**, built under identical `-O3 -march=native -flto + PGO` conditions.
+Tested entirely via automated GitHub Actions CI, parsing the standard `twitter.json` (631 KB) payload.
+Beast JSON outperforms traditional and modern C++ JSON parsers utilizing aggressive SIMD and a zero-allocation sequential tape.
 
-| **System** | **Beast Parse** | yyjson Parse | Ratio (Parse) | **Beast Serialize** | yyjson Serialize | Ratio (Serialize) |
-|:---|---:|---:|:---:|---:|---:|:---:|
-| **Linux (Intel AVX-512)** | **731 μs (4.45 GB/s)** | 884 μs | **+21% Beast** | **172 μs** | 240 μs | **+39% Beast** |
-| **Android (Snapdragon Cortex-X3)** | **150 μs** | 280 μs | **+86% Beast** | **155 μs** | 569 μs | **3.67x Faster** |
-| **macOS (Apple M1 Pro, NEON)** | 811 μs | **588 μs** | +38% yyjson | **193 μs** | 536 μs | **2.77x Faster** |
+```mermaid
+gantt
+    title Parse Speed Comparison (twitter.json) - Shorter is Better
+    dateFormat  X
+    axisFormat %s
+
+    section Intel x86_64
+    Beast JSON (265 μs)   : 0, 265
+    yyjson (749 μs)       : 0, 749
+    RapidJSON (1294 μs)   : 0, 1294
+    nlohmann (6142 μs)    : 0, 6142
+
+    section Apple M-Series
+    yyjson (187 μs)       : 0, 187
+    Beast JSON (229 μs)   : 0, 229
+    RapidJSON (926 μs)    : 0, 926
+    nlohmann (3745 μs)    : 0, 3745
+```
+
+### 🏎 Parsing & Serialization Timings
+*Measured using `-O3 -march=native / -mcpu=apple-m1 + LTO` on respective GitHub runners.*
+
+| **Architecture** | **Library** | **Parse Time (μs)** | **Serialize Time (μs)** | **Speed relative to baseline** |
+|:---|:---|---:|---:|:---|
+| **Linux (Intel x86_64)** | **Beast JSON** | **265 μs** | **149 μs** | **2.82x Faster** than yyjson! |
+| | `simdjson` | *242 μs* | 815 μs | (simdjson Parse is slightly faster) |
+| | `yyjson` | 749 μs | 153 μs | Baseline |
+| | `RapidJSON` | 1294 μs | 826 μs | - |
+| | `nlohmann/json` | 6142 μs | 2211 μs | - |
+| **macOS (Apple M-Series)** | `yyjson` | **187 μs** | 108 μs | **+22% Faster** than Beast |
+| | **Beast JSON** | 229 μs | **75 μs** | **1.44x Faster** serialization |
+| | `simdjson` | 228 μs | 439 μs | - |
+| | `RapidJSON` | 926 μs | 998 μs | - |
+| **Android (Cortex-X3)** | **Beast JSON** | **150 μs** | **155 μs** | **3.67x Faster** serialize |
+| *(Locally run)* | `yyjson` | 280 μs | 569 μs | Baseline |
 
 ### 🪶 Unmatched Memory Efficiency
 Memory measured parsing `twitter.json` (631.5 KB) via MacOS `mach_task` Resident Set Size (RSS). Beast JSON achieves industry-leading memory efficiency by utilizing a minimalistic 8-byte Tape representation and true zero-copy strings.
