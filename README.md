@@ -1,13 +1,14 @@
-<div align="center">
-  <h1>Beast JSON</h1>
-  <p><b>The Ultimate High-Performance C++20 JSON Parser & Serializer</b></p>
-  <p>Single header. Zero dependencies. AVX-512 & NEON accelerated. Zero-allocation direct streaming.</p>
+  <p>
+    <a href="https://github.com/the-lkb/beast-json/actions/workflows/ci.yml"><img src="https://github.com/the-lkb/beast-json/actions/workflows/ci.yml/badge.svg" alt="C++20 CI"></a>
+    <a href="https://github.com/the-lkb/beast-json/actions/workflows/codeql.yml"><img src="https://github.com/the-lkb/beast-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Static Analysis"></a>
+    <a href="https://github.com/the-lkb/beast-json/releases"><img src="https://img.shields.io/badge/Version-v1.0.5-blue" alt="Version 1.0.5"></a>
+    <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+  </p>
 
   <p>
-    <a href="https://github.com/kyubuem/beast-json/actions/workflows/ci.yml"><img src="https://github.com/kyubuem/beast-json/actions/workflows/ci.yml/badge.svg" alt="C++20 CI"></a>
-    <a href="https://github.com/kyubuem/beast-json/actions/workflows/codeql.yml"><img src="https://github.com/kyubuem/beast-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Static Analysis"></a>
-    <a href="https://github.com/kyubuem/beast-json/releases"><img src="https://img.shields.io/badge/Version-v1.0-blue" alt="Version 1.0"></a>
-    <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License: Apache 2.0"></a>
+    <a href="https://the-lkb.github.io/beast-json/">
+      <img src="https://img.shields.io/badge/Documentation-Premium%20Hub-orange?style=for-the-badge&logo=vitepress" alt="Premium Documentation Hub">
+    </a>
   </p>
 </div>
 
@@ -120,108 +121,20 @@ Performance under extreme stress: measuring a massive 5.5MB file containing 50,0
 
 ---
 
-## 📚 Documentation
-
-Detailed documentation has been consolidated into a central technical reference:
-
-| Guide | Link |
-|:---|:---|
-| **Getting Started** | [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) (Install, first parse, mutation, pitfalls) |
-| **Technical Reference** | [docs/TECHNICAL_REFERENCE.md](docs/TECHNICAL_REFERENCE.md) (API, Architecture, Performance, Optimization History, Security) |
-| **Test Cases Specification** | [docs/TEST_CASES.md](docs/TEST_CASES.md) (Core Compliance, Fuzzing, DOM Safety, Extensions) |
-
-## 🛠 Usage Example
-
-### Parsing & Safe Access
-
-```cpp
-#include <beast_json/beast_json.hpp>
-#include <iostream>
-
-using namespace beast;
-
-int main() {
-    Document doc;
-    Value root = parse(doc, R"({"user": {"id": 1024, "tags": ["admin", "dev"]}})");
-
-    // Safe Monadic Optional Navigation
-    SafeValue user = root.get("user");
-    int user_id = user["id"].value_or(-1);       // 1024
-    int timeout = user["timeout"].value_or(100); // 100 (safely falls back)
-
-    // Iterating C++20 Ranges
-    for (auto val : root["user"]["tags"].elements()) {
-        std::cout << val.as<std::string_view>() << ", ";
-    }
-}
-```
-
-### Architectural Philosophy: Typed Arrays vs Safes
-Beast JSON provides two distinct data access philosophies:
-1. **`Value` (Strict)**: Designed for known schemas. Throws `std::runtime_error` on type mismatch. Returns a null `Value{}` if a key is missing. Used via `operator[]` (e.g., `root["user"]`).
-2. **`SafeValue` (Monadic)**: Designed for untrusted schemas. Never throws. Propagates missing keys or type mismatches throughout deep chains, returning `std::nullopt` at the very end. Used via `.get()` (e.g., `root.get("user")`).
-
-### Magic Auto-Serialization (C++20 Macros)
-
-```cpp
-// Define your structs
-struct Config {
-    std::string ip;
-    int port;
-};
-BEAST_JSON_FIELDS(Config, ip, port)
-
-struct User {
-    std::string name;
-    std::optional<bool> is_admin;
-    Config config; // Nested struct!
-    std::vector<std::string> roles; // STL Containers!
-};
-// Register fields (that's it!)
-BEAST_JSON_FIELDS(User, name, is_admin, config, roles)
-
-int main() {
-    // Deserialize directly from string (Recursive)
-    auto user = beast::read<User>(R"({
-        "name": "Kayden",
-        "config": {"ip": "127.0.0.1", "port": 8080},
-        "roles": ["dev", "lead"]
-    })");
-
-    // Serialize back to zero-allocation JSON String
-    std::string json = beast::write(user);
-}
-```
-
-## 📦 Integration
-
-> **AI / Developer Note**: `BEAST_JSON_FIELDS` operates by injecting Argument-Dependent Lookup (ADL) functions (`from_beast_json` and `to_beast_json`). To serialize custom third-party types that cannot use the macro, simply define these two ADL functions in the same namespace as the target type.
-
-### CMake
-
-Simply add the include path:
-
-```cmake
-add_library(beast_json INTERFACE)
-target_include_directories(beast_json INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-target_link_libraries(my_app PRIVATE beast_json)
-```
-
-Requires a C++20 compliant compiler:
-* **GCC** 12+
-* **Clang** 15+
-* **Apple Clang** 16+
-
 ---
 
-## 🏗 Architecture Highlight: The Tape DOM
+## 📖 Documentation Hub
 
-Unlike traditional JSON parsers like `nlohmann/json` or `rapidjson` that allocate countless 32-byte tree nodes scattered across the heap, Beast JSON writes **64-bit TapeNodes** continuously to a single flat array.
-- **Cache-Locality**: A 128-byte Apple Silicon L1 Cache line holds exactly 16 JSON nodes. Fetching an object immediately prefetches all of its keys and values into the L1.
-- **Zero Cache Misses**: Traversing a Beast JSON DOM is purely sequential array access.
-- **Immutable Parsing**: Mutations (`set`, `insert`, `erase`) leverage a side-channel C++ `unordered_map` overlay network. The core immutable tape is NEVER rewritten until `dump()` is called.
+For a deep dive into the engineering behind Beast JSON, visit our **[Premium Documentation Hub](https://the-lkb.github.io/beast-json/)**.
 
-For an extensive dive into Beast's SIMD Two-Phase Pipeline and Key-Length Caching, see the [Technical Reference](docs/TECHNICAL_REFERENCE.md).
+| Category | Topics |
+| :--- | :--- |
+| **Engineering Theory** | [Tape Architecture](https://the-lkb.github.io/beast-json/theory/architecture), [SIMD Acceleration](https://the-lkb.github.io/beast-json/theory/simd), [Russ Cox Algorithm](https://the-lkb.github.io/beast-json/theory/russ-cox) |
+| **Advanced Usage** | [HFT Optimization Patterns](https://the-lkb.github.io/beast-json/guide/hft-patterns), [Custom Allocators](https://the-lkb.github.io/beast-json/guide/allocators), [Language Bindings](https://the-lkb.github.io/beast-json/guide/bindings) |
+| **Guides** | [Getting Started](https://the-lkb.github.io/beast-json/guide/getting-started), [Object Mapping](https://the-lkb.github.io/beast-json/guide/mapping), [Error Handling](https://the-lkb.github.io/beast-json/guide/errors) |
+| **API Reference** | [Full C++ Doxygen Reference](https://the-lkb.github.io/beast-json/api/index.html) |
+
+---
 
 ---
 

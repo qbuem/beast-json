@@ -1,0 +1,62 @@
+# Getting Started
+
+Integrating Beast JSON into your project is designed to be effortless.
+
+## 📦 Installation
+
+Beast JSON is a **single-header library**. Just download `beast_json.hpp` and include it.
+
+```bash
+# Clone the repo or just grab the header
+wget https://raw.githubusercontent.com/the-lkb/beast-json/main/include/beast_json/beast_json.hpp
+```
+
+## 🚀 Quick Usage
+
+### 1. Parsing JSON
+
+Beast JSON uses a lazy-DOM approach. Parsing is near-instant, and access is type-safe.
+
+```cpp
+#include "beast_json.hpp"
+#include <iostream>
+
+int main() {
+    std::string json = R"({"name": "Beast", "speed": 2.7})";
+    
+    // Parse directly from string
+    auto doc = beast::json::parse(json);
+    
+    // Type-safe access
+    std::string name = doc["name"];
+    double speed = doc["speed"];
+    
+    std::cout << name << " throughput: " << speed << " GB/s" << std::endl;
+}
+```
+
+### 2. High-Performance Serialization
+
+Serialize structs directly using the powerful `BEAST_JSON_FIELDS` macro.
+
+```cpp
+struct Config {
+    std::string host;
+    int port;
+    bool secure;
+
+    BEAST_JSON_FIELDS(host, port, secure)
+};
+
+Config cfg{"localhost", 8080, true};
+std::string out = beast::json::dump(cfg);
+```
+
+## 🛠️ Build Configuration
+
+Beast JSON targets **C++20**. Ensure your compiler flags are set accordingly:
+
+- **GCC/Clang**: `-std=c++20 -O3 -march=native`
+- **MSVC**: `/std:c++20 /O2`
+
+For maximum performance on Apple Silicon, use `-mcpu=apple-m1` (or your specific M-series chip).

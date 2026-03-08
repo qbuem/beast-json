@@ -1,0 +1,54 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs.yml'
+      - 'include/beast_json/beast_json.hpp'
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          cd docs
+          npm install
+
+      - name: Build VitePress
+        run: |
+          cd docs
+          npm run docs:build
+
+      - name: Setup Doxygen
+        run: sudo apt-get install -y doxygen
+
+      - name: Build Doxygen
+        run: doxygen Doxyfile
+
+      - name: Copy Doxygen to VitePress dist
+        run: |
+          mkdir -p docs/.vitepress/dist/api
+          cp -r docs/api/html/* docs/.vitepress/dist/api/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs/.vitepress/dist
+          force_orphan: true
