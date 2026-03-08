@@ -11,7 +11,7 @@
 | C++ Standard | C++20 | C++20 |
 | GCC | 10 | 13.3 |
 | Clang | 10 | 17+ |
-| MSVC | 19.29 (VS 2019 16.10) | 19.40+ |
+
 | CMake | 3.14 | 3.28 |
 | OS | Linux, macOS, Windows | — |
 
