@@ -180,3 +180,27 @@ img:hover {
         max-height: 140px;
     }
 }
+
+/* ── Tables: horizontally scrollable on mobile ───────────────────────────── */
+/* VitePress renders doc tables inside .vp-doc; make them scroll rather than  */
+/* overflow hidden or break layout on narrow viewports.                        */
+.vp-doc table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+}
+
+/* ── Code blocks: ensure long lines scroll, not clip ─────────────────────── */
+.vp-doc div[class*="language-"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── Home page sections: stack on mobile ─────────────────────────────────── */
+@media (max-width: 768px) {
+    /* Vision/Direction cards in index.md */
+    div[style*="display: flex"] {
+        flex-direction: column !important;
+    }
+}
