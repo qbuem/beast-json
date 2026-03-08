@@ -2,8 +2,19 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
     title: "Beast JSON",
-    description: "The Ultimate High-Performance C++20 JSON Library",
+    description: "The Ultimate High-Performance C++20 JSON Engine",
     base: '/beast-json/',
+    sitemap: {
+        hostname: 'https://the-lkb.github.io/beast-json/'
+    },
+    head: [
+        ['meta', { name: 'keywords', content: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer' }],
+        ['meta', { property: 'og:title', content: 'Beast JSON - Ultimate C++20 JSON Engine' }],
+        ['meta', { property: 'og:description', content: 'Bleeding-edge C++20 JSON library with AVX-512 acceleration and zero-allocation design.' }],
+        ['meta', { property: 'og:image', content: 'https://the-lkb.github.io/beast-json/logo.png' }],
+        ['meta', { property: 'og:type', content: 'website' }],
+        ['meta', { name: 'twitter:card', content: 'summary_large_image' }]
+    ],
     themeConfig: {
         logo: '/logo.png',
         nav: [
