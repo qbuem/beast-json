@@ -125,16 +125,30 @@ img:hover {
     object-fit: contain;
 }
 
+/* ── Hero image: un-overlap on mobile (< 960px VitePress breakpoint) ────── */
+@media (max-width: 959px) {
+    /* VitePress positions the image-container absolute by default on larger
+       screens. On mobile we need it in normal flow so it doesn't sit on top
+       of the title text. */
+    .VPHero .image-container {
+        position: static !important;
+        transform: none !important;
+        margin: 0 auto 2rem;
+        display: flex;
+        justify-content: center;
+    }
+}
+
 /* ── Mobile responsive overrides (≤ 768px) ───────────────────────────────── */
 @media (max-width: 768px) {
     /* Hero: reduce spacing and logo size */
     .VPHero .image-src {
-        max-width: 120px;
-        max-height: 120px;
+        max-width: 100px;
+        max-height: 100px;
     }
 
     .VPHero .image-container {
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
 
     .VPHero .name {
