@@ -72,6 +72,7 @@ add_beast_gtest(test_errors)
 add_beast_gtest(test_lazy_types)
 add_beast_gtest(test_lazy_roundtrip)
 add_beast_gtest(test_value_accessors)
+add_beast_gtest(test_mutations)
 # Download benchmark data
 set(BENCHMARK_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR})
 if(NOT EXISTS ${BENCHMARK_DATA_DIR}/twitter.json)

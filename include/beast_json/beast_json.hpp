@@ -635,17 +635,20 @@ public:
   // — set() targets scalar replacement at an existing tape position.
 
   void set(std::nullptr_t) {
+    if (!doc_) return;
     doc_->mutations_[idx_] = {TapeNodeType::Null, {}};
     doc_->last_dump_size_ = 0; // invalidate size cache
   }
 
   void set(bool b) {
+    if (!doc_) return;
     doc_->mutations_[idx_] = {
         b ? TapeNodeType::BooleanTrue : TapeNodeType::BooleanFalse, {}};
     doc_->last_dump_size_ = 0;
   }
 
   template <JsonInteger T> void set(T val) {
+    if (!doc_) return;
     char buf[32];
     auto [ptr, ec] =
         std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(val));
@@ -654,6 +657,7 @@ public:
   }
 
   template <JsonFloat T> void set(T val) {
+    if (!doc_) return;
     char buf[64];
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
     auto [ptr, ec] =
@@ -668,6 +672,7 @@ public:
   }
 
   void set(std::string_view s) {
+    if (!doc_) return;
     doc_->mutations_[idx_] = {TapeNodeType::StringRaw, std::string(s)};
     doc_->last_dump_size_ = 0;
   }
@@ -676,6 +681,7 @@ public:
 
   // Erase a previously set() mutation, restoring the original parsed value.
   void unset() {
+    if (!doc_) return;
     doc_->mutations_.erase(idx_);
     doc_->last_dump_size_ = 0;
   }
