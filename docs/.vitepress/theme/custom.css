@@ -184,9 +184,10 @@ img:hover {
         flex-direction: column !important;
         align-items: center !important;
         gap: 0 !important;
-        /* Remove any padding that shifts the image into the text area */
         padding-top: 40px !important;
         padding-bottom: 40px !important;
+        position: relative !important;
+        overflow: visible !important;
     }
 
     /* 2. Text block: first in the column, full width, centred */
@@ -197,36 +198,40 @@ img:hover {
         padding: 0 !important;
         margin: 0 auto !important;
         text-align: center !important;
-        /* Stay on top of the image */
         position: relative !important;
-        z-index: 2 !important;
+        z-index: 10 !important;
     }
 
-    /* 3. Image block: second in the column, no overlap */
+    /* 3. Image block: second in the column, fully in normal flow */
     .VPHero .image {
         order: 2 !important;
-        /* Clear every dimension/offset VitePress may have set */
-        position: static !important;
+        position: relative !important;
+        inset: auto !important;
+        top: auto !important;
+        bottom: auto !important;
+        right: auto !important;
+        left: auto !important;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
-        width: auto !important;
+        width: 100% !important;
         height: auto !important;
         min-height: unset !important;
         flex: none !important;
-        /* Space between text and logo */
         margin: 2rem auto 0 !important;
         padding: 0 !important;
         z-index: 1 !important;
+        opacity: 1 !important;
+        transform: none !important;
     }
 
     /* 4. Inner container: static, no transforms that would overlap text */
     .VPHero .image-container {
-        position: static !important;
+        position: relative !important;
+        inset: auto !important;
         transform: none !important;
         top: auto !important;
         left: auto !important;
-        /* Remove any negative margins VitePress injects */
         margin: 0 !important;
         display: flex !important;
         justify-content: center !important;
@@ -237,6 +242,36 @@ img:hover {
     /* 5. Hide the decorative blurred background disc behind the logo */
     .VPHero .image-bg {
         display: none !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   HERO PORTRAIT PHONE EXTRA FIX
+   Belt-and-suspenders override specifically for portrait orientation
+   ══════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) and (orientation: portrait) {
+    .VPHero .image,
+    .VPHero .VPImage {
+        position: relative !important;
+        inset: auto !important;
+        transform: none !important;
+        opacity: 1 !important;
+        width: 100% !important;
+        height: auto !important;
+        order: 3 !important;
+        z-index: 1 !important;
+    }
+
+    .VPHero .image-container {
+        position: relative !important;
+        inset: auto !important;
+        transform: none !important;
+    }
+
+    .VPHero .main {
+        position: relative !important;
+        z-index: 10 !important;
+        background: transparent !important;
     }
 }
 
@@ -349,7 +384,7 @@ img:hover {
 .bd-group {
     border: 1px solid var(--vp-c-divider);
     border-radius: 8px;
-    overflow: hidden;
+    overflow: visible;
     min-width: 160px;
 }
 .bd-group__title {
@@ -362,9 +397,10 @@ img:hover {
     color: var(--vp-c-text-2);
     text-align: center;
     border-bottom: 1px solid var(--vp-c-divider);
+    border-radius: 7px 7px 0 0;
 }
 .bd-group__body {
-    padding: 0.85rem 1rem;
+    padding: 0.85rem 1rem 1rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -503,9 +539,10 @@ img:hover {
 /* ── 64-bit layout bar ── */
 .bd-bits {
     display: flex;
-    height: 58px;
+    height: auto;
+    min-height: 58px;
     border-radius: 6px;
-    overflow: hidden;
+    overflow: visible;
     gap: 3px;
     width: 100%;
     max-width: 500px;
@@ -517,7 +554,8 @@ img:hover {
     justify-content: center;
     gap: 1px;
     font-size: 0.65rem;
-    padding: 0 0.5rem;
+    padding: 0.6rem 0.5rem;
+    min-height: 58px;
 }
 .bd-bit-seg__range { opacity: 0.7; font-size: 0.56rem; }
 .bd-bit-seg__val   { font-weight: 700; font-family: monospace; font-size: 0.68rem; }

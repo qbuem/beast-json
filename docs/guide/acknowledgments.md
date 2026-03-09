@@ -32,5 +32,6 @@ We would like to express our deepest gratitude to the following individuals and 
 
 ---
 
-> [!HEART]
-> To the C++ community: Thank you for pushing the boundaries of what is possible with modern C++.
+::: tip ❤️ To the C++ Community
+To the C++ community: Thank you for pushing the boundaries of what is possible with modern C++.
+:::

@@ -10,39 +10,49 @@ Understanding the data flow is the foundation of effective debugging. Every pars
 
 ### The Full Pipeline
 
-```
- Your JSON string (caller-owned buffer — never copied)
-        │
-        ▼
- ┌──────────────────────────────────────────────────────┐
- │  Stage 1 — SIMD Structural Indexing                  │
- │  • Load 64 bytes/cycle into zmm0 (AVX-512)           │
- │  • 8× VPCMPEQB → 64-bit structural_mask             │
- │  • PCLMULQDQ prefix-XOR → suppress chars in strings  │
- │  • Result: sparse bitset of structural positions      │
- └──────────────────────────────────────────────────────┘
-        │  (clean_structural_mask)
-        ▼
- ┌──────────────────────────────────────────────────────┐
- │  Stage 2 — Tape Generation (scalar)                  │
- │  • TZCNT iterate only structural positions (5-15%)   │
- │  • Each position → one TapeNode written              │
- │  • Strings → zero-copy string_view into input buf    │
- │  • Numbers → Russ Cox inline value (no strtod)       │
- │  • Jump patches resolved at OBJ_END / ARR_END         │
- └──────────────────────────────────────────────────────┘
-        │  (TapeArena filled — 1 malloc total)
-        ▼
- ┌──────────────────────────────────────────────────────┐
- │  DocumentView                                        │
- │  • TapeArena*  — owns all TapeNodes                  │
- │  • string_view — points into your input buffer       │
- │  • Stage1Index — reused across calls, no extra alloc │
- └──────────────────────────────────────────────────────┘
-        │
-        ▼
-  beast::Value  { doc*, idx }   — 16-byte lazy handle
-```
+<div class="bd-diagram">
+  <div class="bd-col">
+    <div class="bd-box bd-box--brand">Your JSON string <small>caller-owned buffer — never copied</small></div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
+    <div class="bd-group" style="width:100%;max-width:520px;">
+      <div class="bd-group__title">Stage 1 — SIMD Structural Indexing</div>
+      <div class="bd-group__body" style="align-items:flex-start;">
+        <div class="bd-box bd-box--teal" style="max-width:100%;width:100%;text-align:left;">
+          Load 64 bytes/cycle → zmm0 (AVX-512)<br>
+          <small>8× VPCMPEQB → 64-bit structural_mask</small><br>
+          <small>PCLMULQDQ prefix-XOR → suppress chars in strings</small><br>
+          <small>Result: sparse bitset of structural positions</small>
+        </div>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">clean_structural_mask</div></div>
+    <div class="bd-group" style="width:100%;max-width:520px;">
+      <div class="bd-group__title">Stage 2 — Tape Generation (scalar)</div>
+      <div class="bd-group__body" style="align-items:flex-start;">
+        <div class="bd-box" style="max-width:100%;width:100%;text-align:left;">
+          TZCNT iterate only structural positions (5–15%)<br>
+          <small>Each position → one TapeNode written</small><br>
+          <small>Strings → zero-copy string_view into input buf</small><br>
+          <small>Numbers → Russ Cox inline value (no strtod)</small><br>
+          <small>Jump patches resolved at OBJ_END / ARR_END</small>
+        </div>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">TapeArena filled — 1 malloc total</div></div>
+    <div class="bd-group" style="width:100%;max-width:520px;">
+      <div class="bd-group__title">DocumentView</div>
+      <div class="bd-group__body" style="align-items:flex-start;">
+        <div class="bd-box" style="max-width:100%;width:100%;text-align:left;">
+          TapeArena* — owns all TapeNodes<br>
+          <small>string_view — points into your input buffer</small><br>
+          <small>Stage1Index — reused across calls, no extra alloc</small>
+        </div>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
+    <div class="bd-box bd-box--brand"><code>beast::Value { doc*, idx }</code> <small>— 16-byte lazy handle</small></div>
+  </div>
+</div>
 
 **Where errors can occur:**
 
@@ -61,15 +71,22 @@ Every single element — object, array, string, integer, float, bool, null — o
 
 ### The TapeNode: 64-bit Encoding
 
-```
- Bit 63                  Bit 0
-  │                        │
-  ▼                        ▼
- [63──56][55────────────────0]
-   type     payload (56 bits)
-   tag
-   (8 bits)
-```
+<div class="bd-diagram">
+  <div class="bd-col">
+    <div class="bd-bits">
+      <div class="bd-bit-seg" style="width:90px;flex-shrink:0;background:color-mix(in srgb,var(--vp-c-brand-1) 20%,transparent);border-radius:4px 0 0 4px;">
+        <span class="bd-bit-seg__range">bits 63–56</span>
+        <span class="bd-bit-seg__val">Type Tag</span>
+        <span class="bd-bit-seg__name">(8 bits)</span>
+      </div>
+      <div class="bd-bit-seg" style="flex:1;background:color-mix(in srgb,var(--vp-c-brand-1) 9%,transparent);border:1px solid var(--vp-c-divider);border-radius:0 4px 4px 0;">
+        <span class="bd-bit-seg__range">bits 55–0</span>
+        <span class="bd-bit-seg__val">Payload</span>
+        <span class="bd-bit-seg__name">(56 bits)</span>
+      </div>
+    </div>
+  </div>
+</div>
 
 Click any node below to see its exact encoding:
 
@@ -96,27 +113,43 @@ Click any node below to see its exact encoding:
 
 The most important thing to understand about Beast JSON strings:
 
-```
- Input buffer (your memory — stack, recv buffer, file mmap):
- ┌──────────────────────────────────────────────────────┐
- │  {  "  n  a  m  e  "  :  "  A  l  i  c  e  "  }    │
- │  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16   │
- └──────────────────────────────────────────────────────┘
-         │              │    │
-         │  KEY node    │    │  STRING node
-         │  tape[1]     │    │  tape[2]
-         └──────────────┘    └────────────┐
-                                          │
- TapeArena:                               │
- ┌─────────┬───────────────────────────── │ ─────────────┐
- │ tape[1] │ 0x05 · ptr=&buf[2] · len=4  ─┘    KEY "name"│
- │ tape[2] │ 0x06 · ptr=&buf[9] · len=5  ──── STRING "Alice"
- └─────────┴────────────────────────────────────────────┘
-
- beast::Value → .as<string_view>() → reads tape[2] → {&buf[9], 5}
-                                                        ↑
-                              Points into YOUR buffer — zero bytes copied
-```
+<div class="bd-diagram">
+  <div class="bd-col">
+    <div class="bd-group" style="width:100%;max-width:520px;">
+      <div class="bd-group__title">Input Buffer — your memory (stack, mmap, recv buffer)</div>
+      <div class="bd-group__body">
+        <div class="bd-box bd-box--blue" style="font-size:0.82rem;letter-spacing:0.08em;">{ &quot;name&quot; : &quot;Alice&quot; }</div>
+        <div style="font-size:0.68rem;color:var(--vp-c-text-3);font-family:var(--vp-font-family-mono);text-align:center;">
+          <span style="color:#0097a7;">buf[2..5] → KEY "name"</span>
+          &nbsp;|&nbsp;
+          <span style="color:#9c27b0;">buf[9..13] → STRING "Alice"</span>
+        </div>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">zero-copy pointer stored in TapeNode</div></div>
+    <div class="bd-group" style="width:100%;max-width:520px;">
+      <div class="bd-group__title">TapeArena</div>
+      <div class="bd-group__body">
+        <div class="bd-tape-strip" style="justify-content:center;">
+          <div class="bd-tape-cell bd-tape-cell--key">
+            <span class="bd-tape-cell__idx">tape[1]</span>
+            <span class="bd-tape-cell__tag">KEY 0x05</span>
+            <span class="bd-tape-cell__val">ptr=&amp;buf[2] len=4</span>
+          </div>
+          <div class="bd-tape-cell bd-tape-cell--str">
+            <span class="bd-tape-cell__idx">tape[2]</span>
+            <span class="bd-tape-cell__tag">STRING 0x06</span>
+            <span class="bd-tape-cell__val">ptr=&amp;buf[9] len=5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">.as&lt;string_view&gt;() reads TapeNode → returns pointer into YOUR buffer</div></div>
+    <div class="bd-callout bd-callout--green" style="font-size:0.82rem;margin:0;">
+      <strong>Zero bytes copied.</strong> The string_view points directly into your original buffer — no allocation, no heap, no copy.
+    </div>
+  </div>
+</div>
 
 **Lifetime rule:** A `string_view` from Beast JSON is valid only while **both** the `Document` and the input buffer are alive. The moment either is destroyed, every `string_view` from that parse becomes a dangling pointer.
 
@@ -134,24 +167,33 @@ int64_t value = static_cast<int64_t>(raw << 8) >> 8;  // sign-extend 56 bits
 
 ### Jump Indices: O(1) Skip
 
-```
- { "a": [1, 2, 3], "b": true }
-  ↓
- tape[0] OBJ_START  jump→9   ─────────────────────────────┐
- tape[1] KEY        "a"                                   │
- tape[2] ARR_START  jump→6   ──────────────┐              │
- tape[3] UINT64     1                      │              │
- tape[4] UINT64     2                      │              │
- tape[5] UINT64     3                      │              │
- tape[6] ARR_END    jump→2   ←─────────────┘              │
- tape[7] KEY        "b"                                   │
- tape[8] BOOL_TRUE                                        │
- tape[9] OBJ_END    jump→0   ←────────────────────────────┘
-
- To skip the array and find "b":
-   tape[tape[2].jump] = tape[6] = ARR_END  → next key at tape[7]
-   One array read. O(1) regardless of array size.
-```
+<div class="bd-diagram">
+  <div class="bd-col">
+    <div class="bd-box bd-box--brand" style="max-width:340px;">{ "a": [1, 2, 3], "b": true }</div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">single-pass parse</div></div>
+    <div class="bd-group" style="width:100%;">
+      <div class="bd-group__title">TapeArena</div>
+      <div class="bd-group__body">
+        <div class="bd-tape-strip">
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">OBJ_START</span><span class="bd-tape-cell__val">jump→9</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"a"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">ARR_START</span><span class="bd-tape-cell__val">jump→6</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[3]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">1</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[4]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">2</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[5]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">3</span></div>
+          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[6]</span><span class="bd-tape-cell__tag">ARR_END</span><span class="bd-tape-cell__val">jump→2</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[7]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"b"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--bool"><span class="bd-tape-cell__idx">tape[8]</span><span class="bd-tape-cell__tag">BOOL_TRUE</span><span class="bd-tape-cell__val">—</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[9]</span><span class="bd-tape-cell__tag">OBJ_END</span><span class="bd-tape-cell__val">jump→0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bd-callout bd-callout--green" style="margin:0;font-size:0.82rem;">
+      <strong>To skip the array and find "b":</strong> <code>tape[tape[2].jump]</code> = tape[6] = ARR_END → next key at tape[7].
+      One array read. <strong>O(1) regardless of array size.</strong>
+    </div>
+  </div>
+</div>
 
 ---
 
@@ -252,11 +294,13 @@ catch (const beast::parse_error& e) {
 
 **Reading a `type_error` message:**
 
-```
-beast::type_error: expected INT64/UINT64, got STRING at tape[2]
-                   ─────────────────────  ─────────────────────
-                   what you called as<>() with  what the tape actually contains
-```
+<div class="bd-callout" style="font-size:0.82rem;">
+  <code>beast::type_error: expected INT64/UINT64, got STRING at tape[2]</code><br>
+  <div class="bd-row" style="gap:2rem;margin-top:0.5rem;font-size:0.72rem;color:var(--vp-c-text-2);justify-content:flex-start;flex-wrap:wrap;">
+    <span>↑ what you called <code>.as&lt;&gt;()</code> with</span>
+    <span>↑ what the tape actually contains</span>
+  </div>
+</div>
 
 Check the TapeNode type tags table above to decode the tag name.
 
@@ -461,23 +505,45 @@ Use this when an error occurs and you're not sure where to start:
 
 ## Summary
 
-```
-  Data flows in one direction:
-
-  Your JSON bytes  →  Stage 1 (SIMD)  →  Stage 2 (scalar)  →  TapeArena
-                                                                    │
-                                                                    ▼
-                                                           beast::Value (lazy handle)
-                                                                    │
-                                                           .as<T>() on demand
-                                                                    │
-                                                                    ▼
-                                                           Typed C++ value
-                                                           (zero allocation)
-
-  Your input buffer must stay alive for the entire arrow above.
-  The TapeArena is owned by Document and lives as long as it does.
-  Values are 16-byte handles — safe to copy, dangerous to outlive their Document.
-```
+<div class="bd-diagram">
+  <div class="bd-col">
+    <div class="bd-pipeline">
+      <div class="bd-pipe-stage">
+        <span class="bd-pipe-stage__label">Input</span>
+        <span class="bd-pipe-stage__main">Your JSON bytes</span>
+      </div>
+      <div class="bd-pipe-arrow">→</div>
+      <div class="bd-pipe-stage bd-box--teal" style="border-color:#0097a7;background:rgba(0,151,167,0.08);">
+        <span class="bd-pipe-stage__label">Stage 1</span>
+        <span class="bd-pipe-stage__main">SIMD</span>
+      </div>
+      <div class="bd-pipe-arrow">→</div>
+      <div class="bd-pipe-stage">
+        <span class="bd-pipe-stage__label">Stage 2</span>
+        <span class="bd-pipe-stage__main">Scalar</span>
+      </div>
+      <div class="bd-pipe-arrow">→</div>
+      <div class="bd-pipe-stage bd-box--brand" style="border-color:var(--vp-c-brand-1);background:color-mix(in srgb,var(--vp-c-brand-1) 8%,transparent);">
+        <span class="bd-pipe-stage__label">Result</span>
+        <span class="bd-pipe-stage__main">TapeArena</span>
+      </div>
+    </div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
+    <div class="bd-box bd-box--brand"><code>beast::Value</code> <small>— lazy handle (16 bytes)</small></div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">.as&lt;T&gt;() on demand</div></div>
+    <div class="bd-box bd-box--green">Typed C++ value <small>— zero allocation</small></div>
+    <div class="bd-row" style="gap:1rem;margin-top:0.75rem;flex-wrap:wrap;">
+      <div class="bd-callout bd-callout--orange" style="flex:1;min-width:200px;margin:0;font-size:0.78rem;">
+        <strong>Input buffer</strong> must stay alive for the entire pipeline above.
+      </div>
+      <div class="bd-callout" style="flex:1;min-width:200px;margin:0;font-size:0.78rem;">
+        <strong>TapeArena</strong> is owned by Document — lives as long as it does.
+      </div>
+      <div class="bd-callout bd-callout--red" style="flex:1;min-width:200px;margin:0;font-size:0.78rem;">
+        <strong>Values</strong> are 16-byte handles — safe to copy, dangerous to outlive their Document.
+      </div>
+    </div>
+  </div>
+</div>
 
 If in doubt: **copy `string_view` to `std::string`** before the input or `Document` goes out of scope. Every other performance characteristic of Beast JSON survives this one safety net.
