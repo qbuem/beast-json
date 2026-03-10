@@ -182,25 +182,6 @@
 #endif
 
 // ============================================================================
-// Data Types (C++20 PMR Aware)
-// ============================================================================
-
-namespace beast {
-namespace json {
-
-// Require C++20 for optimal constexpr, bit_cast, and concepts
-#if __cplusplus >= 202002L
-using String = std::pmr::string;
-template <typename T> using Vector = std::pmr::vector<T>;
-using Allocator = std::pmr::polymorphic_allocator<char>;
-#else
-#error "Beast JSON (Zero-SIMD) requires a C++20 compatible compiler."
-#endif
-
-} // namespace json
-} // namespace beast
-
-// ============================================================================
 // Cache Line Size & Prefetch Distance
 // ============================================================================
 //
@@ -278,6 +259,23 @@ using Allocator = std::pmr::polymorphic_allocator<char>;
 
 namespace beast {
 namespace json {
+
+// Forward declarations
+class DocumentView;
+class Value;
+
+inline Value parse_reuse(DocumentView &doc, ::std::string_view json);
+class SafeValue;
+
+// Require C++20 for optimal constexpr, bit_cast, and concepts
+#if __cplusplus >= 202002L
+using String = std::pmr::string;
+template <typename T> using Vector = std::pmr::vector<T>;
+using Allocator = std::pmr::polymorphic_allocator<char>;
+#else
+#error "Beast JSON (Zero-SIMD) requires a C++20 compatible compiler."
+#endif
+
 namespace simd {
 // prefix_xor: compute prefix-XOR of a 64-bit mask.
 // Used by Stage 1 two-(AVX-512/NEON) to track in-string state.
@@ -292,12 +290,8 @@ BEAST_INLINE uint64_t prefix_xor(uint64_t x) noexcept {
   return x;
 }
 } // namespace simd
-} // namespace json
-} // namespace beast
 
-namespace beast {
-namespace json {
-namespace lazy {
+// TapeNode — 8 bytes (compaction)
 
 // TapeNode — 8 bytes (compaction)
 //
@@ -360,6 +354,20 @@ struct TapeArena {
   TapeArena(const TapeArena &) = delete;
   TapeArena &operator=(const TapeArena &) = delete;
 
+  TapeArena(TapeArena &&o) noexcept : base(o.base), head(o.head), cap(o.cap) {
+    o.base = o.head = o.cap = nullptr;
+  }
+  TapeArena &operator=(TapeArena &&o) noexcept {
+    if (this != &o) {
+      std::free(base);
+      base = o.base;
+      head = o.head;
+      cap = o.cap;
+      o.base = o.head = o.cap = nullptr;
+    }
+    return *this;
+  }
+
   void reserve(size_t n) {
     if (base && static_cast<size_t>(cap - base) >= n) {
       head = base;
@@ -404,6 +412,17 @@ struct Stage1Index {
     o.positions = nullptr;
     o.count = o.capacity = 0;
   }
+  Stage1Index &operator=(Stage1Index &&o) noexcept {
+    if (this != &o) {
+      std::free(positions);
+      positions = o.positions;
+      count = o.count;
+      capacity = o.capacity;
+      o.positions = nullptr;
+      o.count = o.capacity = 0;
+    }
+    return *this;
+  }
 
   void reserve(size_t n) {
     if (positions && capacity >= static_cast<uint32_t>(n))
@@ -429,83 +448,112 @@ struct MutationEntry {
                     // empty for Null/BooleanTrue/BooleanFalse
 };
 
-// DocumentView
-
-/// @brief An opaque view over a parsed JSON document's memory arena and tape.
-/// @details A `DocumentView` can be reused across multiple parses. Reusing a
-/// document resets its internal allocator cursor and prevents reallocation if
-/// the new JSON fits within the previously allocated capacity.
-class DocumentView {
-public:
-  std::string_view source;
+// DocumentState: The heap-allocated internal data for a JSON document.
+// This preserves stable pointers for Value objects even if the Document handle
+// is moved or destroyed.
+struct DocumentState {
+  ::std::string_view source;
   TapeArena tape;
   Stage1Index idx; // structural index reused across calls
-  int ref_count = 0;
-  // cache actual serialised size from the last dump(string&) call.
-  // On repeated calls with the same document, resize(last_dump_size_) is a
-  // no-op (out.size() already equals last_dump_size_) → zero zero-fill cost.
-  mutable size_t last_dump_size_ = 0;
-  // Mutation overlay: non-empty only when set<T>() has been called.
-  // Checked AFTER write separator, BEFORE the main switch — zero overhead
-  // for the common (read-only) path because the map is checked only when
-  // !mutations_.empty() which is guarded by BEAST_UNLIKELY.
-  std::unordered_map<uint32_t, MutationEntry> mutations_;
+  ::std::atomic<int> ref_count{0};
 
-  // Structural modification state — empty for read-only documents.
-  // deleted_   : tape indices of deleted object-keys or array-elements.
-  //              Cascade: deleting an object key also implicitly drops its
-  //              value subtree.
-  // additions_ : keyed by parent ObjectStart/ArrayStart tape index.
-  //              Each entry is {key_string (empty for arrays), pre-serialized
-  //              JSON value}.
+  mutable size_t last_dump_size_ = 0;
+  ::std::unordered_map<uint32_t, MutationEntry> mutations_;
+  ::std::unordered_set<uint32_t> deleted_;
+  ::std::unordered_map<uint32_t,
+                       ::std::vector<::std::pair<::std::string, ::std::string>>>
+      additions_;
+
   struct ArrayInsertion {
     size_t index;
-    std::string data;
+    ::std::string data;
   };
-  std::unordered_set<uint32_t> deleted_;
-  std::unordered_map<uint32_t, std::vector<std::pair<std::string, std::string>>>
-      additions_;
-  std::unordered_map<uint32_t, std::vector<ArrayInsertion>> array_insertions_;
+  ::std::unordered_map<uint32_t, ::std::vector<ArrayInsertion>>
+      array_insertions_;
 
-  DocumentView() = default;
-  explicit DocumentView(std::string_view json) : source(json) {}
+  mutable ::std::unordered_map<::std::string, ::std::shared_ptr<DocumentState>>
+      synthetic_docs_;
 
-  // Explicit move (TapeArena + Stage1Index non-copyable)
-  DocumentView(DocumentView &&o) noexcept : source(o.source), ref_count(0) {
-    tape.base = o.tape.base;
-    tape.head = o.tape.head;
-    tape.cap = o.tape.cap;
-    o.tape.base = o.tape.head = o.tape.cap = nullptr;
-    idx.positions = o.idx.positions;
-    idx.count = o.idx.count;
-    idx.capacity = o.idx.capacity;
-    o.idx.positions = nullptr;
-    o.idx.count = o.idx.capacity = 0;
+  DocumentState() = default;
+  explicit DocumentState(::std::string_view json) : source(json) {}
+
+  void ref() { ref_count.fetch_add(1, ::std::memory_order_relaxed); }
+  void deref() {
+    if (ref_count.fetch_sub(1, ::std::memory_order_acq_rel) == 1) {
+      delete this;
+    }
   }
-  DocumentView &operator=(DocumentView &&o) noexcept {
+
+  // Forward declaration of get_synthetic for DocumentState
+  DocumentState *get_synthetic(const ::std::string &json_str) const;
+
+  // Prevent copying/moving the state itself; always handle via pointers.
+  DocumentState(const DocumentState &) = delete;
+  DocumentState &operator=(const DocumentState &) = delete;
+};
+
+/// @brief A lightweight handle to a parsed JSON document's internal state.
+/// @details DocumentView (aliased as Document) manages the lifetime of a
+/// DocumentState via reference counting. Moving a DocumentView is a O(1)
+/// operation that does not invalidate any Associated Value objects.
+class DocumentView {
+  DocumentState *state_ = nullptr;
+
+public:
+  DocumentView() : state_(new DocumentState()) { state_->ref(); }
+
+  explicit DocumentView(::std::string_view json)
+      : state_(new DocumentState(json)) {
+    state_->ref();
+  }
+
+  ~DocumentView() {
+    if (state_)
+      state_->deref();
+  }
+
+  DocumentView(const DocumentView &o) : state_(o.state_) {
+    if (state_)
+      state_->ref();
+  }
+
+  DocumentView &operator=(const DocumentView &o) {
     if (this != &o) {
-      source = o.source;
-      tape.base = o.tape.base;
-      tape.head = o.tape.head;
-      tape.cap = o.tape.cap;
-      o.tape.base = o.tape.head = o.tape.cap = nullptr;
-      std::free(idx.positions);
-      idx.positions = o.idx.positions;
-      idx.count = o.idx.count;
-      idx.capacity = o.idx.capacity;
-      o.idx.positions = nullptr;
-      o.idx.count = o.idx.capacity = 0;
-      ref_count = 0;
-      last_dump_size_ = o.last_dump_size_;
+      if (state_)
+        state_->deref();
+      state_ = o.state_;
+      if (state_)
+        state_->ref();
     }
     return *this;
   }
 
-  void ref() { ++ref_count; }
-  void deref() { --ref_count; }
+  DocumentView(DocumentView &&o) noexcept : state_(o.state_) {
+    o.state_ = nullptr;
+  }
 
-  const char *data() const { return source.data(); }
-  size_t size() const { return source.size(); }
+  DocumentView &operator=(DocumentView &&o) noexcept {
+    if (this != &o) {
+      if (state_)
+        state_->deref();
+      state_ = o.state_;
+      o.state_ = nullptr;
+    }
+    return *this;
+  }
+
+  // Handle accessors
+  DocumentState *state() const { return state_; }
+  const char *data() const { return state_ ? state_->source.data() : nullptr; }
+  size_t size() const { return state_ ? state_->source.size() : 0; }
+
+  // Implicit conversion to bool for validity check
+  explicit operator bool() const noexcept { return state_ != nullptr; }
+
+  // Forward synthetic doc lookup to state
+  DocumentState *get_synthetic(const ::std::string &json_str) const {
+    return state_ ? state_->get_synthetic(json_str) : nullptr;
+  }
 };
 
 // C++20 Concepts — named constraints used throughout Value/SafeValue
@@ -551,18 +599,59 @@ class SafeValue; // optional-propagating proxy (defined after Value)
 /// returned by any access that fails, such as a missing key or out-of-range
 /// index.
 class Value {
-  DocumentView *doc_ = nullptr;
+  DocumentState *doc_ = nullptr;
   uint32_t idx_ = 0;
 
 public:
   Value() = default;
-  Value(DocumentView *doc, uint32_t idx) : doc_(doc), idx_(idx) {}
+  Value(DocumentState *state, uint32_t idx) : doc_(state), idx_(idx) {
+    if (doc_)
+      doc_->ref();
+  }
+  Value(DocumentView handle, uint32_t idx) : doc_(handle.state()), idx_(idx) {
+    if (doc_)
+      doc_->ref();
+  }
+  ~Value() {
+    if (doc_)
+      doc_->deref();
+  }
+  Value(const Value &o) : doc_(o.doc_), idx_(o.idx_) {
+    if (doc_)
+      doc_->ref();
+  }
+  Value &operator=(const Value &o) {
+    if (this != &o) {
+      if (doc_)
+        doc_->deref();
+      doc_ = o.doc_;
+      idx_ = o.idx_;
+      if (doc_)
+        doc_->ref();
+    }
+    return *this;
+  }
+  Value(Value &&o) noexcept : doc_(o.doc_), idx_(o.idx_) { o.doc_ = nullptr; }
+  Value &operator=(Value &&o) noexcept {
+    if (this != &o) {
+      if (doc_)
+        doc_->deref();
+      doc_ = o.doc_;
+      idx_ = o.idx_;
+      o.doc_ = nullptr;
+    }
+    return *this;
+  }
 
   // ── Internal: effective type after mutations ──────────────────────────────
 
 private:
   TapeNodeType effective_type_() const noexcept {
-    if (BEAST_UNLIKELY(doc_ && !doc_->mutations_.empty())) {
+    if (BEAST_UNLIKELY(!doc_))
+      return TapeNodeType::Null;
+    if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(idx_)))
+      return TapeNodeType::Null;
+    if (BEAST_UNLIKELY(!doc_->mutations_.empty())) {
       auto it = doc_->mutations_.find(idx_);
       if (it != doc_->mutations_.end())
         return it->second.type;
@@ -635,20 +724,23 @@ public:
   // — set() targets scalar replacement at an existing tape position.
 
   void set(std::nullptr_t) {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     doc_->mutations_[idx_] = {TapeNodeType::Null, {}};
     doc_->last_dump_size_ = 0; // invalidate size cache
   }
 
   void set(bool b) {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     doc_->mutations_[idx_] = {
         b ? TapeNodeType::BooleanTrue : TapeNodeType::BooleanFalse, {}};
     doc_->last_dump_size_ = 0;
   }
 
   template <JsonInteger T> void set(T val) {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     char buf[32];
     auto [ptr, ec] =
         std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(val));
@@ -657,7 +749,8 @@ public:
   }
 
   template <JsonFloat T> void set(T val) {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     char buf[64];
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
     auto [ptr, ec] =
@@ -672,7 +765,8 @@ public:
   }
 
   void set(std::string_view s) {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     doc_->mutations_[idx_] = {TapeNodeType::StringRaw, std::string(s)};
     doc_->last_dump_size_ = 0;
   }
@@ -681,7 +775,8 @@ public:
 
   // Erase a previously set() mutation, restoring the original parsed value.
   void unset() {
-    if (!doc_) return;
+    if (!doc_)
+      return;
     doc_->mutations_.erase(idx_);
     doc_->last_dump_size_ = 0;
   }
@@ -794,7 +889,7 @@ public:
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
       if (t == TapeNodeType::ObjectEnd)
-        return {};
+        break;
       // Skip deleted keys transparently
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
         i = skip_value_(i + 1);
@@ -806,6 +901,17 @@ public:
       if (klen == key.size() && std::memcmp(kdata, key.data(), klen) == 0)
         return Value(doc_, i + 1);
       i = skip_value_(i + 1);
+    }
+    if (BEAST_UNLIKELY(!doc_->additions_.empty())) {
+      auto ait = doc_->additions_.find(idx_);
+      if (ait != doc_->additions_.end()) {
+        for (const auto &p : ait->second) {
+          if (p.first == key) {
+            DocumentState *synth = doc_->get_synthetic(p.second);
+            return Value(synth, 0);
+          }
+        }
+      }
     }
     return {};
   }
@@ -827,7 +933,7 @@ public:
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
       if (t == TapeNodeType::ArrayEnd)
-        return {};
+        break;
       // Skip deleted elements transparently
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
         i = skip_value_(i);
@@ -837,6 +943,19 @@ public:
         return Value(doc_, i);
       i = skip_value_(i);
       ++count;
+    }
+
+    // Check array_insertions_
+    if (BEAST_UNLIKELY(!doc_->array_insertions_.empty())) {
+      auto iit = doc_->array_insertions_.find(idx_);
+      if (iit != doc_->array_insertions_.end()) {
+        for (const auto &ins : iit->second) {
+          if (ins.index == index) {
+            DocumentState *synth = doc_->get_synthetic(ins.data);
+            return Value(synth, 0);
+          }
+        }
+      }
     }
     return {};
   }
@@ -850,7 +969,7 @@ public:
     while (i < ntape) {
       const auto t = doc_->tape[i].type();
       if (t == TapeNodeType::ObjectEnd)
-        return std::nullopt;
+        break;
       if (BEAST_UNLIKELY(!doc_->deleted_.empty() && doc_->deleted_.count(i))) {
         i = skip_value_(i + 1);
         continue;
@@ -861,6 +980,18 @@ public:
       if (klen == key.size() && std::memcmp(kdata, key.data(), klen) == 0)
         return Value(doc_, i + 1);
       i = skip_value_(i + 1);
+    }
+    // Key not found in tape, check additions_
+    if (BEAST_UNLIKELY(!doc_->additions_.empty())) {
+      auto ait = doc_->additions_.find(idx_);
+      if (ait != doc_->additions_.end()) {
+        for (const auto &p : ait->second) {
+          if (p.first == key) {
+            DocumentState *synth = doc_->get_synthetic(p.second);
+            return Value(synth, 0);
+          }
+        }
+      }
     }
     return std::nullopt;
   }
@@ -884,10 +1015,10 @@ public:
           ++count;
         }
       }
-      if (!doc_->additions_.empty()) {
-        auto ait = doc_->additions_.find(idx_);
-        if (ait != doc_->additions_.end())
-          count += ait->second.size();
+      if (!doc_->array_insertions_.empty()) {
+        auto iit = doc_->array_insertions_.find(idx_);
+        if (iit != doc_->array_insertions_.end())
+          count += iit->second.size();
       }
       return count;
     }
@@ -926,10 +1057,9 @@ public:
   //   std::string, std::string_view
 
   template <typename T> T as() const {
-    // Guard: invalid Value{} (missing key / out-of-range index) → throw.
-    // This makes try_as<T>() safe even on invalid Values (returns nullopt).
-    if (!doc_)
-      throw std::runtime_error("beast::Value::as: value is missing or invalid");
+    if (!doc_ || (!doc_->deleted_.empty() && doc_->deleted_.count(idx_)))
+      throw std::runtime_error(
+          "beast::Value::as: value is missing, invalid, or deleted");
 
     // Check mutation overlay first — O(1) unordered_map lookup, only paid
     // when mutations_ is non-empty (guarded by BEAST_UNLIKELY branch).
@@ -1635,8 +1765,10 @@ public:
       const char *kdata = doc_->source.data() + kn.offset;
       if (kn.length() == key.size() &&
           std::memcmp(kdata, key.data(), key.size()) == 0) {
-        doc_->deleted_.insert(
-            i); // mark key deleted (cascade: dump skips value)
+        doc_->deleted_.insert(i);
+        uint32_t val_end = skip_value_(i + 1);
+        for (uint32_t k = i + 1; k < val_end; ++k)
+          doc_->deleted_.insert(k);
         doc_->last_dump_size_ = 0;
         return true;
       }
@@ -1662,6 +1794,9 @@ public:
       }
       if (count == idx) {
         doc_->deleted_.insert(i);
+        uint32_t val_end = skip_value_(i);
+        for (uint32_t k = i + 1; k < val_end; ++k)
+          doc_->deleted_.insert(k);
         doc_->last_dump_size_ = 0;
         return true;
       }
@@ -1762,10 +1897,10 @@ public:
   // Shared skip helper — delegates to the canonical skip_value_() instance
   // method. Static so iterator classes (defined before their parent Value
   // closes) can call it.
-  static uint32_t skip_val_s_(const DocumentView *doc, uint32_t i) noexcept {
-    if (BEAST_UNLIKELY(i >= static_cast<uint32_t>(doc->tape.size())))
+  static uint32_t skip_val_s_(DocumentState *doc, uint32_t i) noexcept {
+    if (BEAST_UNLIKELY(!doc || i >= static_cast<uint32_t>(doc->tape.size())))
       return i;
-    Value tmp(const_cast<DocumentView *>(doc), i);
+    Value tmp(doc, i);
     return tmp.skip_value_(i);
   }
 
@@ -1773,7 +1908,7 @@ public:
   // Yields std::pair<std::string_view, Value> — structured bindings work:
   //   for (auto [key, val] : root["obj"].items()) { ... }
   class ObjectIterator {
-    const DocumentView *doc_;
+    DocumentState *doc_;
     uint32_t key_idx_; // UINT32_MAX = end sentinel
     void skip_deleted_() noexcept {
       const size_t tape_sz = doc_->tape.size();
@@ -1802,7 +1937,7 @@ public:
     using iterator_category = std::forward_iterator_tag;
 
     ObjectIterator() noexcept : doc_(nullptr), key_idx_(UINT32_MAX) {}
-    ObjectIterator(const DocumentView *doc, uint32_t key_idx) noexcept
+    ObjectIterator(DocumentState *doc, uint32_t key_idx) noexcept
         : doc_(doc), key_idx_(key_idx) {
       skip_deleted_();
     }
@@ -1811,7 +1946,7 @@ public:
     std::pair<std::string_view, Value> operator*() const noexcept {
       const TapeNode &kn = doc_->tape[key_idx_];
       return {std::string_view(doc_->source.data() + kn.offset, kn.length()),
-              Value(const_cast<DocumentView *>(doc_), key_idx_ + 1)};
+              Value(doc_, key_idx_ + 1)};
     }
     ObjectIterator &operator++() noexcept {
       key_idx_ = skip_val_s_(doc_, key_idx_ + 1); // skip value
@@ -1830,13 +1965,14 @@ public:
 
   // Range-compatible proxy for object iteration (also includes additions)
   class ObjectRange : public std::ranges::view_base {
-    const DocumentView *doc_;
+    DocumentState *doc_;
     uint32_t obj_idx_; // ObjectStart tape index
     // Additions appended as synthetic entries after tape traversal
-    const std::vector<std::pair<std::string, std::string>> *adds_ = nullptr;
+    const ::std::vector<::std::pair<::std::string, ::std::string>> *adds_ =
+        nullptr;
 
   public:
-    ObjectRange(const DocumentView *doc, uint32_t idx) noexcept
+    ObjectRange(DocumentState *doc, uint32_t idx) noexcept
         : doc_(doc), obj_idx_(idx) {
       if (doc_ && !doc_->additions_.empty()) {
         auto it = doc_->additions_.find(idx);
@@ -1848,7 +1984,7 @@ public:
     ObjectIterator end() const noexcept { return {}; }
     // additions are accessed separately via added_items()
     // (they have no tape index; expose as string pairs)
-    const std::vector<std::pair<std::string, std::string>> *
+    const ::std::vector<::std::pair<::std::string, ::std::string>> *
     added_items() const noexcept {
       return adds_;
     }
@@ -1856,7 +1992,7 @@ public:
 
   // Forward iterator over array elements
   class ArrayIterator {
-    const DocumentView *doc_;
+    DocumentState *doc_;
     uint32_t elem_idx_; // UINT32_MAX = end
     void skip_deleted_() noexcept {
       const size_t tape_sz = doc_->tape.size();
@@ -1883,14 +2019,12 @@ public:
     using iterator_category = std::forward_iterator_tag;
 
     ArrayIterator() noexcept : doc_(nullptr), elem_idx_(UINT32_MAX) {}
-    ArrayIterator(const DocumentView *doc, uint32_t elem_idx) noexcept
+    ArrayIterator(DocumentState *doc, uint32_t elem_idx) noexcept
         : doc_(doc), elem_idx_(elem_idx) {
       skip_deleted_();
     }
 
-    Value operator*() const noexcept {
-      return Value(const_cast<DocumentView *>(doc_), elem_idx_);
-    }
+    Value operator*() const noexcept { return Value(doc_, elem_idx_); }
     ArrayIterator &operator++() noexcept {
       elem_idx_ = skip_val_s_(doc_, elem_idx_);
       skip_deleted_();
@@ -1907,11 +2041,11 @@ public:
   };
 
   class ArrayRange : public std::ranges::view_base {
-    const DocumentView *doc_;
+    DocumentState *doc_;
     uint32_t arr_idx_;
 
   public:
-    ArrayRange(const DocumentView *doc, uint32_t idx) noexcept
+    ArrayRange(DocumentState *doc, uint32_t idx) noexcept
         : doc_(doc), arr_idx_(idx) {}
     ArrayIterator begin() const noexcept { return {doc_, arr_idx_ + 1}; }
     ArrayIterator end() const noexcept { return {}; }
@@ -3457,7 +3591,7 @@ class Parser {
   const char *p_;
   const char *end_;
   const char *data_;
-  DocumentView *doc_;
+  DocumentState *doc_;
   size_t depth_ = 0;
 
   // compact per-depth context state.
@@ -4322,9 +4456,9 @@ class Parser {
   }
 
 public:
-  explicit Parser(DocumentView *doc)
-      : p_(doc->data()), end_(doc->data() + doc->size()), data_(doc->data()),
-        doc_(doc),
+  explicit Parser(DocumentState *doc)
+      : p_(doc->source.data()), end_(doc->source.data() + doc->source.size()),
+        data_(doc->source.data()), doc_(doc),
         tape_head_(doc->tape.base) // initialize local head from arena base
   {}
 
@@ -5213,23 +5347,27 @@ public:
 
 // Public API
 
-inline Value parse_reuse(DocumentView &doc, std::string_view json) {
-  doc.source = json;
+inline Value parse_reuse(DocumentView &handle, std::string_view json) {
+  DocumentState *doc = handle.state();
+  if (!doc)
+    return {};
+  doc->source = json;
   // Clear mutation / deletion / addition overlays from any prior parse.
   // These maps reference tape indices that are invalidated when the tape is
   // reset; stale entries would corrupt dump_changes_() on the next call.
-  doc.mutations_.clear();
-  doc.deleted_.clear();
-  doc.additions_.clear();
+  doc->mutations_.clear();
+  doc->deleted_.clear();
+  doc->additions_.clear();
+  doc->array_insertions_.clear();
   // Worst-case tape nodes == json.size() (e.g. "[[[...]]]" produces one
   // node per character). Use json.size() + 64 as a guaranteed upper bound.
   const size_t needed = json.size() + 64;
-  if (BEAST_UNLIKELY(!doc.tape.base ||
-                     static_cast<size_t>(doc.tape.cap - doc.tape.base) <
+  if (BEAST_UNLIKELY(!doc->tape.base ||
+                     static_cast<size_t>(doc->tape.cap - doc->tape.base) <
                          needed)) {
-    doc.tape.reserve(needed);
+    doc->tape.reserve(needed);
   } else {
-    doc.tape.reset(); // hot path: head = base (1 instruction)
+    doc->tape.reset(); // hot path: head = base (1 instruction)
   }
 #if BEAST_HAS_AVX512
   // Stage 1+2 is beneficial when the positions array fits in
@@ -5240,21 +5378,21 @@ inline Value parse_reuse(DocumentView &doc, std::string_view json) {
   // excludes canada(2.15MB) and gsoc(3.3MB).
   static constexpr size_t kStage12MaxSize = 2 * 1024 * 1024; // 2 MB
   if (BEAST_LIKELY(json.size() <= kStage12MaxSize)) {
-    stage1_scan_avx512(json.data(), json.size(), doc.idx);
-    if (!Parser(&doc).parse_staged(doc.idx)) {
+    stage1_scan_avx512(json.data(), json.size(), doc->idx);
+    if (!Parser(doc).parse_staged(doc->idx)) {
       throw std::runtime_error("Invalid JSON");
     }
   } else {
-    if (!Parser(&doc).parse()) {
+    if (!Parser(doc).parse()) {
       throw std::runtime_error("Invalid JSON");
     }
   }
 #else
-  if (!Parser(&doc).parse()) {
+  if (!Parser(doc).parse()) {
     throw std::runtime_error("Invalid JSON");
   }
 #endif
-  return Value(&doc, 0);
+  return Value(doc, 0);
 }
 
 // ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
@@ -5613,115 +5751,54 @@ public:
   }
 };
 
+// ── DocumentState::get_synthetic out-of-line (Value now complete) ──────────
+
+inline DocumentState *
+DocumentState::get_synthetic(const ::std::string &json_str) const {
+  auto it = synthetic_docs_.find(json_str);
+  if (it != synthetic_docs_.end())
+    return it->second.get();
+
+  DocumentView synth_handle(json_str);
+  parse_reuse(synth_handle, json_str);
+
+  DocumentState *s = synth_handle.state();
+  // Transfer ownership to shared_ptr. The handle has 1 ref.
+  // We want the shared_ptr to own it too.
+  auto shared = std::shared_ptr<DocumentState>(
+      s, [](DocumentState *ptr) { ptr->deref(); });
+  // Increment ref for the shared_ptr so it doesn't delete when handle goes away
+  s->ref();
+
+  synthetic_docs_[json_str] = std::move(shared);
+  return s;
+}
+
 // ── Value::get() out-of-line definitions (SafeValue now complete) ──────────
 
-inline SafeValue Value::get(std::string_view key) const noexcept {
-  auto opt = find(key); // find() returns std::optional<Value>
-  return opt ? SafeValue(*opt) : SafeValue{};
-}
-inline SafeValue Value::get(const char *key) const noexcept {
-  return get(std::string_view(key));
-}
-inline SafeValue Value::get(size_t idx) const noexcept {
-  if (!is_array())
+inline SafeValue Value::get(::std::string_view key) const noexcept {
+  Value v = this->operator[](key);
+  if (v.idx_ == 0)
     return {};
-  uint32_t i = idx_ + 1;
-  const size_t ntape = doc_->tape.size();
-  size_t count = 0;
-  while (i < ntape) {
-    if (doc_->tape[i].type() == TapeNodeType::ArrayEnd)
-      return {};
-    if (count == idx)
-      return SafeValue(Value(doc_, i));
-    i = skip_value_(i);
-    ++count;
-  }
-  return {};
+  return SafeValue{v};
 }
+
+inline SafeValue Value::get(const char *key) const noexcept {
+  return get(::std::string_view(key));
+}
+
+inline SafeValue Value::get(size_t idx) const noexcept {
+  Value v = this->operator[](idx);
+  if (v.idx_ == 0)
+    return {};
+  return SafeValue{v};
+}
+
 inline SafeValue Value::get(int idx) const noexcept {
   if (idx < 0)
     return {};
   return get(static_cast<size_t>(idx));
 }
-
-} // namespace lazy
-} // namespace json
-} // namespace beast
-
-// ── C++20 ranges support ────────────────────────────────────────────────────
-//
-// ObjectRange and ArrayRange are non-owning views into a DocumentView — they
-// hold only a raw pointer.  Iterators derived from them cannot dangle even
-// after the range object is destroyed, so both types qualify as
-// `borrowed_range`.  Specialising enable_borrowed_range allows:
-//   • std::ranges::find_if / find to return a real iterator (not dangling)
-//   • pipe syntax:  root.items() | std::views::transform(f) | ...
-//
-// enable_view is set via view_base inheritance — both types are lightweight
-// (pointer + index) and satisfy view semantics, avoiding the owning_view
-// circular constraint issue in GCC 12.
-template <>
-inline constexpr bool
-    std::ranges::enable_borrowed_range<beast::json::lazy::Value::ObjectRange> =
-        true;
-
-template <>
-inline constexpr bool
-    std::ranges::enable_borrowed_range<beast::json::lazy::Value::ArrayRange> =
-        true;
-
-// ============================================================================
-// 3-Tier Public API
-// ============================================================================
-//
-//  Tier 1 — beast::core  : internal engine types (tape, scanner, SIMD)
-//  Tier 2 — beast::utils : compile-time macros (BEAST_INLINE, BEAST_HAS_*, …)
-//  Tier 3 — beast::      : public facade — the only namespace users touch
-//
-// beast::json::lazy remains as the canonical implementation namespace.
-// beast:: aliases provide a stable, version-safe public surface.
-// ============================================================================
-
-namespace beast {
-
-// ---------------------------------------------------------------------------
-// Tier 1 — beast::core
-// Internal implementation types. Users should not depend on these directly;
-// they may change between minor versions.
-// ---------------------------------------------------------------------------
-namespace core {
-using TapeNodeType = beast::json::lazy::TapeNodeType;
-using TapeNode = beast::json::lazy::TapeNode;
-using TapeArena = beast::json::lazy::TapeArena;
-using Stage1Index = beast::json::lazy::Stage1Index;
-using Parser = beast::json::lazy::Parser;
-} // namespace core
-
-// ---------------------------------------------------------------------------
-// Tier 3 — beast:: public facade
-// ---------------------------------------------------------------------------
-
-/// Shared document state: tape arena + source reference.
-/// Create one per logical JSON document; reuse across re-parses.
-using Document = beast::json::lazy::DocumentView;
-
-/// Zero-copy lazy value: a (Document*, tape_index) pair.
-/// Lifetime tied to the originating Document.
-using Value = beast::json::lazy::Value;
-
-/// @brief Parses a JSON string into the provided Document.
-/// @param doc The Document object which will own the allocated memory.
-/// @param json The JSON string to parse.
-/// @return A beast::Value handle representing the root of the parsed JSON tree.
-/// @note This function provides best-effort parsing. For strict RFC 8259
-/// validation, use `parse_strict()` instead.
-inline Value parse(Document &doc, std::string_view json) {
-  return beast::json::lazy::parse_reuse(doc, json);
-}
-
-/// Optional-propagating chain proxy returned by Value::get().
-/// Propagates std::nullopt silently through nested access — never throws.
-using SafeValue = beast::json::lazy::SafeValue;
 
 // ============================================================================
 // beast::rfc8259 — RFC 8259 strict validator
@@ -5954,16 +6031,16 @@ struct Validator {
 /// Throws std::runtime_error with offset information on the first violation.
 inline void validate(std::string_view json) { detail_::Validator{}.run(json); }
 
-} // namespace rfc8259
-
 /// Parse \p json into \p doc with strict RFC 8259 compliance.
 /// Rejects: trailing commas, leading zeros, invalid escapes,
 ///          unescaped control characters, trailing content, etc.
 /// Throws std::runtime_error describing the violation and its byte offset.
-inline Value parse_strict(Document &doc, std::string_view json) {
+inline Value parse_strict(DocumentView &doc, ::std::string_view json) {
   rfc8259::validate(json);
-  return beast::json::lazy::parse_reuse(doc, json);
+  return beast::json::parse_reuse(doc, json);
 }
+
+} // namespace rfc8259
 
 // ============================================================================
 // beast::detail — Automatic Serialization / Deserialization Engine
@@ -6266,9 +6343,9 @@ template <typename T> std::string to_json_str(const T &in) {
     return s;
   } else if constexpr (HasToBeastJson<T>) {
     // User-defined: create temp document, call to_beast_json, dump
-    std::string src = "{}";
-    Document doc;
-    Value root = parse(doc, src);
+    ::std::string src = "{}";
+    DocumentView doc;
+    Value root = ::beast::json::parse_reuse(doc, src);
     to_beast_json(root, in); // ADL: user-defined or BEAST_JSON_FIELDS-generated
     return root.dump();
   } else {
@@ -6366,9 +6443,9 @@ template <typename T> void append_json(std::string &out, const T &in) {
     append_beast_json(out, in);
   } else if constexpr (HasToBeastJson<T>) {
     // Fallback exactly like to_json_str
-    std::string src = "{}";
-    Document doc;
-    Value root = parse(doc, src);
+    ::std::string src = "{}";
+    DocumentView doc;
+    Value root = ::beast::json::parse_reuse(doc, src);
     to_beast_json(root, in);
     out += root.dump();
   } else {
@@ -6385,12 +6462,12 @@ template <typename T>
 inline void from_json_field(const Value &obj, const char *key, T &field) {
   auto opt = obj.find(key);
   if (!opt)
-    return; // absent → keep default value
+    return;
   if constexpr (is_specialization_of<T, std::optional>::value) {
-    from_json(*opt, field); // optional handles null → nullopt
+    from_json(*opt, field);
   } else {
     if (!opt->is_null())
-      from_json(*opt, field); // skip null for non-optional
+      from_json(*opt, field);
   }
 }
 
@@ -6402,15 +6479,13 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 } // namespace detail
 
 // ============================================================================
-// BEAST_FOR_EACH — variadic macro (up to 32 fields)
+// BEAST_FOR_EACH — variadic macro
 // ============================================================================
 
 #define BEAST_DETAIL_EXPAND(x) x
 #define BEAST_DETAIL_CONCAT(a, b) a##b
-// Two-step concat: expands arguments first, then concatenates
 #define BEAST_DETAIL_CONCAT2(a, b) BEAST_DETAIL_CONCAT(a, b)
 
-// Count args: BEAST_DETAIL_COUNT(a,b,c) → 3
 #define BEAST_DETAIL_COUNT(...)                                                \
   BEAST_DETAIL_EXPAND(BEAST_DETAIL_COUNT_I(                                    \
       __VA_ARGS__, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, \
@@ -6421,72 +6496,23 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
                              _32, N, ...)                                      \
   N
 
-// Recursive FE_N macros
 #define BEAST_DETAIL_FE_1(fn, a) fn(a)
-#define BEAST_DETAIL_FE_2(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_1(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_3(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_2(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_4(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_3(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_5(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_4(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_6(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_5(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_7(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_6(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_8(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_7(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_9(fn, a, ...)                                          \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_8(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_10(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_9(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_11(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_10(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_12(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_11(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_13(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_12(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_14(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_13(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_15(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_14(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_16(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_15(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_17(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_16(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_18(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_17(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_19(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_18(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_20(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_19(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_21(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_20(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_22(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_21(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_23(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_22(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_24(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_23(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_25(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_24(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_26(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_25(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_27(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_26(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_28(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_27(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_29(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_28(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_30(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_29(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_31(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_30(fn, __VA_ARGS__))
-#define BEAST_DETAIL_FE_32(fn, a, ...)                                         \
-  fn(a) BEAST_DETAIL_EXPAND(BEAST_DETAIL_FE_31(fn, __VA_ARGS__))
+#define BEAST_DETAIL_FE_2(fn, a, ...) fn(a) BEAST_DETAIL_FE_1(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_3(fn, a, ...) fn(a) BEAST_DETAIL_FE_2(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_4(fn, a, ...) fn(a) BEAST_DETAIL_FE_3(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_5(fn, a, ...) fn(a) BEAST_DETAIL_FE_4(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_6(fn, a, ...) fn(a) BEAST_DETAIL_FE_5(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_7(fn, a, ...) fn(a) BEAST_DETAIL_FE_6(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_8(fn, a, ...) fn(a) BEAST_DETAIL_FE_7(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_9(fn, a, ...) fn(a) BEAST_DETAIL_FE_8(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_10(fn, a, ...) fn(a) BEAST_DETAIL_FE_9(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_11(fn, a, ...) fn(a) BEAST_DETAIL_FE_10(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_12(fn, a, ...) fn(a) BEAST_DETAIL_FE_11(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_13(fn, a, ...) fn(a) BEAST_DETAIL_FE_12(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_14(fn, a, ...) fn(a) BEAST_DETAIL_FE_13(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_15(fn, a, ...) fn(a) BEAST_DETAIL_FE_14(fn, __VA_ARGS__)
+#define BEAST_DETAIL_FE_16(fn, a, ...) fn(a) BEAST_DETAIL_FE_15(fn, __VA_ARGS__)
 
-/// Apply fn to each variadic argument (up to 32).
 #define BEAST_FOR_EACH(fn, ...)                                                \
   BEAST_DETAIL_EXPAND(BEAST_DETAIL_CONCAT2(                                    \
       BEAST_DETAIL_FE_, BEAST_DETAIL_COUNT(__VA_ARGS__))(fn, __VA_ARGS__))
@@ -6494,61 +6520,21 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 // ============================================================================
 // BEAST_JSON_FIELDS — one-line struct serialization/deserialization
 // ============================================================================
-//
-// Usage (inside or outside the struct, any namespace):
-//
-//   struct Address {
-//     std::string city;
-//     std::string country;
-//   };
-//   BEAST_JSON_FIELDS(Address, city, country)
-//
-//   struct User {
-//     std::string              name;
-//     int                      age  = 0;
-//     std::optional<Address>   addr;
-//     std::vector<std::string> tags;
-//   };
-//   BEAST_JSON_FIELDS(User, name, age, addr, tags)
-//
-//   // Read — fully automatic, nested structs just work:
-//   auto user = beast::read<User>(R"({
-//     "name": "Alice", "age": 30,
-//     "addr": {"city":"Seoul","country":"KR"},
-//     "tags": ["admin","user"]
-//   })");
-//
-//   // Write — fully automatic:
-//   std::string json = beast::write(user);
-//
-// Rules:
-//   • Place the macro in the same namespace as the struct.
-//   • All field types must themselves be supported (built-in or
-//   BEAST_JSON_FIELDS). • Missing JSON keys leave the field at its
-//   default-constructed value. • JSON null on a non-optional field is silently
-//   skipped. • JSON null on std::optional<T> field sets it to std::nullopt.
-// ============================================================================
 
 #define BEAST_JSON_DETAIL_READ(f)                                              \
-  ::beast::detail::from_json_field(v, #f, obj.f);
-#define BEAST_JSON_DETAIL_WRITE(f) ::beast::detail::to_json_field(v, #f, obj.f);
+  ::beast::json::detail::from_json_field(v, #f, obj.f);
+#define BEAST_JSON_DETAIL_WRITE(f)                                             \
+  ::beast::json::detail::to_json_field(v, #f, obj.f);
 #define BEAST_JSON_DETAIL_APPEND(f)                                            \
   out += "\"" #f "\":";                                                        \
-  ::beast::detail::append_json(out, obj.f);                                    \
+  ::beast::json::detail::append_json(out, obj.f);                              \
   out += ',';
 
-/// @brief Register struct Type for automatic JSON
-/// serialization/deserialization.
-/// @details Place this macro after the struct definition (or inside it as a
-/// friend). This macro generates `to_beast_json()`, `from_beast_json()`, and
-/// `append_beast_json()` ADL overloads. Lists up to 32 member field names.
-/// @param Type The name of the struct or class to serialize.
-/// @param ... The member variables of the struct to serialize.
 #define BEAST_JSON_FIELDS(Type, ...)                                           \
-  inline void from_beast_json(const ::beast::Value &v, Type &obj) {            \
+  inline void from_beast_json(const ::beast::json::Value &v, Type &obj) {      \
     BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                        \
   }                                                                            \
-  inline void to_beast_json(::beast::Value &v, const Type &obj) {              \
+  inline void to_beast_json(::beast::json::Value &v, const Type &obj) {        \
     BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
   }                                                                            \
   inline void append_beast_json(std::string &out, const Type &obj) {           \
@@ -6560,43 +6546,76 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
     out += '}';                                                                \
   }
 
-// ── Public API ───────────────────────────────────────────────────────────────
+namespace lazy = ::beast::json;
 
-/// @brief Deserialize JSON string into a C++ object of type T.
-/// @details Supports all STL types, std::optional, and structs registered with
-/// `BEAST_JSON_FIELDS()` or manual ADL `from_beast_json()`.
-/// T must be default-constructible.
-/// @param json The JSON string to parse and deserialize.
-/// @return The deserialized C++ object.
-/// @throws std::runtime_error on malformed JSON or type mismatch.
-template <typename T> T read(std::string_view json) {
+} // namespace json
+} // namespace beast
+
+// ── C++20 ranges support ────────────────────────────────────────────────────
+namespace std::ranges {
+template <>
+inline constexpr bool enable_borrowed_range<beast::json::Value::ObjectRange> =
+    true;
+
+template <>
+inline constexpr bool enable_borrowed_range<beast::json::Value::ArrayRange> =
+    true;
+} // namespace std::ranges
+
+namespace beast {
+
+// ---------------------------------------------------------------------------
+// Tier 1 — beast::core
+// ---------------------------------------------------------------------------
+namespace core {
+using TapeNodeType = json::TapeNodeType;
+using TapeNode = json::TapeNode;
+using TapeArena = json::TapeArena;
+using Stage1Index = json::Stage1Index;
+using Parser = json::Parser;
+} // namespace core
+
+// ---------------------------------------------------------------------------
+// Tier 3 — beast:: public facade
+// ---------------------------------------------------------------------------
+
+using Document = json::DocumentView;
+using Value = json::Value;
+using SafeValue = json::SafeValue;
+
+namespace rfc8259 = json::rfc8259;
+
+inline Value parse(Document &doc, ::std::string_view json) {
+  return json::parse_reuse(doc, json);
+}
+
+inline Value parse_strict(Document &doc, ::std::string_view json) {
+  json::rfc8259::validate(json);
+  return json::parse_reuse(doc, json);
+}
+
+// read / write helpers
+template <typename T> T read(::std::string_view json) {
   Document doc;
   Value root = parse(doc, json);
   T obj{};
-  detail::from_json(root, obj);
+  ::beast::json::detail::from_json(root, obj);
   return obj;
 }
 
-/// @brief Serialize a C++ object of type T to a JSON string.
-/// @details Supports all STL types, std::optional, and structs registered with
-/// `BEAST_JSON_FIELDS()` or manual ADL `to_beast_json()`.
-/// @param obj The object to serialize.
-/// @return A std::string containing the serialized JSON.
-template <typename T> std::string write(const T &obj) {
-  std::string out;
-  out.reserve(512); // preallocate common initial size
-  detail::append_json(out, obj);
+template <typename T>::std::string write(const T &obj) {
+  ::std::string out;
+  out.reserve(512);
+  ::beast::json::detail::append_json(out, obj);
   return out;
 }
 
-/// Deserialize a Value into T in place (partial-deserialization helper).
 template <typename T> void from_json(const Value &v, T &out) {
-  detail::from_json(v, out);
+  ::beast::json::detail::from_json(v, out);
 }
 
-/// Serialize T into a JSON string (alternative to beast::write for sub-values).
-template <typename T> std::string to_json_str(const T &val) {
-  return detail::to_json_str(val);
+template <typename T>::std::string to_json_str(const T &val) {
+  return ::beast::json::detail::to_json_str(val);
 }
 
 } // namespace beast
