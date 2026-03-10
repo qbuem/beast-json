@@ -118,7 +118,7 @@ export default withMermaid(
 
             footer: {
                 message: 'Released under the Apache 2.0 License.',
-                copyright: 'Copyright © 2024-2026 Beast JSON Authors'
+                copyright: 'Copyright © 2026 Beast JSON Authors'
             }
         },
         mermaid: {
