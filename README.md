@@ -186,4 +186,4 @@ Beast JSON is licensed under the **Apache License 2.0**.
 
 * **Independent Implementation**: Beast JSON is a clean-room C++20 implementation of the referenced algorithms. It does not contain code copied from the referenced libraries.
 * **Fair Use & Citation**: Citations of academic papers and technical blogs are provided for educational and attribution purposes under fair use.
-* **Corporate Branding**: "THE LKB" branding and associated logos are used with permission by LKB Innovations.
+* **Corporate Branding**: "qbuem" branding and associated logos are the property of qbuem.
