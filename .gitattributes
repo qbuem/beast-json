@@ -1,0 +1,4 @@
+# benchmark-results.json is written exclusively by the CI workflow
+# (direct commit to main). During PR merges, always keep the main
+# branch version to avoid conflicts with the CI-managed content.
+docs/public/benchmark-results.json merge=ours
