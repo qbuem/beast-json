@@ -66,10 +66,10 @@ jobs:
       run: cmake --build build_bench --config Release -j2
 
     # bench_all uses system() to re-invoke itself per library, so the working
-    # directory must be where both the binary and twitter.json reside.
+    # directory must be where both the binary and the JSON data files reside.
     - name: Run benchmarks
       working-directory: build_bench/benchmarks
-      run: ./bench_all --quick twitter.json 2>&1 | tee bench_output.txt
+      run: ./bench_all --quick --all 2>&1 | tee bench_output.txt
 
     - name: Parse results into JSON artifact
       run: |
@@ -79,8 +79,20 @@ jobs:
         with open("build_bench/benchmarks/bench_output.txt", encoding="utf-8") as f:
             text = f.read()
 
-        results = []
+        # Split output into per-file sections.
+        # bench_all prints: "=== bench_all — <filename> ===" before each file.
+        files = []
+        current_file = None
+        current_results = []
+
         for line in text.splitlines():
+            m = re.match(r'^=== bench_all \u2014 (.+?) ===', line)
+            if m:
+                if current_file is not None:
+                    files.append({"file": current_file, "results": current_results})
+                current_file = m.group(1)
+                current_results = []
+                continue
             if "| Parse:" not in line:
                 continue
             parts = line.split("|")
@@ -93,29 +105,32 @@ jobs:
             ser_vals   = re.findall(r'\d+\.\d+', parts[2])
             if not parse_vals or not ser_vals:
                 continue
-            # Alloc field (integer KB) — present in Alloc: format, 0 if absent
             alloc_kb = 0
             if len(parts) >= 4:
                 alloc_vals = re.findall(r'\d+', parts[3])
                 if alloc_vals:
                     alloc_kb = int(alloc_vals[0])
-            results.append({
+            current_results.append({
                 "library":      lib,
                 "parse_us":     float(parse_vals[0]),
                 "serialize_us": float(ser_vals[0]),
                 "alloc_kb":     alloc_kb,
             })
 
+        if current_file is not None:
+            files.append({"file": current_file, "results": current_results})
+
         data = {
-            "arch":    "${{ matrix.arch }}",
-            "label":   "${{ matrix.label }}",
-            "results": results,
+            "arch":  "${{ matrix.arch }}",
+            "label": "${{ matrix.label }}",
+            "files": files,
         }
         os.makedirs("bench_artifacts", exist_ok=True)
         out = "bench_artifacts/results-${{ matrix.arch }}.json"
         with open(out, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        print(f"Wrote {len(results)} results to {out}")
+        total = sum(len(fd["results"]) for fd in files)
+        print(f"Wrote {len(files)} file(s), {total} results to {out}")
         PYEOF
 
     - name: Upload results artifact
@@ -174,35 +189,43 @@ jobs:
         ]
 
         for p in platforms:
-            results = p.get("results", [])
             lines.append(f"### {p.get('label', p.get('arch', '?'))}")
             lines.append("")
-            if results:
-                min_p = min(r["parse_us"] for r in results)
-                min_s = min(
-                    (r["serialize_us"] for r in results if r["serialize_us"] > 0),
-                    default=float("inf"),
-                )
-                min_m = min(
-                    (r.get("alloc_kb", 0) for r in results if r.get("alloc_kb", 0) > 0),
-                    default=0,
-                )
-                lines.append("| Library | Parse (μs) | Serialize (μs) | Alloc (KB) |")
-                lines.append("|:--------|----------:|---------------:|-----------:|")
-                for r in results:
-                    pv, sv = r["parse_us"], r["serialize_us"]
-                    mk = r.get("alloc_kb", 0)
-                    pb = "**" if pv == min_p else ""
-                    sb = "**" if sv > 0 and sv == min_s else ""
-                    mb = "**" if mk > 0 and mk == min_m else ""
-                    s_str = f"{sv:.1f}" if sv > 0 else "—"
-                    m_str = str(mk) if mk > 0 else "—"
-                    lines.append(
-                        f"| {pb}{r['library']}{pb} | {pb}{pv:.1f}{pb} | {sb}{s_str}{sb} | {mb}{m_str}{mb} |"
-                    )
-            else:
+            file_sections = p.get("files", [])
+            if not file_sections:
                 lines.append("_No data collected for this platform._")
-            lines.append("")
+                lines.append("")
+                continue
+            for fd in file_sections:
+                results = fd.get("results", [])
+                lines.append(f"#### `{fd['file']}`")
+                lines.append("")
+                if results:
+                    min_p = min(r["parse_us"] for r in results)
+                    min_s = min(
+                        (r["serialize_us"] for r in results if r["serialize_us"] > 0),
+                        default=float("inf"),
+                    )
+                    min_m = min(
+                        (r.get("alloc_kb", 0) for r in results if r.get("alloc_kb", 0) > 0),
+                        default=0,
+                    )
+                    lines.append("| Library | Parse (μs) | Serialize (μs) | Alloc (KB) |")
+                    lines.append("|:--------|----------:|---------------:|-----------:|")
+                    for r in results:
+                        pv, sv = r["parse_us"], r["serialize_us"]
+                        mk = r.get("alloc_kb", 0)
+                        pb = "**" if pv == min_p else ""
+                        sb = "**" if sv > 0 and sv == min_s else ""
+                        mb = "**" if mk > 0 and mk == min_m else ""
+                        s_str = f"{sv:.1f}" if sv > 0 else "—"
+                        m_str = str(mk) if mk > 0 else "—"
+                        lines.append(
+                            f"| {pb}{r['library']}{pb} | {pb}{pv:.1f}{pb} | {sb}{s_str}{sb} | {mb}{m_str}{mb} |"
+                        )
+                else:
+                    lines.append("_No data._")
+                lines.append("")
 
         summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null")
         with open(summary_path, "a", encoding="utf-8") as f:
