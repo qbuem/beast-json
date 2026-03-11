@@ -9,33 +9,43 @@
 
       <template v-for="p in data.platforms" :key="p.arch">
         <h4 class="ci-bench-platform">{{ p.label }}</h4>
-        <table v-if="p.results && p.results.length">
-          <thead>
-            <tr>
-              <th>Library</th>
-              <th>Parse (μs)</th>
-              <th>Serialize (μs)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="r in p.results" :key="r.library">
-              <td>{{ r.library }}</td>
-              <td :class="{ best: r.parse_us === minParse(p.results) }">
-                {{ r.parse_us.toFixed(1) }}
-              </td>
-              <td :class="{ best: r.serialize_us > 0 && r.serialize_us === minSer(p.results) }">
-                {{ r.serialize_us > 0 ? r.serialize_us.toFixed(1) : '—' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        <template v-if="p.files && p.files.length" v-for="fd in p.files" :key="fd.file">
+          <h5 class="ci-bench-file"><code>{{ fd.file }}</code></h5>
+          <table v-if="fd.results && fd.results.length">
+            <thead>
+              <tr>
+                <th>Library</th>
+                <th>Parse (μs)</th>
+                <th>Serialize (μs)</th>
+                <th>Alloc (KB)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in fd.results" :key="r.library">
+                <td>{{ r.library }}</td>
+                <td :class="{ best: r.parse_us === minParse(fd.results) }">
+                  {{ r.parse_us.toFixed(1) }}
+                </td>
+                <td :class="{ best: r.serialize_us > 0 && r.serialize_us === minSer(fd.results) }">
+                  {{ r.serialize_us > 0 ? r.serialize_us.toFixed(1) : '—' }}
+                </td>
+                <td :class="{ best: r.alloc_kb > 0 && r.alloc_kb === minAlloc(fd.results) }">
+                  {{ r.alloc_kb > 0 ? r.alloc_kb : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="ci-bench-state">No data for this file.</p>
+        </template>
+
         <p v-else class="ci-bench-state">No data for this platform.</p>
       </template>
 
       <p class="ci-bench-note">
-        Quick mode (15 iterations), Release build without PGO/LTO tuning.
+        Quick mode (15 iterations), Release build without PGO/LTO.
         Numbers reflect relative ordering on shared GitHub Actions runners —
-        not absolute throughput. See the reference tables above for PGO-optimised figures.
+        not absolute throughput.
       </p>
     </template>
 
@@ -52,18 +62,23 @@ interface BenchResult {
   library: string
   parse_us: number
   serialize_us: number
+  alloc_kb: number
+}
+
+interface FileData {
+  file: string
+  results: BenchResult[]
 }
 
 interface PlatformData {
   arch: string
   label: string
-  results: BenchResult[]
+  files: FileData[]
 }
 
 interface BenchData {
   timestamp: string
   commit: string
-  file: string
   platforms: PlatformData[]
 }
 
@@ -76,6 +91,11 @@ function minParse(results: BenchResult[]): number {
 
 function minSer(results: BenchResult[]): number {
   const vals = results.filter(r => r.serialize_us > 0).map(r => r.serialize_us)
+  return vals.length ? Math.min(...vals) : Infinity
+}
+
+function minAlloc(results: BenchResult[]): number {
+  const vals = results.filter(r => r.alloc_kb > 0).map(r => r.alloc_kb)
   return vals.length ? Math.min(...vals) : Infinity
 }
 
@@ -104,10 +124,18 @@ onMounted(async () => {
 }
 
 .ci-bench-platform {
-  margin-top: 1.25rem;
-  margin-bottom: 0.4rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.25rem;
   font-size: 1em;
   font-weight: 600;
+}
+
+.ci-bench-file {
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.9em;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
 }
 
 .ci-bench-note {

@@ -1,3 +1,5 @@
+<div align="center">
+
   <p>
     <a href="https://github.com/qbuem/beast-json/actions/workflows/ci.yml"><img src="https://github.com/qbuem/beast-json/actions/workflows/ci.yml/badge.svg" alt="C++20 CI"></a>
     <a href="https://github.com/qbuem/beast-json/actions/workflows/codeql.yml"><img src="https://github.com/qbuem/beast-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Static Analysis"></a>
@@ -7,22 +9,29 @@
 
   <p>
     <a href="https://qbuem.github.io/beast-json/">
-      <img src="https://img.shields.io/badge/Documentation-Premium%20Hub-orange?style=for-the-badge&logo=vitepress" alt="Premium Documentation Hub">
+      <img src="https://img.shields.io/badge/Documentation-Hub-orange?style=for-the-badge&logo=vitepress" alt="Documentation Hub">
     </a>
   </p>
+
 </div>
 
 ---
 
-**Beast JSON** is a bleeding-edge, lazy-DOM C++20 JSON library engineered to be the absolute fastest **C++ JSON parser and serializer** in the world. Designed for latency-critical applications, Game Engines, High-Frequency Trading systems, and extreme throughput web servers.
+**Beast JSON** is a lazy-DOM C++20 JSON library engineered to be the fastest **C++ JSON parser and serializer** available. Designed for latency-critical applications: High-Frequency Trading, game engines, and extreme-throughput servers.
 
-By fully leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, **SWAR (SIMD Within A Register)**, and a **Zero-Allocation Array-Backed Tape DOM**, Beast JSON fundamentally changes how JSON is processed. It destroys traditional tree-based DOM performance limits while retaining a beautifully simple API, cementing itself as the ultimate **C++20 JSON library**.
+By leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, **SWAR (SIMD Within A Register)**, and a **Zero-Allocation Array-Backed Tape DOM**, Beast JSON eliminates traditional tree-based DOM overhead while retaining a clean API.
 
-## 🚀 Features at a Glance
+---
 
-* **World-Class Performance**: Outperforms `yyjson`, `simdjson`, `glaze`, and `rapidjson` in parsing and serialization speed on both `x86_64` (Intel/AMD) and `AArch64` (Apple Silicon, ARM64).
-* **Zero-Allocation Execution**: Memory-mapped zero-copy strings for parsing, and direct-to-buffer stream pushing for serialization. The ultimate zero-cost abstraction.
-* **C++20 Native**: Clean, elegant integration using C++20 standard Concepts and fold expressions. No legacy SFINAE hacks. Range-based iterations directly supported.
+## 🚀 Features
+
+* **World-Class Performance** — Outperforms `yyjson`, `simdjson`, `glaze`, and `rapidjson` in parsing and serialization on `x86_64` and `AArch64`.
+* **Zero-Allocation Execution** — Zero-copy strings for parsing; direct-to-buffer stream pushing for serialization.
+* **C++20 Native** — Clean integration via Concepts and fold expressions. No legacy SFINAE.
+* **Auto-Serialization Macro** — One macro (`BEAST_JSON_FIELDS`) generates full struct ↔ JSON mapping.
+* **Safe Monadic Interface** — `SafeValue` propagates `std::optional` through deep traversal without exceptions.
+* **Single Header** — Drop `beast_json.hpp` into your project.
+* **Fuzzed & Hardened** — Passed libFuzzer suites with ASan and UBSan. Fully memory safe.
 
 ```cpp
 struct User {
@@ -32,115 +41,32 @@ struct User {
     bool active;
 };
 
-// Registers all fields for automation
 BEAST_JSON_FIELDS(User, id, username, tags, active)
 ```
-* **Auto-Serialization Macro**: One-line macro (`BEAST_JSON_FIELDS`) generates 100% automated struct-to-JSON and JSON-to-struct mapping with zero boilerplate.
-* **Safe Monadic Interface**: Never throw exceptions nor segfault using the `SafeValue` (`std::optional`-propagating) interface for deep traversal arrays.
-* **Single Header**: Drop `beast_json.hpp` into your project. That's it.
-* **Fuzzed & Hardened**: Passed relentless libFuzzer suites with statically-linked ASan and UBSan. Fully memory safe.
 
 ---
 
-## ⚡ Unrivaled Performance (Benchmark v1.0.2)
+## ⚡ Performance
 
-Beast JSON outperforms traditional and modern C++ JSON parsers utilizing aggressive SIMD and a zero-allocation sequential tape.
+**[→ Live CI Benchmark Results](https://qbuem.github.io/beast-json/guide/benchmarks)**
 
-### 🏎 Parsing & Serialization Timings
+Benchmarks run automatically on every push to `main` across three native GitHub-hosted runners.
+Results cover all standard datasets (`twitter`, `canada`, `citm`, `gsoc`, `harsh`) with **Parse**, **Serialize**, and **Memory (Alloc KB)** metrics.
 
-*Measured using `-O3 -march=native / -mcpu=apple-m1 + LTO` on respective GitHub runners.*
-
-#### 🖥 Intel x86_64
-
-| **Library** | **twitter (Parse/Ser)** | **canada (Parse/Ser)** | **citm (Parse/Ser)** | **gsoc (Parse/Ser)** |
-|:---|---:|---:|---:|---:|
-| **Beast JSON** | 265 μs / **149 μs** | **1876 μs** / **952 μs** | **597 μs** / 326 μs | **531 μs** / **273 μs** |
-| `simdjson` | **242 μs** / 815 μs | 2509 μs / 10163 μs | 732 μs / 1101 μs | 945 μs / 5568 μs |
-| `yyjson` | 749 μs / 153 μs | 2987 μs / 3968 μs | 2102 μs / **251 μs** | 2020 μs / 1083 μs |
-| `RapidJSON` | 1294 μs / 826 μs | 5386 μs / 7475 μs | 2196 μs / 830 μs | 7085 μs / 4593 μs |
-| `Glaze` | 2251 μs / 363 μs | 8297 μs / 4130 μs | 3697 μs / 958 μs | 4226 μs / 1245 μs |
-| `nlohmann` | 6142 μs / 2211 μs | 37308 μs / 10197 μs | 11852 μs / 2681 μs | 25726 μs / 15255 μs |
-
-#### 🖥 Apple M-Series
-
-| **Library** | **twitter (Parse/Ser)** | **canada (Parse/Ser)** | **citm (Parse/Ser)** | **gsoc (Parse/Ser)** |
-|:---|---:|---:|---:|---:|
-| **Beast JSON** | 229 μs / **75 μs** | 1925 μs / **878 μs** | 563 μs / 199 μs | **752 μs** / **293 μs** |
-| `simdjson` | 228 μs / 439 μs | 2466 μs / 7943 μs | **501 μs** / 646 μs | 1206 μs / 6041 μs |
-| `yyjson` | **187 μs** / 108 μs | **1868 μs** / 2563 μs | 644 μs / **177 μs** | 1208 μs / 1050 μs |
-| `RapidJSON` | 926 μs / 998 μs | 2888 μs / 7330 μs | 1404 μs / 937 μs | 6733 μs / 7011 μs |
-| `Glaze` | 1698 μs / 239 μs | 7073 μs / 2826 μs | 2789 μs / 710 μs | 2755 μs / 836 μs |
-| `nlohmann` | 3745 μs / 1449 μs | 19787 μs / 7451 μs | 9749 μs / 2125 μs | 14657 μs / 13456 μs |
-
-#### 🖥 Linux AArch64
-
-| **Library** | **twitter (Parse/Ser)** | **canada (Parse/Ser)** | **citm (Parse/Ser)** | **gsoc (Parse/Ser)** |
-|:---|---:|---:|---:|---:|
-| **Beast JSON** | 3254 μs / **1164 μs** | **19708 μs** / **8229 μs** | 9464 μs / 2822 μs | **7429 μs** / **2031 μs** |
-| `simdjson` | 7620 μs / 4158 μs | 32192 μs / 41013 μs | 16566 μs / 6913 μs | 30977 μs / 22403 μs |
-| `yyjson` | **2874 μs** / 1503 μs | 21540 μs / 25113 μs | **7919 μs** / **2678 μs** | 10255 μs / 6799 μs |
-| `RapidJSON` | 6652 μs / 3239 μs | 32500 μs / 46085 μs | 13451 μs / 4967 μs | 25648 μs / 15419 μs |
-| `Glaze` | 20924 μs / 2081 μs | 85146 μs / 19867 μs | 36008 μs / 5719 μs | 32766 μs / 5502 μs |
-| `nlohmann` | 56953 μs / 13042 μs | 372197 μs / 52692 μs | 95103 μs / 17262 μs | 249566 μs / 67940 μs |
-
-### 🪶 Unmatched Memory Efficiency
-Memory measured parsing `twitter.json` (631.5 KB) via MacOS `mach_task` Resident Set Size (RSS). Beast JSON achieves industry-leading memory efficiency by utilizing a minimalistic 8-byte Tape representation and true zero-copy strings.
-
-| Library | Peak RSS | DOM Memory | Overhead Ratio |
-|:---|---:|---:|---:|
-| **Beast JSON** | **3.44 MB** | **0.23 MB** | **0.36x** |
-| `yyjson`       | 6.32 MB | 2.50 MB | 3.96x |
-| `Glaze`        | 5.58 MB | 1.80 MB | 2.85x |
-| `simdjson`     | 11.04 MB | 6.50 MB | 10.29x |
-
-> *Note: For deep-nesting custom types, Beast JSON outpaces C++23 Reflection-based `Glaze` natively due to fully inlined variadic macros.*
-
-### 🌪 Extreme Heavy-Load Benchmarks (Harsh Environment)
-Performance under extreme stress: measuring a massive 5.5MB file containing 50,000 deeply nested objects, arrays, floats, and heavily escaped strings (containing `\n`, `\t`, `\r`, and escaped quotes). This tests the parser's absolute worst-case fallback performance.
-
-#### 🖥 Intel x86_64
-
-| **Library** | **Parse Time (ms)** | **Serialize Time (ms)** |
-|:---|---:|---:|
-| **Beast JSON** | 7.71 ms | **3.71 ms** |
-| `simdjson` | **6.04 ms** | 16.34 ms |
-| `yyjson` | 9.13 ms | 4.49 ms |
-| `RapidJSON` | 17.55 ms | 14.14 ms |
-| `Glaze` | 90.33 ms | 39.23 ms |
-| `nlohmann` | 164.70 ms | 35.95 ms |
-
-#### 🖥 Apple M-Series
-
-| **Library** | **Parse Time (ms)** | **Serialize Time (ms)** |
-|:---|---:|---:|
-| **Beast JSON** | 5.28 ms | **2.32 ms** |
-| `simdjson` | **4.89 ms** | 12.16 ms |
-| `yyjson` | 5.29 ms | 3.53 ms |
-| `RapidJSON` | 13.15 ms | 11.90 ms |
-| `Glaze` | 35.96 ms | 10.69 ms |
-| `nlohmann` | 58.68 ms | 17.44 ms |
-
-#### 🖥 Linux AArch64
-
-| **Library** | **Parse Time (ms)** | **Serialize Time (ms)** |
-|:---|---:|---:|
-| **Beast JSON** | 81.11 ms | **32.32 ms** |
-| `simdjson` | 104.28 ms | 119.38 ms |
-| `yyjson` | **78.12 ms** | 49.15 ms |
-| `RapidJSON` | 109.74 ms | 79.94 ms |
-| `Glaze` | 457.51 ms | 88.45 ms |
-| `nlohmann` | 1034.05 ms | 190.70 ms |
+| Runner | Architecture | Compiler |
+|:---|:---|:---|
+| `ubuntu-latest` | x86_64 | GCC 13, Release |
+| `ubuntu-24.04-arm` | Linux aarch64 | GCC 14, Release |
+| `macos-latest` | Apple Silicon | Apple Clang, Release |
 
 ---
 
----
+## 📖 Documentation
 
-## 📖 Documentation Hub
-
-For a deep dive into the engineering behind Beast JSON, visit our **[Premium Documentation Hub](https://qbuem.github.io/beast-json/)**.
+**[qbuem.github.io/beast-json](https://qbuem.github.io/beast-json/)**
 
 | Category | Topics |
-| :--- | :--- |
+|:---|:---|
 | **Engineering Theory** | [Tape Architecture](https://qbuem.github.io/beast-json/theory/architecture), [SIMD Acceleration](https://qbuem.github.io/beast-json/theory/simd), [Russ Cox Algorithm](https://qbuem.github.io/beast-json/theory/russ-cox) |
 | **Advanced Usage** | [HFT Optimization Patterns](https://qbuem.github.io/beast-json/guide/hft-patterns), [Custom Allocators](https://qbuem.github.io/beast-json/guide/allocators), [Language Bindings](https://qbuem.github.io/beast-json/guide/bindings) |
 | **Guides** | [Getting Started](https://qbuem.github.io/beast-json/guide/getting-started), [Object Mapping](https://qbuem.github.io/beast-json/guide/mapping), [Error Handling](https://qbuem.github.io/beast-json/guide/errors) |
@@ -148,42 +74,35 @@ For a deep dive into the engineering behind Beast JSON, visit our **[Premium Doc
 
 ---
 
----
+## 🤝 Open Source Commitment
 
-## 🤝 Commitment to Open Source (OSI)
+Beast JSON is licensed under the **Apache License 2.0** — permissive commercial use, modification, and distribution without copyleft friction.
 
-Beast JSON is developed in strict alignment with the principles of the **Open Source Initiative (OSI)**. 
-
-We believe that foundational infrastructure libraries—especially those handling critical data formatting like JSON—must be openly accessible, transparently built, and collaboratively maintained.
-* **True Software Freedom**: Licensed under the permissive **Apache License 2.0**, allowing unrestricted commercial use, modification, and distribution without copyleft friction.
-* **Transparent Benchmarking**: We are committed to honest, reproducible performance metrics. All benchmark suites and data files are open and designed to be verified independently.
-* **Community-Driven**: Your contributions, critiques, and ideas are what drive this project forward. We warmly welcome developers to participate in making this the absolute fastest and most reliable JSON framework on the planet.
+* **Transparent Benchmarking** — All benchmark suites and data files are open and independently verifiable.
+* **Community-Driven** — Contributions, critiques, and ideas are welcome.
 
 ---
 
 ## 💡 Inspiration & Acknowledgements
 
-Beast JSON stands on the shoulders of giants. We are deeply grateful to the pioneers of high-performance JSON processing:
+* **[Russ Cox](https://research.swtch.com/fp-all/)** — Fast Unrounded Scaling algorithm (2026), foundation for bit-accurate number parsing.
+* **[Daniel Lemire](https://github.com/lemire) & Michael Eisel** — Eisel-Lemire algorithm and [`fast_float`](https://github.com/fastfloat/fast_float), defining modern 64-bit float parsing.
+* **[simdjson](https://github.com/simdjson/simdjson)** — Pioneered SIMD-accelerated JSON parsing at L1-cache speeds.
+* **[yyjson](https://github.com/ibireme/yyjson)** — The Tape DOM architecture enabling cache-local sequential access.
+* **[RapidJSON](https://github.com/Tencent/rapidjson)** — A decade of excellence in C++ JSON processing.
 
-* **[Russ Cox](https://research.swtch.com/fp-all/)**: For the Fast Unrounded Scaling algorithm (2026), providing the mathematical foundation for our bit-accurate number parsing.
-* **[Daniel Lemire](https://github.com/lemire) & Michael Eisel**: For the Eisel-Lemire algorithm and the [`fast_float`](https://github.com/fastfloat/fast_float) library, which defined the modern standard for 64-bit parsing speed.
-* **[simdjson](https://github.com/simdjson/simdjson)**: For teaching the world how to use SIMD (AVX, NEON) to process JSON at the speed of the L1 cache.
-* **[yyjson](https://github.com/ibireme/yyjson)**: For the "Tape DOM" architecture that provides cache-local sequential access.
-* **[RapidJSON](https://github.com/Tencent/rapidjson)**: For a decade of excellence in C++ JSON processing.
+## 📝 References
 
-## 📝 Formal Technical References
-
-1. **Russ Cox**, *"Floating-Point Printing and Parsing Can Be Simple and Fast,"* 2026. [Technical Blog](https://research.swtch.com/fp-all/).
-2. **Daniel Lemire**, *"Number Parsing at Gigabytes per Second,"* Software: Practice and Experience, 2021. [PDF/Paper](https://arxiv.org/abs/2101.11408).
-3. **Michael Eisel & Daniel Lemire**, *"The Eisel-Lemire Algorithm,"* 2020. [Implementation Docs](https://github.com/fastfloat/fast_float).
-4. **Langdale & Lemire**, *"Parsing Gigabytes of JSON per Second,"* VLDB Journal, 2020. [DOI](https://doi.org/10.1007/s00778-019-00578-5).
+1. **Russ Cox**, *"Floating-Point Printing and Parsing Can Be Simple and Fast,"* 2026. [Blog](https://research.swtch.com/fp-all/)
+2. **Daniel Lemire**, *"Number Parsing at Gigabytes per Second,"* SPE, 2021. [arXiv](https://arxiv.org/abs/2101.11408)
+3. **Michael Eisel & Daniel Lemire**, *"The Eisel-Lemire Algorithm,"* 2020. [fast_float](https://github.com/fastfloat/fast_float)
+4. **Langdale & Lemire**, *"Parsing Gigabytes of JSON per Second,"* VLDB Journal, 2020. [DOI](https://doi.org/10.1007/s00778-019-00578-5)
 
 ---
 
-## ⚖️ License & Legal
+## ⚖️ License
 
 Beast JSON is licensed under the **Apache License 2.0**.
 
-* **Independent Implementation**: Beast JSON is a clean-room C++20 implementation of the referenced algorithms. It does not contain code copied from the referenced libraries.
-* **Fair Use & Citation**: Citations of academic papers and technical blogs are provided for educational and attribution purposes under fair use.
-* **Corporate Branding**: "qbuem" branding and associated logos are the property of qbuem.
+* **Independent Implementation** — Clean-room C++20 implementation. No code copied from referenced libraries.
+* **Fair Use & Citation** — Academic and blog citations provided for attribution under fair use.
