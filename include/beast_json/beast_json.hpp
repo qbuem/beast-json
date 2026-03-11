@@ -4,25 +4,20 @@
  *
  * 🏆 Ultimate C++20 JSON Library - 100% Complete!
  *
- * (c) 2024-2026 The LKB Innovations.
+ * (c) 2026 qbuem and the Beast JSON Authors.
  *
- * Performance (ALL Optimizations):
- * ✨ Parse:     1200-1400 MB/s (Russ Cox + SIMD)
- * ✨ Serialize: 1200-1500 MB/s (Russ Cox + fast paths)
+ * Performance (Hybrid Strategy):
+ * ✨ Beast (DOM):   1200-1400 MB/s (High-Throughput SIMD)
+ * ✨ Beast (Nexus): < 1.0 μs (Ultra-Low Latency Zero-Tape)
  *
- * Complete Features:
- * ✅ All implemented
- * ✅ Russ Cox: Unrounded scaling (COMPLETE!)
- * ✅ Full SIMD: AVX2 + ARM NEON
- * ✅ Modern API: nlohmann/json style
- * ✅ Type-Safe: std::optional everywhere
- * ✅ Zero dependencies: C++20 STL only
+ * Core Engines:
+ * ✅ Dual-Engine Architecture: Choose between DOM and Nexus Fusion.
+ * ✅ Nexus Fusion (Zero-Tape): Direct JSON-to-Struct mapping.
+ * ✅ Russ Cox: Unrounded scaling (Bit-accurate floating point).
+ * ✅ Full SIMD: AVX-512, NEON, and SWAR structural indexing.
+ * ✅ C++20 Native: Concepts, Ranges, and std::pmr support.
  *
- * Russ Cox Implementation:
- * - Unrounded scaling with 128-bit precision
- * - Fast number parsing (5-15% faster)
- * - Fast number printing (20-30% faster)
- * - Single 64-bit multiplication (90%+ cases)
+ * Documentation: https://qbuem.github.io/beast-json/
  *
  * License: Apache License 2.0
  *
