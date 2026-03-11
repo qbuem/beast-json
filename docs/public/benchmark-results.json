@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-03-11T03:38:42Z",
-  "commit": "b8b4c274",
+  "timestamp": "2026-03-11T03:51:22Z",
+  "commit": "91445d22",
   "file": "twitter.json",
   "platforms": [
     {
@@ -12,39 +12,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 274.33,
-              "serialize_us": 166.89,
-              "alloc_kb": 248
+              "parse_us": 263.94,
+              "serialize_us": 163.12,
+              "alloc_kb": 252
             },
             {
               "library": "simdjson",
-              "parse_us": 246.26,
-              "serialize_us": 869.22,
-              "alloc_kb": 1760
+              "parse_us": 246.96,
+              "serialize_us": 870.14,
+              "alloc_kb": 1768
             },
             {
               "library": "yyjson",
-              "parse_us": 772.27,
-              "serialize_us": 176.83,
-              "alloc_kb": 1240
+              "parse_us": 782.11,
+              "serialize_us": 179.76,
+              "alloc_kb": 1176
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1335.25,
-              "serialize_us": 871.61,
-              "alloc_kb": 796
+              "parse_us": 1330.81,
+              "serialize_us": 906.08,
+              "alloc_kb": 780
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2316.74,
-              "serialize_us": 408.29,
-              "alloc_kb": 2108
+              "parse_us": 2298.06,
+              "serialize_us": 408.98,
+              "alloc_kb": 2088
             },
             {
               "library": "nlohmann",
-              "parse_us": 6183.86,
-              "serialize_us": 2356.19,
-              "alloc_kb": 2064
+              "parse_us": 6222.0,
+              "serialize_us": 2640.45,
+              "alloc_kb": 2068
             }
           ]
         },
@@ -53,38 +53,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 1730.62,
-              "serialize_us": 949.43,
-              "alloc_kb": 3404
+              "parse_us": 1726.08,
+              "serialize_us": 950.41,
+              "alloc_kb": 3428
             },
             {
               "library": "simdjson",
-              "parse_us": 2570.4,
-              "serialize_us": 10639.92,
+              "parse_us": 2477.01,
+              "serialize_us": 10195.8,
               "alloc_kb": 6808
             },
             {
               "library": "yyjson",
-              "parse_us": 3036.29,
-              "serialize_us": 4000.96,
+              "parse_us": 2988.49,
+              "serialize_us": 3960.21,
               "alloc_kb": 6448
             },
             {
               "library": "RapidJSON",
-              "parse_us": 5190.92,
-              "serialize_us": 7637.55,
-              "alloc_kb": 2756
+              "parse_us": 5169.75,
+              "serialize_us": 7832.55,
+              "alloc_kb": 2776
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 8676.12,
-              "serialize_us": 4324.69,
-              "alloc_kb": 10916
+              "parse_us": 8626.6,
+              "serialize_us": 4354.89,
+              "alloc_kb": 10860
             },
             {
               "library": "nlohmann",
-              "parse_us": 36326.18,
-              "serialize_us": 10151.87,
+              "parse_us": 36557.69,
+              "serialize_us": 11505.57,
               "alloc_kb": 5508
             }
           ]
@@ -94,39 +94,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 600.9,
-              "serialize_us": 361.91,
+              "parse_us": 602.03,
+              "serialize_us": 364.51,
               "alloc_kb": 668
             },
             {
               "library": "simdjson",
-              "parse_us": 744.03,
-              "serialize_us": 1214.84,
-              "alloc_kb": 5344
+              "parse_us": 746.89,
+              "serialize_us": 1215.11,
+              "alloc_kb": 5272
             },
             {
               "library": "yyjson",
-              "parse_us": 2120.81,
-              "serialize_us": 268.36,
+              "parse_us": 2084.39,
+              "serialize_us": 269.89,
               "alloc_kb": 2812
             },
             {
               "library": "RapidJSON",
-              "parse_us": 2105.48,
-              "serialize_us": 843.19,
+              "parse_us": 2085.99,
+              "serialize_us": 856.48,
               "alloc_kb": 1076
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 3610.48,
-              "serialize_us": 983.89,
-              "alloc_kb": 5504
+              "parse_us": 3621.4,
+              "serialize_us": 1004.84,
+              "alloc_kb": 5528
             },
             {
               "library": "nlohmann",
-              "parse_us": 11658.31,
-              "serialize_us": 2772.1,
-              "alloc_kb": 3804
+              "parse_us": 11953.46,
+              "serialize_us": 2825.32,
+              "alloc_kb": 3792
             }
           ]
         },
@@ -135,39 +135,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 549.52,
-              "serialize_us": 391.15,
-              "alloc_kb": 328
+              "parse_us": 552.29,
+              "serialize_us": 381.7,
+              "alloc_kb": 360
             },
             {
               "library": "simdjson",
-              "parse_us": 959.77,
-              "serialize_us": 5359.12,
-              "alloc_kb": 7780
+              "parse_us": 962.54,
+              "serialize_us": 5668.17,
+              "alloc_kb": 7804
             },
             {
               "library": "yyjson",
-              "parse_us": 2262.43,
-              "serialize_us": 1153.34,
+              "parse_us": 2398.41,
+              "serialize_us": 1074.99,
               "alloc_kb": 3976
             },
             {
               "library": "RapidJSON",
-              "parse_us": 6992.6,
-              "serialize_us": 4774.63,
-              "alloc_kb": 3652
+              "parse_us": 6871.04,
+              "serialize_us": 4731.77,
+              "alloc_kb": 3600
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 4128.2,
-              "serialize_us": 1345.56,
-              "alloc_kb": 5796
+              "parse_us": 4178.85,
+              "serialize_us": 1396.37,
+              "alloc_kb": 5732
             },
             {
               "library": "nlohmann",
-              "parse_us": 25742.2,
-              "serialize_us": 17167.39,
-              "alloc_kb": 5708
+              "parse_us": 25951.05,
+              "serialize_us": 17322.75,
+              "alloc_kb": 5672
             }
           ]
         },
@@ -176,39 +176,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 7673.92,
-              "serialize_us": 3660.36,
-              "alloc_kb": 8616
+              "parse_us": 7695.88,
+              "serialize_us": 3641.53,
+              "alloc_kb": 8604
             },
             {
               "library": "simdjson",
-              "parse_us": 5993.06,
-              "serialize_us": 15338.03,
-              "alloc_kb": 26904
+              "parse_us": 6020.44,
+              "serialize_us": 16417.13,
+              "alloc_kb": 26916
             },
             {
               "library": "yyjson",
-              "parse_us": 8594.14,
-              "serialize_us": 4550.24,
+              "parse_us": 8751.97,
+              "serialize_us": 4558.24,
               "alloc_kb": 19052
             },
             {
               "library": "RapidJSON",
-              "parse_us": 16996.8,
-              "serialize_us": 14247.4,
-              "alloc_kb": 13904
+              "parse_us": 17171.31,
+              "serialize_us": 14281.74,
+              "alloc_kb": 13884
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 63263.1,
-              "serialize_us": 32492.07,
-              "alloc_kb": 60176
+              "parse_us": 70240.51,
+              "serialize_us": 36699.01,
+              "alloc_kb": 60220
             },
             {
               "library": "nlohmann",
-              "parse_us": 141680.62,
-              "serialize_us": 42844.4,
-              "alloc_kb": 33696
+              "parse_us": 145264.4,
+              "serialize_us": 46750.62,
+              "alloc_kb": 33692
             }
           ]
         }
@@ -223,38 +223,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 221.84,
-              "serialize_us": 85.88,
+              "parse_us": 236.05,
+              "serialize_us": 83.27,
               "alloc_kb": 288
             },
             {
               "library": "simdjson",
-              "parse_us": 212.46,
-              "serialize_us": 424.82,
+              "parse_us": 228.38,
+              "serialize_us": 477.62,
               "alloc_kb": 1632
             },
             {
               "library": "yyjson",
-              "parse_us": 175.26,
-              "serialize_us": 109.76,
+              "parse_us": 198.11,
+              "serialize_us": 118.64,
               "alloc_kb": 1088
             },
             {
               "library": "RapidJSON",
-              "parse_us": 921.37,
-              "serialize_us": 977.57,
+              "parse_us": 949.79,
+              "serialize_us": 1000.84,
               "alloc_kb": 1008
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 1316.46,
-              "serialize_us": 240.84,
+              "parse_us": 1432.91,
+              "serialize_us": 258.09,
               "alloc_kb": 2272
             },
             {
               "library": "nlohmann",
-              "parse_us": 3912.67,
-              "serialize_us": 1521.41,
+              "parse_us": 3873.28,
+              "serialize_us": 1488.83,
               "alloc_kb": 1648
             }
           ]
@@ -264,39 +264,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 1805.83,
-              "serialize_us": 838.69,
-              "alloc_kb": 1856
+              "parse_us": 1784.87,
+              "serialize_us": 871.94,
+              "alloc_kb": 1824
             },
             {
               "library": "simdjson",
-              "parse_us": 2456.36,
-              "serialize_us": 7538.46,
-              "alloc_kb": 6320
+              "parse_us": 2220.16,
+              "serialize_us": 7999.03,
+              "alloc_kb": 6240
             },
             {
               "library": "yyjson",
-              "parse_us": 1929.1,
-              "serialize_us": 2664.7,
+              "parse_us": 1769.31,
+              "serialize_us": 2489.8,
               "alloc_kb": 4880
             },
             {
               "library": "RapidJSON",
-              "parse_us": 3027.38,
-              "serialize_us": 6912.1,
+              "parse_us": 2818.91,
+              "serialize_us": 7295.75,
               "alloc_kb": 5520
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 7627.05,
-              "serialize_us": 3067.29,
+              "parse_us": 7142.19,
+              "serialize_us": 2987.26,
               "alloc_kb": 6992
             },
             {
               "library": "nlohmann",
-              "parse_us": 19497.07,
-              "serialize_us": 7668.07,
-              "alloc_kb": 5136
+              "parse_us": 19946.36,
+              "serialize_us": 7514.65,
+              "alloc_kb": 4816
             }
           ]
         },
@@ -305,38 +305,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 608.41,
-              "serialize_us": 291.64,
+              "parse_us": 586.47,
+              "serialize_us": 216.96,
               "alloc_kb": 736
             },
             {
               "library": "simdjson",
-              "parse_us": 606.44,
-              "serialize_us": 698.85,
+              "parse_us": 557.87,
+              "serialize_us": 670.62,
               "alloc_kb": 3472
             },
             {
               "library": "yyjson",
-              "parse_us": 658.2,
-              "serialize_us": 183.35,
+              "parse_us": 646.29,
+              "serialize_us": 177.09,
               "alloc_kb": 2736
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1356.52,
-              "serialize_us": 853.66,
+              "parse_us": 1444.94,
+              "serialize_us": 931.44,
               "alloc_kb": 1744
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2389.01,
-              "serialize_us": 617.23,
+              "parse_us": 2689.46,
+              "serialize_us": 625.64,
               "alloc_kb": 4688
             },
             {
               "library": "nlohmann",
-              "parse_us": 8509.2,
-              "serialize_us": 1440.83,
+              "parse_us": 8603.03,
+              "serialize_us": 1469.61,
               "alloc_kb": 3008
             }
           ]
@@ -346,39 +346,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 674.31,
-              "serialize_us": 226.68,
+              "parse_us": 611.95,
+              "serialize_us": 205.72,
               "alloc_kb": 400
             },
             {
               "library": "simdjson",
-              "parse_us": 1044.46,
-              "serialize_us": 5296.12,
+              "parse_us": 982.57,
+              "serialize_us": 4804.84,
               "alloc_kb": 7056
             },
             {
               "library": "yyjson",
-              "parse_us": 1490.85,
-              "serialize_us": 1066.35,
+              "parse_us": 1280.7,
+              "serialize_us": 969.11,
               "alloc_kb": 3904
             },
             {
               "library": "RapidJSON",
-              "parse_us": 6655.89,
-              "serialize_us": 8408.72,
+              "parse_us": 6907.0,
+              "serialize_us": 7102.35,
               "alloc_kb": 3968
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2713.27,
-              "serialize_us": 927.95,
-              "alloc_kb": 8432
+              "parse_us": 2691.09,
+              "serialize_us": 836.73,
+              "alloc_kb": 8176
             },
             {
               "library": "nlohmann",
-              "parse_us": 14570.47,
-              "serialize_us": 12763.57,
-              "alloc_kb": 5600
+              "parse_us": 14522.07,
+              "serialize_us": 12914.11,
+              "alloc_kb": 5200
             }
           ]
         },
@@ -387,39 +387,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 5183.39,
-              "serialize_us": 2445.22,
+              "parse_us": 5520.74,
+              "serialize_us": 2192.82,
               "alloc_kb": 7104
             },
             {
               "library": "simdjson",
-              "parse_us": 5226.0,
-              "serialize_us": 12820.1,
+              "parse_us": 4976.67,
+              "serialize_us": 11804.41,
               "alloc_kb": 23552
             },
             {
               "library": "yyjson",
-              "parse_us": 4973.74,
-              "serialize_us": 3429.83,
+              "parse_us": 5613.35,
+              "serialize_us": 3131.31,
               "alloc_kb": 17312
             },
             {
               "library": "RapidJSON",
-              "parse_us": 12357.89,
-              "serialize_us": 11792.05,
+              "parse_us": 11244.56,
+              "serialize_us": 11656.79,
               "alloc_kb": 27360
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 35619.86,
-              "serialize_us": 10445.17,
-              "alloc_kb": 40352
+              "parse_us": 35116.86,
+              "serialize_us": 10316.97,
+              "alloc_kb": 40208
             },
             {
               "library": "nlohmann",
-              "parse_us": 58164.49,
-              "serialize_us": 16019.56,
-              "alloc_kb": 26752
+              "parse_us": 57660.92,
+              "serialize_us": 16132.08,
+              "alloc_kb": 26688
             }
           ]
         }
@@ -434,38 +434,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 247.4,
-              "serialize_us": 105.46,
+              "parse_us": 253.98,
+              "serialize_us": 106.41,
               "alloc_kb": 296
             },
             {
               "library": "simdjson",
-              "parse_us": 333.4,
-              "serialize_us": 605.61,
+              "parse_us": 338.51,
+              "serialize_us": 619.87,
               "alloc_kb": 1664
             },
             {
               "library": "yyjson",
-              "parse_us": 470.12,
-              "serialize_us": 141.38,
+              "parse_us": 471.9,
+              "serialize_us": 144.91,
               "alloc_kb": 1240
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1352.72,
-              "serialize_us": 914.77,
+              "parse_us": 1361.56,
+              "serialize_us": 920.4,
               "alloc_kb": 1036
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 1984.26,
-              "serialize_us": 372.13,
-              "alloc_kb": 2208
+              "parse_us": 1976.1,
+              "serialize_us": 373.43,
+              "alloc_kb": 2212
             },
             {
               "library": "nlohmann",
-              "parse_us": 5256.74,
-              "serialize_us": 1569.73,
+              "parse_us": 5250.39,
+              "serialize_us": 1575.03,
               "alloc_kb": 2224
             }
           ]
@@ -475,38 +475,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 1640.81,
-              "serialize_us": 502.75,
+              "parse_us": 1645.62,
+              "serialize_us": 517.86,
               "alloc_kb": 1812
             },
             {
               "library": "simdjson",
-              "parse_us": 2644.35,
-              "serialize_us": 7279.49,
+              "parse_us": 2644.67,
+              "serialize_us": 7407.74,
               "alloc_kb": 6292
             },
             {
               "library": "yyjson",
-              "parse_us": 1986.38,
-              "serialize_us": 2740.91,
-              "alloc_kb": 5012
+              "parse_us": 2001.54,
+              "serialize_us": 2751.16,
+              "alloc_kb": 5008
             },
             {
               "library": "RapidJSON",
-              "parse_us": 4693.8,
-              "serialize_us": 5267.82,
+              "parse_us": 4797.64,
+              "serialize_us": 5310.03,
               "alloc_kb": 4232
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 7828.0,
-              "serialize_us": 3336.82,
+              "parse_us": 7970.65,
+              "serialize_us": 3352.78,
               "alloc_kb": 10672
             },
             {
               "library": "nlohmann",
-              "parse_us": 35834.3,
-              "serialize_us": 8639.81,
+              "parse_us": 35083.52,
+              "serialize_us": 8868.16,
               "alloc_kb": 5660
             }
           ]
@@ -516,38 +516,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 547.83,
-              "serialize_us": 237.9,
+              "parse_us": 544.64,
+              "serialize_us": 246.14,
               "alloc_kb": 732
             },
             {
               "library": "simdjson",
-              "parse_us": 803.64,
-              "serialize_us": 810.4,
+              "parse_us": 805.7,
+              "serialize_us": 829.69,
               "alloc_kb": 3480
             },
             {
               "library": "yyjson",
-              "parse_us": 1190.22,
-              "serialize_us": 242.84,
+              "parse_us": 1198.5,
+              "serialize_us": 242.82,
               "alloc_kb": 2876
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1993.23,
-              "serialize_us": 989.01,
+              "parse_us": 2056.19,
+              "serialize_us": 1012.36,
               "alloc_kb": 1656
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 3438.16,
-              "serialize_us": 800.36,
+              "parse_us": 3442.79,
+              "serialize_us": 796.27,
               "alloc_kb": 4304
             },
             {
               "library": "nlohmann",
-              "parse_us": 10304.13,
-              "serialize_us": 2011.3,
+              "parse_us": 9779.07,
+              "serialize_us": 2022.44,
               "alloc_kb": 4048
             }
           ]
@@ -557,38 +557,38 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 639.27,
-              "serialize_us": 257.06,
+              "parse_us": 641.85,
+              "serialize_us": 260.88,
               "alloc_kb": 392
             },
             {
               "library": "simdjson",
-              "parse_us": 1333.84,
-              "serialize_us": 4862.97,
+              "parse_us": 1344.97,
+              "serialize_us": 4981.07,
               "alloc_kb": 7056
             },
             {
               "library": "yyjson",
-              "parse_us": 2057.49,
-              "serialize_us": 884.69,
+              "parse_us": 2079.25,
+              "serialize_us": 888.99,
               "alloc_kb": 4040
             },
             {
               "library": "RapidJSON",
-              "parse_us": 7508.21,
-              "serialize_us": 5630.21,
+              "parse_us": 7698.72,
+              "serialize_us": 5711.08,
               "alloc_kb": 3996
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 4079.59,
-              "serialize_us": 1318.03,
+              "parse_us": 4059.89,
+              "serialize_us": 1333.49,
               "alloc_kb": 5504
             },
             {
               "library": "nlohmann",
-              "parse_us": 21676.96,
-              "serialize_us": 8294.13,
+              "parse_us": 21053.26,
+              "serialize_us": 8666.58,
               "alloc_kb": 5928
             }
           ]
@@ -598,39 +598,39 @@
           "results": [
             {
               "library": "beast::lazy",
-              "parse_us": 5317.57,
-              "serialize_us": 2114.56,
-              "alloc_kb": 7100
+              "parse_us": 5307.25,
+              "serialize_us": 2130.66,
+              "alloc_kb": 7096
             },
             {
               "library": "simdjson",
-              "parse_us": 7310.31,
-              "serialize_us": 12460.89,
+              "parse_us": 7318.66,
+              "serialize_us": 12987.1,
               "alloc_kb": 23552
             },
             {
               "library": "yyjson",
-              "parse_us": 5562.19,
-              "serialize_us": 3494.68,
+              "parse_us": 5659.27,
+              "serialize_us": 3550.89,
               "alloc_kb": 17420
             },
             {
               "library": "RapidJSON",
-              "parse_us": 18378.58,
-              "serialize_us": 13156.33,
+              "parse_us": 23499.68,
+              "serialize_us": 13270.32,
               "alloc_kb": 17872
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 51713.86,
-              "serialize_us": 30578.32,
+              "parse_us": 57807.13,
+              "serialize_us": 40987.76,
               "alloc_kb": 59504
             },
             {
               "library": "nlohmann",
-              "parse_us": 134318.21,
-              "serialize_us": 37927.25,
-              "alloc_kb": 33852
+              "parse_us": 163113.54,
+              "serialize_us": 49576.59,
+              "alloc_kb": 33848
             }
           ]
         }
