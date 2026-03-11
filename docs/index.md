@@ -23,6 +23,8 @@ features:
     details: Uses a sequential Array-Backed Tape DOM and memory-mapped string views for true zero-cost processing.
   - title: 🛠️ Modern C++20
     details: Built with C++20 Concepts and Ranges. Clean, expressive API without the legacy boilerplate.
+  - title: 🔗 Nexus Fusion
+    details: Zero-Tape mapping engine. Directly fuses JSON streams to C++ structs with perfect-hash O(1) dispatch.
   - title: 🔒 Hardened & Secure
     details: 100% memory safe. Verified with ASan, UBSan, TSan, and extensive security stress tests.
 ---

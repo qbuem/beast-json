@@ -172,7 +172,7 @@ const currentResults = computed(() => {
 const sortedResults = computed(() => {
   const key = selectedMetric.value
   return [...currentResults.value]
-    .map(r => ({ ...r, value: r[key] as number, isBeast: r.library === 'beast::lazy' }))
+    .map(r => ({ ...r, value: r[key] as number, isBeast: r.library.toLowerCase().includes('beast') }))
     .sort((a, b) => {
       if (a.value <= 0) return 1
       if (b.value <= 0) return -1

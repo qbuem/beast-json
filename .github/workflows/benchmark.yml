@@ -77,7 +77,9 @@ jobs:
     # directory must be where both the binary and the JSON data files reside.
     - name: Run benchmarks
       working-directory: build_bench/benchmarks
-      run: ./bench_all --quick --all 2>&1 | tee bench_output.txt
+      run: |
+        ./bench_all --quick --all 2>&1 | tee bench_output.txt
+        ./bench_structs --quick 2>&1 | tee -a bench_output.txt
 
     - name: Parse results into JSON artifact
       run: |
@@ -87,14 +89,18 @@ jobs:
         with open("build_bench/benchmarks/bench_output.txt", encoding="utf-8") as f:
             text = f.read()
 
-        # Split output into per-file sections.
-        # bench_all prints: "=== bench_all — <filename> ===" before each file.
+        # Split output into per-file/struct sections.
+        # bench_all prints: "=== bench_all — <filename> ==="
+        # bench_structs prints: "=== Struct: <name> ==="
         files = []
         current_file = None
         current_results = []
 
+        # Combined regex for both headers
+        HEADER_RE = re.compile(r'^=== (?:bench_all \u2014 |Struct: )(.+?) ===')
+
         for line in text.splitlines():
-            m = re.match(r'^=== bench_all \u2014 (.+?) ===', line)
+            m = HEADER_RE.match(line)
             if m:
                 if current_file is not None:
                     files.append({"file": current_file, "results": current_results})

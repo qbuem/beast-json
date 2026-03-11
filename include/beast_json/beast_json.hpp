@@ -4524,12 +4524,12 @@ public:
   // Key changes vs :
   //   1. char c = skip_to_action()  → switch(c) avoids re-read of *p_
   //   2. tape_head_ is local → no doc_->tape.size() pointer chain
-  //   3. NEON 16-byte WS skip in skip_to_action() path
-  [[gnu::hot, gnu::flatten]] bool parse() {
+  BEAST_INLINE const char *get_p() const noexcept { return p_; }
+  [[gnu::hot, gnu::flatten]] bool parse(bool allow_trailing = false) {
     // skip_to_action() returns the first action char AND advances p_.
     // We keep 'c' as the dispatch value — no *p_ re-read needed.
     char c = skip_to_action();
-    if (BEAST_UNLIKELY(c == 0 || p_ >= end_)) {
+    if (BEAST_UNLIKELY(c == 0)) {
       doc_->tape.head = tape_head_; // sync
       return false;
     }
@@ -4845,6 +4845,7 @@ public:
               goto done;
             }
             // Not in object (in array): find next element
+            if (BEAST_UNLIKELY(depth_ == 0)) goto done;
             c = skip_to_action();
             if (BEAST_UNLIKELY(p_ >= end_))
               goto done;
@@ -5126,6 +5127,7 @@ public:
               }
               goto done;
             }
+            if (BEAST_UNLIKELY(depth_ == 0)) goto done;
             c = skip_to_action();
             if (BEAST_UNLIKELY(p_ >= end_))
               goto done;
@@ -5153,6 +5155,7 @@ public:
       default:
         goto fail;
       } // switch
+      if (depth_ == 0) break;
 
       // ── Inline separator + peek-next optimization ─────────
       // After each token, consume ':' or ',' inline (no switch iteration).
@@ -5180,14 +5183,16 @@ public:
 
     } // while
 
-  done:
-    doc_->tape.head = tape_head_; // sync local head back to arena
-    // depth_==0: all containers closed.
-    // tape_head_ > base: at least one value node was written.
-    // Without the second guard, bare commas/colons (e.g. ",") satisfy
-    // depth_==0 but leave the tape empty, causing tape[0] reads from
-    // uninitialised malloc memory → heap-buffer-overflow.
-    return depth_ == 0 && tape_head_ > doc_->tape.base;
+    done:
+      doc_->tape.head = tape_head_;
+      if (!allow_trailing) {
+        while (p_ < end_) {
+          if (static_cast<unsigned char>(*p_) > 0x20)
+            return false;
+          ++p_;
+        }
+      }
+      return depth_ == 0 && tape_head_ > doc_->tape.base;
 
   fail:
     doc_->tape.head = tape_head_;
@@ -5208,7 +5213,7 @@ public:
   //   • After each opening '"', the VERY NEXT index entry is the closing
   //   '"' • structural chars inside strings are excluded from the index •
   //   value starts (digit/'-'/'t'/'f'/'n') are marked via vstart
-  [[gnu::hot]] bool parse_staged(const Stage1Index &s1) noexcept {
+  [[gnu::hot]] bool parse_staged(const Stage1Index &s1, bool allow_trailing = false) noexcept {
     const uint32_t *pos = s1.positions;
     const uint32_t n = s1.count;
 
@@ -5379,11 +5384,10 @@ public:
       default:
         goto s2_fail;
       } // switch
+      if (depth_ == 0) break;
     } // for
 
-    // Trailing non-whitespace check: catch inputs like "nulls" where Stage
-    // 1 only marks the value start ('n') but not the trailing junk ('s').
-    {
+    if (!allow_trailing) {
       const char *tail = data_ + last_off;
       while (tail < end_) {
         if (static_cast<unsigned char>(*tail) > 0x20)
@@ -5404,6 +5408,19 @@ public:
 };
 
 // Public API
+
+inline Value parse_partial(DocumentView &handle, std::string_view json, size_t* consumed = nullptr) {
+  DocumentState *doc = handle.state();
+  if (!doc) return {};
+  doc->source = json;
+  doc->mutations_.clear(); doc->deleted_.clear(); doc->additions_.clear(); doc->array_insertions_.clear();
+  const size_t needed = json.size() + 64;
+  if (!doc->tape.base || static_cast<size_t>(doc->tape.cap - doc->tape.base) < needed) doc->tape.reserve(needed); else doc->tape.reset();
+  Parser p(doc);
+  if (!p.parse(true)) return {};
+  if (consumed) *consumed = p.get_p() - json.data();
+  return Value(doc, 0);
+}
 
 inline Value parse_reuse(DocumentView &handle, std::string_view json) {
   DocumentState *doc = handle.state();
@@ -6153,8 +6170,28 @@ concept JsonDetailBool =
     std::is_same_v<T, bool> ||
     std::is_same_v<std::remove_cvref_t<T>, std::vector<bool>::reference> ||
     std::is_same_v<std::remove_cvref_t<T>, std::vector<bool>::const_reference>;
+// ── Nexus Core: Pulse Mapping Hashing (FNV-1a)
+constexpr uint64_t fnv1a_hash(std::string_view s) {
+  uint64_t hash = 0xcbf29ce484222325ULL;
+  for (char c : s) {
+    hash ^= static_cast<uint64_t>(c);
+    hash *= 0x100000001b3ULL;
+  }
+  return hash;
+}
+
+consteval uint64_t fnv1a_hash_ce(const char *s) {
+  uint64_t hash = 0xcbf29ce484222325ULL;
+  while (*s) {
+    hash ^= static_cast<uint64_t>(*s++);
+    hash *= 0x100000001b3ULL;
+  }
+  return hash;
+}
+
 template <typename T>
 concept JsonDetailArith = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
+
 template <typename T>
 concept JsonDetailStrLike =
     std::is_same_v<T, std::string> || std::is_same_v<T, std::string_view> ||
@@ -6208,6 +6245,11 @@ concept HasToBeastJson =
 template <typename T>
 concept HasAppendBeastJson =
     requires(std::string &out, const T &t) { append_beast_json(out, t); };
+template <typename T>
+concept HasNexusPulse =
+    requires(std::string_view key, const char *&p, const char *end, T &t) {
+  nexus_pulse(key, p, end, t);
+};
 
 // ── Forward declarations
 
@@ -6594,9 +6636,32 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   ::beast::json::detail::append_json(out, obj.f);                              \
   out += ',';
 
+#define BEAST_JSON_DETAIL_PULSE(f)                                             \
+  case ::beast::json::detail::fnv1a_hash_ce(#f):                               \
+    ::beast::json::detail::from_json_direct(p, end, obj.f);                    \
+    break;
+
+#define BEAST_JSON_DETAIL_APPEND_OPT(f)                                        \
+  {                                                                            \
+    static constexpr ::std::string_view kf = "\"" #f "\":";                    \
+    out.append(kf.data(), kf.size());                                          \
+  }                                                                            \
+  ::beast::json::detail::append_json(out, obj.f);                              \
+  out += ',';
+
 #define BEAST_JSON_FIELDS(Type, ...)                                           \
+  inline void nexus_pulse(::std::string_view key, const char *&p,              \
+                          const char *end, Type &obj) {                        \
+    uint64_t h = ::beast::json::detail::fnv1a_hash(key);                       \
+    switch (h) {                                                               \
+      BEAST_FOR_EACH(BEAST_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
+    default:                                                                   \
+      ::beast::json::detail::skip_direct(p, end);                              \
+      break;                                                                   \
+    }                                                                          \
+  }                                                                            \
   inline void from_beast_json(const ::beast::json::Value &v, Type &obj) {      \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                        \
+    ::beast::json::detail::from_json_field_fallback(v, obj, #__VA_ARGS__);     \
   }                                                                            \
   inline void to_beast_json(::beast::json::Value &v, const Type &obj) {        \
     BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
@@ -6604,13 +6669,11 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   inline void append_beast_json(std::string &out, const Type &obj) {           \
     out += '{';                                                                \
     size_t prev_len = out.size();                                              \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND, __VA_ARGS__)                      \
+    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND_OPT, __VA_ARGS__)                  \
     if (out.size() > prev_len)                                                 \
       out.pop_back();                                                          \
     out += '}';                                                                \
   }
-
-namespace lazy = ::beast::json;
 
 } // namespace json
 } // namespace beast
@@ -6662,12 +6725,167 @@ inline Value parse_strict(Document &doc, ::std::string_view json) {
   return json::parse_reuse(doc, json);
 }
 
-// read / write helpers
+namespace json::detail {
+
+inline void ws(const char *&p, const char *end) noexcept {
+  while (p < end && (unsigned char)*p <= 32)
+    ++p;
+}
+
+struct NexusScanner {
+  const char *p;
+  const char *end;
+  inline void ws() noexcept { detail::ws(p, end); }
+  inline std::string_view read_key() {
+    ws(); if (p >= end || *p != '"') return {};
+    const char *start = ++p;
+    while (p < end && *p != '"') { if (*p == '\\') p += 2; else ++p; }
+    std::string_view key(start, p - start); if (p < end) ++p;
+    ws(); if (p < end && *p == ':') ++p; return key;
+  }
+  template <typename T> inline void fill(T &obj);
+};
+
+template <typename T> void from_json_direct(const char *&p, const char *end, T &out);
+
+inline void skip_direct(const char *&p, const char *end) {
+  rfc8259::detail_::Validator v;
+  v.p = p; v.end = end; v.begin = p;
+  try { v.parse_value(); p = v.p; } catch (...) { p = end; }
+}
+
+template <typename T> void from_json_direct(const char *&p, const char *end, T &out) {
+  if (p >= end) return;
+  if constexpr (HasNexusPulse<T>) {
+    NexusScanner scanner{p, end};
+    scanner.fill(out);
+    p = scanner.p;
+  } else if constexpr (JsonDetailBool<T>) {
+    while (p < end && (unsigned char)*p <= 32) ++p;
+    if (p + 4 <= end && !std::memcmp(p, "true", 4)) { out = true; p += 4; }
+    else if (p + 5 <= end && !std::memcmp(p, "false", 5)) { out = false; p += 5; }
+    else skip_direct(p, end);
+  } else if constexpr (JsonDetailArith<T>) {
+    while (p < end && (unsigned char)*p <= 32) ++p;
+    const char *start = p;
+    while (p < end && ((*p >= '0' && *p <= '9') || *p == '-' || *p == '.' || *p == 'e' || *p == 'E' || *p == '+')) ++p;
+    std::from_chars(start, p, out);
+  } else if constexpr (JsonDetailOptional<T>) {
+    detail::ws(p, end);
+    if (p + 4 <= end && !std::memcmp(p, "null", 4)) {
+      out = std::nullopt;
+      p += 4;
+    } else {
+      typename T::value_type inner{};
+      from_json_direct(p, end, inner);
+      out = std::move(inner);
+    }
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    detail::ws(p, end);
+    if (p < end && *p == '"') {
+      const char *start = ++p;
+      while (p < end && *p != '"') {
+        if (*p == '\\')
+          p += 2;
+        else
+          ++p;
+      }
+      out.assign(start, p - start);
+      if (p < end)
+        ++p;
+    } else
+      skip_direct(p, end);
+  } else if constexpr (JsonDetailMap<T>) {
+    out.clear();
+    detail::ws(p, end);
+    if (p < end && *p == '{') {
+      ++p;
+      detail::ws(p, end);
+      while (p < end && *p != '}') {
+        std::string key;
+        from_json_direct(p, end, key);
+        detail::ws(p, end);
+        if (p < end && *p == ':')
+          ++p;
+        detail::ws(p, end);
+        typename T::mapped_type val{};
+        from_json_direct(p, end, val);
+        out.emplace(std::move(key), std::move(val));
+        detail::ws(p, end);
+        if (p < end && *p == ',') {
+          ++p;
+          detail::ws(p, end);
+        }
+      }
+      if (p < end)
+        ++p;
+    } else
+      skip_direct(p, end);
+  } else if constexpr (JsonDetailTuple<T>) {
+    detail::ws(p, end);
+    if (p < end && *p == '[') {
+      ++p;
+      std::apply([&](auto &...args) {
+        ((from_json_direct(p, end, args), detail::ws(p, end),
+          (p < end && *p == ',' ? ++p : p), detail::ws(p, end)),
+         ...);
+      }, out);
+      while (p < end && *p != ']')
+        ++p;
+      if (p < end)
+        ++p;
+    } else
+      skip_direct(p, end);
+  } else if constexpr (JsonDetailSeq<T>) {
+    out.clear();
+    while (p < end && (unsigned char)*p <= 32) ++p;
+    if (p < end && *p == '[') {
+      ++p; while (p < end && (unsigned char)*p <= 32) ++p;
+      while (p < end && *p != ']') {
+        typename T::value_type item{};
+        from_json_direct(p, end, item);
+        out.push_back(std::move(item));
+        while (p < end && (unsigned char)*p <= 32) ++p;
+        if (p < end && *p == ',') { ++p; while (p < end && (unsigned char)*p <= 32) ++p; }
+      }
+      if (p < end) ++p;
+    } else skip_direct(p, end);
+  } else {
+    skip_direct(p, end);
+  }
+}
+
+template <typename T> inline void NexusScanner::fill(T &obj) {
+  ws(); if (p >= end || *p != '{') return;
+  ++p; ws();
+  while (p < end && *p != '}') {
+    std::string_view key = read_key();
+    nexus_pulse(key, p, end, obj);
+    ws(); if (p < end && *p == ',') ++p; ws();
+  }
+  if (p < end) ++p;
+}
+
+template <typename T>
+inline void from_json_field_fallback(const Value &v, T &obj, const char *fields) {
+  if (!v.is_object()) return;
+}
+
+} // namespace json::detail
+
+// read / write / fuse helpers
 template <typename T> T read(::std::string_view json) {
   Document doc;
-  Value root = parse(doc, json);
+  Value root = json::parse_reuse(doc, json);
   T obj{};
   ::beast::json::detail::from_json(root, obj);
+  return obj;
+}
+
+template <typename T> T fuse(::std::string_view json) {
+  T obj{};
+  json::detail::NexusScanner scanner{json.data(), json.data() + json.size()};
+  scanner.fill(obj);
   return obj;
 }
 

@@ -120,7 +120,8 @@ export default withMermaid(
                             { text: 'The Tape Architecture', link: '/theory/architecture' },
                             { text: 'SIMD Acceleration', link: '/theory/simd' },
                             { text: 'The Russ Cox Algorithm', link: '/theory/russ-cox' },
-                            { text: 'Zero-Allocation Principle', link: '/theory/zero-allocation' }
+                            { text: 'Zero-Allocation Principle', link: '/theory/zero-allocation' },
+                            { text: 'Nexus Fusion (Zero-Tape)', link: '/theory/nexus-fusion' }
                         ]
                     }
                 ]

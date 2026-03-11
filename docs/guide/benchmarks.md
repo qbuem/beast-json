@@ -15,6 +15,15 @@ Runs in parallel on three native GitHub-hosted runners (x86\_64 / Apple Silicon 
 
 ---
 
+## 🔗 Object Mapping (Nexus Fusion)
+
+Unlike DOM-based parsing, **Nexus Fusion** maps JSON directly to C++ structs. These benchmarks measure the latency of full deserialization into complex STL types.
+
+> [!TIP]
+> Use the "Dataset" selector above to switch between Standard DOM (twitter.json, etc.) and Object Mapping (Simple Object, Extreme Harsh STL) results.
+
+---
+
 ## ⚙️ Architecture-Specific Optimizations
 
 | Architecture | Technique | Benefit |

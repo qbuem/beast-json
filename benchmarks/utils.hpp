@@ -102,4 +102,10 @@ inline void print_table_header() {
   std::cout << std::string(80, '-') << "\n";
 }
 
+// Prevent compiler from optimizing out values
+template <typename T>
+inline void do_not_optimize(T const& value) {
+  asm volatile("" : : "r,m"(value) : "memory");
+}
+
 } // namespace bench

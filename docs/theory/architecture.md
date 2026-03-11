@@ -342,6 +342,7 @@ Every decision in the Lazy Tape DOM traces directly to one of the three original
 | `Value` = 16-byte handle `{doc*, idx}` | Problem 2 — Eager Copy | Navigation produces no data, no allocation; extraction is opt-in |
 | SIMD Stage 1 structural scan | Problem 1 — Heap Scatter | Structural chars identified at memory-bandwidth speed before any allocation |
 | `Stage1Index` reuse across parses | Problem 1 — Heap Scatter | Hot-loop parsing (JSON streams) reuses both tape and index without any `malloc` |
+| **Nexus Fusion (Zero-Tape)** | **Latency Critical DTOs** | Bypasses the tape entirely for direct stream-to-struct mapping. [Learn more →](/theory/nexus-fusion) |
 
 Taken together:
 
