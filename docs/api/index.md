@@ -328,15 +328,16 @@ auto title = root.at("/store/books/0/title"_jptr).as<std::string>();
 
 ### `operator[](index)` — Index Access
 
-Accepts `size_t` or `unsigned int`. Returns an invalid `Value{}` if the index is out of range (never throws).
+Accepts `int`, `unsigned int`, or `size_t` — no cast needed. Returns an invalid `Value{}` if the index is out of range or negative (never throws).
 
 ```cpp
 auto root = beast::parse(doc, R"({"tags": ["cpp", "simd", "hft"]})");
-std::string first = root["tags"][0u].as<std::string>(); // "cpp" (unsigned int)
-std::string third = root["tags"][2u].as<std::string>(); // "hft"
-// For signed int variable: cast to size_t
+std::string first  = root["tags"][0].as<std::string>(); // "cpp"
+std::string second = root["tags"][1].as<std::string>(); // "simd"
+std::string third  = root["tags"][2].as<std::string>(); // "hft"
+
 int i = 1;
-std::string second = root["tags"][size_t(i)].as<std::string>(); // "simd"
+std::string by_var = root["tags"][i].as<std::string>(); // "simd" — int var works too
 ```
 
 ### `.size()` — Element Count
@@ -416,6 +417,15 @@ auto max_val = std::ranges::max(root["scores"].as_array<int>());
 ```
 
 ---
+
+## 🟡 Serialization — `dump()` vs `write()`
+
+> **Quick rule:** use `.dump()` on a **parsed** `Value`; use `beast::write()` for **C++ objects**.
+>
+> | You have… | Use… |
+> | :--- | :--- |
+> | `beast::Value` from `beast::parse()` | `value.dump()` |
+> | C++ struct / STL container / scalar | `beast::write(obj)` |
 
 ## 🟡 `Value` — Serialization
 
@@ -503,12 +513,15 @@ root.insert_json("tags", R"(["cpp20", "performance"])");
 
 ### `.erase(key)` / `.erase(idx)` — Remove Key or Element
 
-Accepts `size_t` or `unsigned int` for array indices.
+Accepts `int`, `unsigned int`, or `size_t` for array indices — no cast needed.
 
 ```cpp
-root.erase("deprecated");       // remove object key
-root["tags"].erase(0u);         // remove first array element (unsigned int)
-root["tags"].erase(size_t{1});  // also valid (size_t)
+root.erase("deprecated");   // remove object key
+root["tags"].erase(0);      // remove first array element
+root["tags"].erase(1);      // remove by plain int — works fine
+
+int i = 2;
+root["tags"].erase(i);      // int variable — also works
 ```
 
 ### `.push_back(value)` — Append to Array
@@ -620,8 +633,103 @@ std::string pretty = beast::write(user, 2); // pretty print
 - Missing JSON fields keep their C++ **default values** (not an error)
 - JSON `null` on a non-optional field is **silently skipped**
 - Extra JSON fields not in the struct are **ignored**
-- Supports up to **32 fields** per struct
+- Supports up to **16 fields** per struct (see [Large Structs](#large-structs-16-fields) below)
 - Works **recursively** for nested structs
+
+---
+
+## 🟣 Large Structs (> 16 fields) {#large-structs-16-fields}
+
+`BEAST_JSON_FIELDS` is a variadic macro and supports a maximum of **16 fields**. For structs with more fields, define `from_beast_json` / `to_beast_json` / `append_beast_json` free functions manually in the **same namespace** as the struct. This is the same ADL hook mechanism that the macro generates — just written by hand.
+
+```cpp
+struct BigOrder {
+    uint64_t    id;
+    std::string symbol;
+    double      price;
+    double      qty;
+    double      filled_qty;
+    int         side;          // 0=buy, 1=sell
+    int         type;          // 0=limit, 1=market
+    int         status;
+    std::string client_id;
+    std::string exchange_id;
+    int64_t     created_at;
+    int64_t     updated_at;
+    double      fee;
+    std::string fee_asset;
+    bool        reduce_only;
+    bool        post_only;
+    std::string time_in_force; // 17th field — macro limit exceeded
+};
+
+inline void from_beast_json(const beast::json::Value& v, BigOrder& o) {
+    beast::json::detail::from_json_field(v, "id",           o.id);
+    beast::json::detail::from_json_field(v, "symbol",       o.symbol);
+    beast::json::detail::from_json_field(v, "price",        o.price);
+    beast::json::detail::from_json_field(v, "qty",          o.qty);
+    beast::json::detail::from_json_field(v, "filled_qty",   o.filled_qty);
+    beast::json::detail::from_json_field(v, "side",         o.side);
+    beast::json::detail::from_json_field(v, "type",         o.type);
+    beast::json::detail::from_json_field(v, "status",       o.status);
+    beast::json::detail::from_json_field(v, "client_id",    o.client_id);
+    beast::json::detail::from_json_field(v, "exchange_id",  o.exchange_id);
+    beast::json::detail::from_json_field(v, "created_at",   o.created_at);
+    beast::json::detail::from_json_field(v, "updated_at",   o.updated_at);
+    beast::json::detail::from_json_field(v, "fee",          o.fee);
+    beast::json::detail::from_json_field(v, "fee_asset",    o.fee_asset);
+    beast::json::detail::from_json_field(v, "reduce_only",  o.reduce_only);
+    beast::json::detail::from_json_field(v, "post_only",    o.post_only);
+    beast::json::detail::from_json_field(v, "time_in_force",o.time_in_force);
+}
+
+inline void to_beast_json(beast::json::Value& v, const BigOrder& o) {
+    beast::json::detail::to_json_field(v, "id",           o.id);
+    beast::json::detail::to_json_field(v, "symbol",       o.symbol);
+    beast::json::detail::to_json_field(v, "price",        o.price);
+    beast::json::detail::to_json_field(v, "qty",          o.qty);
+    beast::json::detail::to_json_field(v, "filled_qty",   o.filled_qty);
+    beast::json::detail::to_json_field(v, "side",         o.side);
+    beast::json::detail::to_json_field(v, "type",         o.type);
+    beast::json::detail::to_json_field(v, "status",       o.status);
+    beast::json::detail::to_json_field(v, "client_id",    o.client_id);
+    beast::json::detail::to_json_field(v, "exchange_id",  o.exchange_id);
+    beast::json::detail::to_json_field(v, "created_at",   o.created_at);
+    beast::json::detail::to_json_field(v, "updated_at",   o.updated_at);
+    beast::json::detail::to_json_field(v, "fee",          o.fee);
+    beast::json::detail::to_json_field(v, "fee_asset",    o.fee_asset);
+    beast::json::detail::to_json_field(v, "reduce_only",  o.reduce_only);
+    beast::json::detail::to_json_field(v, "post_only",    o.post_only);
+    beast::json::detail::to_json_field(v, "time_in_force",o.time_in_force);
+}
+
+inline void append_beast_json(std::string& out, const BigOrder& o) {
+    out += '{';
+    size_t prev = out.size();
+    beast::json::detail::append_json(out, "id",           o.id);
+    beast::json::detail::append_json(out, "symbol",       o.symbol);
+    // ... repeat for all fields ...
+    beast::json::detail::append_json(out, "time_in_force",o.time_in_force);
+    if (out.size() > prev) out.pop_back(); // remove trailing comma
+    out += '}';
+}
+```
+
+**Alternative: split into sub-structs**
+
+If logically possible, decompose a large struct into smaller nested ones — each with ≤ 16 fields — and use `BEAST_JSON_FIELDS` on all of them:
+
+```cpp
+struct OrderCore   { uint64_t id; std::string symbol; double price; double qty; /* ... */ };
+struct OrderFlags  { bool reduce_only; bool post_only; std::string time_in_force; /* ... */ };
+struct BigOrder    { OrderCore core; OrderFlags flags; /* ... */ };
+
+BEAST_JSON_FIELDS(OrderCore,  id, symbol, price, qty, ...)
+BEAST_JSON_FIELDS(OrderFlags, reduce_only, post_only, time_in_force, ...)
+BEAST_JSON_FIELDS(BigOrder,   core, flags)
+```
+
+> **Note:** The sub-struct approach changes the JSON shape (fields are now nested under `"core"` / `"flags"`). Use manual ADL hooks when you need to preserve a flat JSON layout.
 
 ---
 
@@ -633,9 +741,9 @@ If you cannot modify a struct (e.g., from an external library), define these two
 namespace glm {
     // Teach Beast JSON to parse glm::vec3 from a JSON array
     inline void from_beast_json(const beast::Value& v, vec3& out) {
-        out.x = v[0u].as<float>();
-        out.y = v[1u].as<float>();
-        out.z = v[2u].as<float>();
+        out.x = v[0].as<float>();
+        out.y = v[1].as<float>();
+        out.z = v[2].as<float>();
     }
 
     // Teach Beast JSON to serialize glm::vec3 to a JSON array

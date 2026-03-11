@@ -2,6 +2,80 @@
 
 Beast JSON's serializer is built for **extreme throughput**. It uses a Stream-Push model that writes directly to an output buffer — no intermediate allocations, no `sprintf`, no `std::to_string`.
 
+---
+
+## 🗺️ `dump()` vs `write()` — Which One Should You Use?
+
+This is the most common source of confusion. Here is the short answer:
+
+| You have… | Use… |
+| :--- | :--- |
+| A **parsed** `beast::Value` and want to re-serialize it (possibly after mutations) | **`value.dump()`** |
+| A **C++ object** (struct, STL container, scalar) and want to convert it to JSON | **`beast::write(obj)`** |
+
+### `value.dump()` — Back to JSON from a Parsed Document
+
+Call `.dump()` on any `beast::Value` you got from `beast::parse()`. It serializes the node and everything below it, including any mutations you applied.
+
+```cpp
+beast::Document doc;
+auto root = beast::parse(doc, R"({"user": {"name": "Alice", "age": 25}})");
+
+root["user"]["age"] = 26;           // mutate in-place
+std::string json = root.dump();     // re-serialize the whole document
+// → {"user":{"name":"Alice","age":26}}
+
+std::string subtree = root["user"].dump();  // serialize only the subtree
+// → {"name":"Alice","age":26}
+```
+
+**When to use `dump()`:**
+- Round-tripping: parse → inspect/mutate → serialize back.
+- Extracting or forwarding a JSON subtree.
+- Any time you are working with data that came from `beast::parse()`.
+
+### `beast::write()` — C++ Object to JSON
+
+Use `beast::write()` when you are starting from a C++ object that was never parsed from JSON.
+
+```cpp
+struct Order { int id; double price; std::string symbol; };
+BEAST_JSON_FIELDS(Order, id, price, symbol)
+
+Order o{42, 99.5, "AAPL"};
+std::string json = beast::write(o);         // compact
+std::string pretty = beast::write(o, 2);    // 2-space indented
+```
+
+**When to use `beast::write()`:**
+- Serializing application structs / STL containers to send over a network or write to disk.
+- Any time you are building JSON from scratch in C++, not from a previously parsed document.
+
+### Want to Pretty-Print a Parsed Document?
+
+Use `value.dump(indent)` — it takes an indent size just like `beast::write()`:
+
+```cpp
+std::string pretty = root.dump(2);   // 2-space pretty-print of a parsed Value
+```
+
+### Want to Re-Serialize to a Reusable Buffer?
+
+```cpp
+std::string buf;
+buf.reserve(4096);
+
+// From a parsed document (mutations reflected):
+root.dump(buf);        // appends into buf — reuse across loop iterations
+buf.clear();
+
+// From a C++ object:
+beast::write_to(buf, my_struct);
+buf.clear();
+```
+
+---
+
 ## 🚀 Quick Start
 
 ```cpp
@@ -135,6 +209,87 @@ root["active"] = false;
 root.dump(buf);
 send(buf);
 ```
+
+---
+
+## 📦 Large Structs (> 16 Fields)
+
+`BEAST_JSON_FIELDS` is a variadic macro that supports up to **16 fields** per struct. If your struct has more, you have two options:
+
+### Option A: Manual ADL Hooks (flat JSON layout preserved)
+
+Define `from_beast_json`, `to_beast_json`, and `append_beast_json` free functions yourself in the same namespace. These are exactly what the macro generates internally — you are just writing them by hand.
+
+```cpp
+struct BigEvent {
+    // 17 fields — one too many for BEAST_JSON_FIELDS
+    int64_t  seq;
+    int64_t  ts;
+    double   price;
+    double   qty;
+    double   bid;
+    double   ask;
+    double   bid_qty;
+    double   ask_qty;
+    int      side;
+    int      type;
+    bool     is_snapshot;
+    bool     is_last;
+    std::string symbol;
+    std::string venue;
+    std::string feed;
+    std::string session;
+    std::string trader_id;
+};
+
+// In the same namespace (or global if the struct is global):
+inline void from_beast_json(const beast::json::Value& v, BigEvent& o) {
+    beast::json::detail::from_json_field(v, "seq",       o.seq);
+    beast::json::detail::from_json_field(v, "ts",        o.ts);
+    beast::json::detail::from_json_field(v, "price",     o.price);
+    // ... repeat for all 17 fields
+    beast::json::detail::from_json_field(v, "trader_id", o.trader_id);
+}
+
+inline void to_beast_json(beast::json::Value& v, const BigEvent& o) {
+    beast::json::detail::to_json_field(v, "seq",       o.seq);
+    beast::json::detail::to_json_field(v, "ts",        o.ts);
+    // ... repeat for all 17 fields
+    beast::json::detail::to_json_field(v, "trader_id", o.trader_id);
+}
+```
+
+See the [API Reference — Large Structs](/api/#large-structs-16-fields) for the complete `append_beast_json` signature used by `beast::write()` and `beast::write_to()`.
+
+### Option B: Split into Sub-Structs (recommended if JSON shape is flexible)
+
+Decompose the large struct into smaller nested structs, each with ≤ 16 fields, and use `BEAST_JSON_FIELDS` on all of them:
+
+```cpp
+struct EventHeader {
+    int64_t seq; int64_t ts; std::string symbol;
+    std::string venue; std::string feed; std::string session;
+};
+struct EventPrices {
+    double price; double qty; double bid; double ask;
+    double bid_qty; double ask_qty; int side; int type;
+};
+struct EventFlags {
+    bool is_snapshot; bool is_last; std::string trader_id;
+};
+struct BigEvent {
+    EventHeader header;
+    EventPrices prices;
+    EventFlags  flags;
+};
+
+BEAST_JSON_FIELDS(EventHeader, seq, ts, symbol, venue, feed, session)
+BEAST_JSON_FIELDS(EventPrices, price, qty, bid, ask, bid_qty, ask_qty, side, type)
+BEAST_JSON_FIELDS(EventFlags,  is_snapshot, is_last, trader_id)
+BEAST_JSON_FIELDS(BigEvent,    header, prices, flags)
+```
+
+> **Trade-off:** The JSON layout becomes nested (`"header": {...}, "prices": {...}`). If you need a flat JSON object with all fields at the top level, use Option A instead.
 
 ---
 
