@@ -104,7 +104,7 @@ jobs:
         current_results = []
 
         def flush():
-            nonlocal current_item, current_results
+            global current_item, current_results
             if current_item is not None:
                 entry = {"file": current_item, "results": current_results}
                 if current_section == "general":
