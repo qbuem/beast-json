@@ -6196,6 +6196,53 @@ consteval uint64_t fnv1a_hash_ce(const char *s) {
   return hash;
 }
 
+// ── Fast key hash for nexus_pulse field dispatch ─────────────────────────────
+// ≤8 bytes  : raw little-endian bytes loaded as uint64 (single load, no multiply)
+// 9-16 bytes: XOR first-8 and last-8 bytes, mixed with length
+// >16 bytes : FNV-1a fallback
+// Compile-time and runtime versions produce identical values on LE platforms.
+consteval uint64_t fast_key_hash_ce(const char *s) noexcept {
+  size_t n = 0; while (s[n]) ++n;
+  if (n == 0) return 0;
+  if (n <= 8) {
+    uint64_t v = 0;
+    for (size_t i = 0; i < n; ++i)
+      v |= static_cast<uint64_t>(static_cast<unsigned char>(s[i])) << (i * 8);
+    return v;
+  }
+  if (n <= 16) {
+    uint64_t a = 0, b = 0;
+    for (size_t i = 0; i < 8; ++i)
+      a |= static_cast<uint64_t>(static_cast<unsigned char>(s[i]))     << (i * 8);
+    for (size_t i = 0; i < 8; ++i)
+      b |= static_cast<uint64_t>(static_cast<unsigned char>(s[n-8+i])) << (i * 8);
+    return a ^ b ^ (static_cast<uint64_t>(n) << 56);
+  }
+  uint64_t h = 0xcbf29ce484222325ULL;
+  for (size_t i = 0; i < n; ++i) {
+    h ^= static_cast<uint64_t>(static_cast<unsigned char>(s[i]));
+    h *= 0x100000001b3ULL;
+  }
+  return h;
+}
+
+BEAST_INLINE uint64_t fast_key_hash(std::string_view s) noexcept {
+  const size_t n = s.size();
+  if (n == 0) return 0;
+  if (n <= 8) {
+    uint64_t v = 0;
+    std::memcpy(&v, s.data(), n);   // LE: byte[0] → LSB (consistent with CE)
+    return v;
+  }
+  if (n <= 16) {
+    uint64_t a = 0, b = 0;
+    std::memcpy(&a, s.data(),     8);
+    std::memcpy(&b, s.data()+n-8, 8);
+    return a ^ b ^ (static_cast<uint64_t>(n) << 56);
+  }
+  return fnv1a_hash(s);
+}
+
 template <typename T>
 concept JsonDetailArith = std::is_arithmetic_v<T> && !std::is_same_v<T, bool>;
 
@@ -6257,12 +6304,26 @@ concept HasNexusPulse =
     requires(std::string_view key, const char *&p, const char *end, T &t) {
   nexus_pulse(key, p, end, t);
 };
+// Fast variant: dispatch on a pre-computed uint64 key hash (skips runtime hash)
+template <typename T>
+concept HasNexusPulseH =
+    requires(uint64_t h, const char *&p, const char *end, T &t) {
+  nexus_pulse_h(h, p, end, t);
+};
 
 // ── Forward declarations
 
 template <typename T> void from_json(const Value &v, T &out);
 template <typename T> std::string to_json_str(const T &in);
+template <typename W, typename T> void append_json(W &out, const T &in);
 template <typename T> void append_json(std::string &out, const T &in);
+
+// ── FastWriter forward declarations (full definition later) ──────────────────
+struct FastWriter;
+BEAST_INLINE void json_put(std::string &s, char c)               noexcept;
+BEAST_INLINE void json_write(std::string &s, const char *p, size_t n) noexcept;
+BEAST_INLINE void json_put(FastWriter &w, char c)                noexcept;
+BEAST_INLINE void json_write(FastWriter &w, const char *p, size_t n) noexcept;
 
 // ── Tuple/pair helpers
 
@@ -6292,18 +6353,18 @@ template <typename Tup> std::string to_json_str_tuple_(const Tup &in) {
   return s + ']';
 }
 
-template <typename Tup>
-void append_json_tuple_(std::string &out, const Tup &in) {
-  out += '[';
+template <typename W, typename Tup>
+void append_json_tuple_(W &out, const Tup &in) {
+  json_put(out, '[');
   bool first = true;
   std::apply(
       [&](const auto &...args) {
-        (((first ? (first = false, void()) : (void)(out += ',')),
+        (((first ? (first = false, void()) : (void)json_put(out, ',')),
           append_json(out, args)),
          ...);
       },
       in);
-  out += ']';
+  json_put(out, ']');
 }
 
 // ── from_json — concept-dispatched deserialization ───────────────────────────
@@ -6379,8 +6440,7 @@ template <typename T> std::string to_json_str(const T &in) {
     return in ? "true" : "false";
   } else if constexpr (std::is_integral_v<T>) {
     char buf[32];
-    auto [p, ec] =
-        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(in));
+    auto [p, ec] = std::to_chars(buf, buf + sizeof(buf), in);
     return std::string(buf, p);
   } else if constexpr (std::is_floating_point_v<T>) {
     if (std::isinf(in) || std::isnan(in))
@@ -6487,38 +6547,119 @@ template <typename T> std::string to_json_str(const T &in) {
   }
 }
 
+// ── FastWriter — direct buffer write (avoids per-call std::string overhead) ─
+
+struct FastWriter {
+  std::string &s;
+  char        *it;
+  char        *cap;   // end of pre-grown region
+
+  // Pre-grow the string so we can write directly into [it, cap) without
+  // triggering re-initialization.  The destructor shrinks back to actual size.
+  // Uses existing spare capacity first (avoids reallocation in hot loops).
+  explicit FastWriter(std::string &s) noexcept : s(s) {
+    const size_t base  = s.size();
+    const size_t spare = s.capacity() - base;
+    // Re-use existing capacity; if none, reserve a modest 256 bytes.
+    const size_t pre   = spare > 0 ? spare : 256;
+    s.resize(base + pre, '\0');
+    it  = s.data() + base;
+    cap = s.data() + s.size();
+  }
+  // Shrinking resize is O(1) – no re-initialization of bytes before it.
+  ~FastWriter() noexcept { s.resize(static_cast<size_t>(it - s.data())); }
+
+  BEAST_INLINE void put(char c)  noexcept { if (__builtin_expect(it == cap, 0)) grow(1); *it++ = c; }
+  BEAST_INLINE void write(const char *src, size_t n) noexcept {
+    if (__builtin_expect(it + n > cap, 0)) grow(n);
+    std::memcpy(it, src, n); it += n;
+  }
+  BEAST_INLINE void set_last(char c) noexcept { *(it - 1) = c; }
+
+  void grow(size_t extra) noexcept {
+    const size_t cur = static_cast<size_t>(it - s.data());
+    const size_t need = cur + extra + 256;
+    s.resize(need, '\0');   // extend: initializes [cur..need) with '\0'
+    it  = s.data() + cur;
+    cap = s.data() + s.size();
+  }
+};
+
+// Writer-agnostic adapter helpers
+BEAST_INLINE void json_put(std::string &s, char c)              noexcept { s += c; }
+BEAST_INLINE void json_write(std::string &s, const char *p, size_t n) noexcept { s.append(p, n); }
+BEAST_INLINE void json_set_last(std::string &s, char c)         noexcept { s.back() = c; }
+
+BEAST_INLINE void json_put(FastWriter &w, char c)               noexcept { w.put(c); }
+BEAST_INLINE void json_write(FastWriter &w, const char *p, size_t n) noexcept { w.write(p, n); }
+BEAST_INLINE void json_set_last(FastWriter &w, char c)          noexcept { w.set_last(c); }
+
+// Concept: anything with json_put/json_write/json_set_last adapters
+template <typename W>
+concept JsonWriter = requires(W &w, char c, const char *p, size_t n) {
+  json_put(w, c);
+  json_write(w, p, n);
+};
+
+// ── Forward-declare HasBeastJsonFW concept (satisfied after macro expansion) ─
+template <typename T, typename W>
+concept HasBeastJsonFW = requires(W &w, const T &t) { beast_json_append_fw(w, t); };
+
 // ── append_json — zero-allocation concept-dispatched streaming ─────────────
 
-template <typename T> void append_json(std::string &out, const T &in) {
+template <typename W, typename T> void append_json(W &out, const T &in) {
   if constexpr (std::is_same_v<T, std::nullptr_t>) {
-    out += "null";
+    json_write(out, "null", 4);
   } else if constexpr (JsonDetailBool<T>) {
-    out += in ? "true" : "false";
+    if (in) json_write(out, "true", 4); else json_write(out, "false", 5);
   } else if constexpr (std::is_integral_v<T>) {
     char buf[32];
-    auto [p, ec] =
-        std::to_chars(buf, buf + sizeof(buf), static_cast<int64_t>(in));
-    out.append(buf, p - buf);
+    // Call to_chars with the native type so the compiler picks the most
+    // efficient overload (e.g. uint32 is faster than int64 on many platforms).
+    auto [p, ec] = std::to_chars(buf, buf + sizeof(buf), in);
+    json_write(out, buf, static_cast<size_t>(p - buf));
   } else if constexpr (std::is_floating_point_v<T>) {
-    if (std::isinf(in) || std::isnan(in)) {
-      out += "null";
-      return;
-    }
+    if (std::isinf(in) || std::isnan(in)) { json_write(out, "null", 4); return; }
     char buf[32];
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
     auto [ep, ec] = std::to_chars(buf, buf + sizeof(buf), in);
-    out.append(buf, ep - buf);
+    json_write(out, buf, static_cast<size_t>(ep - buf));
 #else
     int n = std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(in));
-    out.append(buf, static_cast<size_t>(n > 0 ? n : 0));
+    json_write(out, buf, static_cast<size_t>(n > 0 ? n : 0));
 #endif
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view>) {
-    out += '"';
+    json_put(out, '"');
     const char *s = in.data(), *e = s + in.size();
     while (s < e) {
       const char *safe = s;
-      // SWAR: skip 8 bytes at a time when no byte needs escaping
+      // SIMD fast scan: 16 bytes/iter (SSE2 on x86-64, NEON on ARM64)
+#if defined(BEAST_ARCH_X86_64)
+      while (safe + 16 <= e) {
+        __m128i v  = _mm_loadu_si128(reinterpret_cast<const __m128i *>(safe));
+        int mask   = _mm_movemask_epi8(_mm_or_si128(
+            _mm_or_si128(_mm_cmpeq_epi8(v, _mm_set1_epi8('"')),
+                         _mm_cmpeq_epi8(v, _mm_set1_epi8('\\'))),
+            _mm_cmplt_epi8(v, _mm_set1_epi8('\x20'))));
+        if (!mask) { safe += 16; continue; }
+        safe += __builtin_ctz(mask); break;
+      }
+#elif defined(BEAST_HAS_NEON)
+      while (safe + 16 <= e) {
+        uint8x16_t v    = vld1q_u8(reinterpret_cast<const uint8_t *>(safe));
+        uint8x16_t need = vorrq_u8(
+            vorrq_u8(vceqq_u8(v, vdupq_n_u8('"')),
+                     vceqq_u8(v, vdupq_n_u8('\\'))),
+            vcltq_u8(v, vdupq_n_u8(0x20)));
+        uint64_t lo = vgetq_lane_u64(vreinterpretq_u64_u8(need), 0);
+        uint64_t hi = vgetq_lane_u64(vreinterpretq_u64_u8(need), 1);
+        if (!(lo | hi)) { safe += 16; continue; }
+        safe += lo ? (__builtin_ctzll(lo) >> 3) : (8 + (__builtin_ctzll(hi) >> 3));
+        break;
+      }
+#endif
+      // SWAR-8 for remaining bytes / fallback platforms
       while (safe + 8 <= e) {
         uint64_t w; std::memcpy(&w, safe, 8);
         if ((swar_has_less(w, 0x20) | swar_has_byte(w, '"') |
@@ -6530,79 +6671,91 @@ template <typename T> void append_json(std::string &out, const T &in) {
         if (c < 0x20 || c == '"' || c == '\\') break;
         ++safe;
       }
-      if (safe > s) out.append(s, safe - s);
+      if (safe > s) json_write(out, s, static_cast<size_t>(safe - s));
       s = safe;
       if (s < e) {
         unsigned char c = static_cast<unsigned char>(*s++);
-        if (c == '"')       out.append("\\\"", 2);
-        else if (c == '\\') out.append("\\\\", 2);
-        else if (c == '\n') out.append("\\n",  2);
-        else if (c == '\r') out.append("\\r",  2);
-        else if (c == '\t') out.append("\\t",  2);
+        if (c == '"')       json_write(out, "\\\"", 2);
+        else if (c == '\\') json_write(out, "\\\\", 2);
+        else if (c == '\n') json_write(out, "\\n",  2);
+        else if (c == '\r') json_write(out, "\\r",  2);
+        else if (c == '\t') json_write(out, "\\t",  2);
         else {
           static constexpr char hex[] = "0123456789abcdef";
           char esc[6] = {'\\', 'u', '0', '0', hex[c >> 4], hex[c & 15]};
-          out.append(esc, 6);
+          json_write(out, esc, 6);
         }
       }
     }
-    out += '"';
+    json_put(out, '"');
   } else if constexpr (std::is_same_v<T, const char *>) {
     append_json(out, std::string_view(in ? in : ""));
   } else if constexpr (JsonDetailOptional<T>) {
-    if (!in.has_value()) {
-      out += "null";
-      return;
-    }
+    if (!in.has_value()) { json_write(out, "null", 4); return; }
     append_json(out, *in);
   } else if constexpr (JsonDetailSeq<T> || JsonDetailSet<T>) {
-    out += '[';
+    json_put(out, '[');
     bool first = true;
     for (const auto &item : in) {
-      if (!first)
-        out += ',';
+      if (!first) json_put(out, ',');
       append_json(out, item);
       first = false;
     }
-    out += ']';
+    json_put(out, ']');
   } else if constexpr (JsonDetailMap<T>) {
-    out += '{';
+    json_put(out, '{');
     bool first = true;
     for (const auto &[k, val] : in) {
-      if (!first)
-        out += ',';
+      if (!first) json_put(out, ',');
       append_json(out, k);
-      out += ':';
+      json_put(out, ':');
       append_json(out, val);
       first = false;
     }
-    out += '}';
+    json_put(out, '}');
   } else if constexpr (JsonDetailFixedArr<T>) {
     constexpr size_t N = std::tuple_size_v<T>;
-    out += '[';
+    json_put(out, '[');
     for (size_t i = 0; i < N; ++i) {
-      if (i > 0)
-        out += ',';
+      if (i > 0) json_put(out, ',');
       append_json(out, in[i]);
     }
-    out += ']';
+    json_put(out, ']');
   } else if constexpr (JsonDetailTuple<T>) {
     append_json_tuple_(out, in);
+  } else if constexpr (HasBeastJsonFW<T, W>) {
+    // Fast path: uses beast_json_append_fw (generated by updated macro)
+    beast_json_append_fw(out, in);
   } else if constexpr (HasAppendBeastJson<T>) {
-    append_beast_json(out, in);
+    // Legacy path: append_beast_json takes std::string
+    if constexpr (std::is_same_v<std::remove_cvref_t<W>, std::string>) {
+      append_beast_json(out, in);
+    } else {
+      // W is FastWriter but type only has legacy append_beast_json:
+      // write to temp string, then bulk-copy into writer
+      std::string tmp;
+      append_beast_json(tmp, in);
+      json_write(out, tmp.data(), tmp.size());
+    }
   } else if constexpr (HasToBeastJson<T>) {
-    // Fallback exactly like to_json_str
     ::std::string src = "{}";
     DocumentView doc;
     Value root = ::beast::json::parse_reuse(doc, src);
     to_beast_json(root, in);
-    out += root.dump();
+    const std::string ds = root.dump();
+    json_write(out, ds.data(), ds.size());
   } else {
     static_assert(sizeof(T) == 0,
                   "beast::write / append_json: no serialization for T. "
                   "Use BEAST_JSON_FIELDS(Type, field...) or define "
                   "append_beast_json(std::string&, const T&).");
   }
+}
+
+// Backward-compatible std::string overload (called by existing code that
+// uses the 2-arg form before the W template was introduced)
+template <typename T> void append_json(std::string &out, const T &in) {
+  append_json<std::string, T>(out, in);
 }
 
 // ── Per-field helpers for BEAST_JSON_FIELDS
@@ -6696,10 +6849,11 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   out += ',';
 
 #define BEAST_JSON_DETAIL_PULSE(f)                                             \
-  case ::beast::json::detail::fnv1a_hash_ce(#f):                               \
+  case ::beast::json::detail::fast_key_hash_ce(#f):                            \
     ::beast::json::detail::from_json_direct(p, end, obj.f);                    \
     break;
 
+// BEAST_JSON_DETAIL_APPEND_OPT — legacy path (used if BEAST_JSON_DETAIL_APPEND_FW not available)
 #define BEAST_JSON_DETAIL_APPEND_OPT(f)                                        \
   {                                                                            \
     static constexpr ::std::string_view kf = "\"" #f "\":";                    \
@@ -6708,16 +6862,30 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   ::beast::json::detail::append_json(out, obj.f);                              \
   out += ',';
 
+// BEAST_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
+#define BEAST_JSON_DETAIL_APPEND_FW(f)                                         \
+  {                                                                            \
+    static constexpr char _bj_kf[] = "\"" #f "\":";                           \
+    _bj_fw.write(_bj_kf, sizeof(_bj_kf) - 1);                                 \
+  }                                                                            \
+  ::beast::json::detail::append_json(_bj_fw, obj.f);                          \
+  _bj_fw.put(',');
+
 #define BEAST_JSON_FIELDS(Type, ...)                                           \
-  inline void nexus_pulse(::std::string_view key, const char *&p,              \
-                          const char *end, Type &obj) {                        \
-    uint64_t h = ::beast::json::detail::fnv1a_hash(key);                       \
-    switch (h) {                                                               \
+  /* Fast dispatch on pre-computed key hash — primary hot path */              \
+  inline void nexus_pulse_h(uint64_t _h, const char *&p,                      \
+                            const char *end, Type &obj) {                      \
+    switch (_h) {                                                              \
       BEAST_FOR_EACH(BEAST_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
     default:                                                                   \
       ::beast::json::detail::skip_direct(p, end);                              \
       break;                                                                   \
     }                                                                          \
+  }                                                                            \
+  /* Backward-compat wrapper: hashes the key then dispatches via nexus_pulse_h */\
+  inline void nexus_pulse(::std::string_view key, const char *&p,              \
+                          const char *end, Type &obj) {                        \
+    nexus_pulse_h(::beast::json::detail::fast_key_hash(key), p, end, obj);    \
   }                                                                            \
   inline void from_beast_json(const ::beast::json::Value &v, Type &obj) {      \
     BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                        \
@@ -6725,10 +6893,19 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   inline void to_beast_json(::beast::json::Value &v, const Type &obj) {        \
     BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
   }                                                                            \
+  /* FastWriter serialization — zero std::string overhead */                   \
+  inline void beast_json_append_fw(::beast::json::detail::FastWriter &_bj_fw, \
+                                   const Type &obj) {                          \
+    _bj_fw.put('{');                                                           \
+    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND_FW, __VA_ARGS__)                   \
+    _bj_fw.set_last('}');                                                      \
+  }                                                                            \
+  inline void beast_json_append_fw(std::string &_bj_s, const Type &obj) {     \
+    ::beast::json::detail::FastWriter _bj_fw(_bj_s);  /* uses spare cap */    \
+    beast_json_append_fw(_bj_fw, obj);                                         \
+  }                                                                            \
   inline void append_beast_json(std::string &out, const Type &obj) {           \
-    out += '{';                                                                \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND_OPT, __VA_ARGS__)                  \
-    out.back() = '}'; /* overwrite trailing comma with closing brace */        \
+    beast_json_append_fw(out, obj);                                            \
   }
 
 // Backward-compatibility alias: beast::json::lazy → beast::json
@@ -6788,35 +6965,132 @@ inline Value parse_strict(Document &doc, ::std::string_view json) {
 
 namespace json::detail {
 
-inline void ws(const char *&p, const char *end) noexcept {
-  while (p < end && (unsigned char)*p <= 32)
-    ++p;
+BEAST_INLINE void ws(const char *&p, const char *end) noexcept {
+  // Fast-path for compact JSON (no whitespace between tokens — by far the common case)
+  if (p >= end || (unsigned char)*p > 32) [[likely]] return;
+  do { ++p; } while (p < end && (unsigned char)*p <= 32);
 }
 
 struct NexusScanner {
   const char *p;
   const char *end;
-  inline void ws() noexcept { detail::ws(p, end); }
-  inline std::string_view read_key() {
-    ws(); if (p >= end || *p != '"') return {};
+
+  BEAST_INLINE void ws() noexcept { detail::ws(p, end); }
+
+  // ── read_key: backward-compat, returns string_view ─────────────────────────
+  BEAST_INLINE std::string_view read_key() noexcept {
+    ws();
+    if (p >= end || *p != '"') [[unlikely]] return {};
     const char *start = ++p;
-    // SWAR: advance 8 bytes at a time while no '"' (0x22) or '\\' (0x5c) present.
-    // has_zero_byte(v ^ rep(c)) detects whether any byte in v equals c.
+    // SIMD fast scan (16 bytes/iter)
+#if defined(BEAST_ARCH_X86_64)
+    while (p + 16 <= end) {
+      __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
+      int mask = _mm_movemask_epi8(_mm_or_si128(
+          _mm_cmpeq_epi8(v, _mm_set1_epi8('"')),
+          _mm_cmpeq_epi8(v, _mm_set1_epi8('\\'))));
+      if (!mask) { p += 16; continue; }
+      p += __builtin_ctz(mask); break;
+    }
+#elif BEAST_HAS_NEON
+    while (p + 16 <= end) {
+      uint8x16_t v    = vld1q_u8(reinterpret_cast<const uint8_t *>(p));
+      uint8x16_t need = vorrq_u8(vceqq_u8(v, vdupq_n_u8('"')),
+                                 vceqq_u8(v, vdupq_n_u8('\\')));
+      uint64_t lo = vgetq_lane_u64(vreinterpretq_u64_u8(need), 0);
+      uint64_t hi = vgetq_lane_u64(vreinterpretq_u64_u8(need), 1);
+      if (!(lo | hi)) { p += 16; continue; }
+      p += lo ? (__builtin_ctzll(lo) >> 3) : (8 + (__builtin_ctzll(hi) >> 3));
+      break;
+    }
+#endif
+    // SWAR-8 for remaining bytes
     while (p + 8 <= end) {
       uint64_t w; std::memcpy(&w, p, 8);
-      // check for '"' (0x22)
-      uint64_t q = w ^ 0x2222222222222222ULL;
-      uint64_t mq = (q  - 0x0101010101010101ULL) & ~q  & 0x8080808080808080ULL;
-      // check for '\\' (0x5c)
-      uint64_t b = w ^ 0x5c5c5c5c5c5c5c5cULL;
-      uint64_t mb = (b  - 0x0101010101010101ULL) & ~b  & 0x8080808080808080ULL;
+      uint64_t qm = w ^ 0x2222222222222222ULL;
+      uint64_t mq = (qm - 0x0101010101010101ULL) & ~qm & 0x8080808080808080ULL;
+      uint64_t bm = w ^ 0x5c5c5c5c5c5c5c5cULL;
+      uint64_t mb = (bm - 0x0101010101010101ULL) & ~bm & 0x8080808080808080ULL;
       if ((mq | mb) == 0) { p += 8; continue; }
       break;
     }
     while (p < end && *p != '"') { if (*p == '\\') p += 2; else ++p; }
-    std::string_view key(start, p - start); if (p < end) ++p;
-    ws(); if (p < end && *p == ':') ++p; return key;
+    std::string_view key(start, static_cast<size_t>(p - start));
+    if (p < end) ++p;
+    if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
+    if (p < end && *p == ':') [[likely]] ++p;
+    return key;
   }
+
+  // ── read_key_h: scan key AND compute fast_key_hash in one pass ─────────────
+  // For keys ≤8 bytes with no escape sequences (the overwhelming common case for
+  // struct fields), the hash falls out of the SWAR termination word — zero extra
+  // work vs the existing scan.
+  BEAST_INLINE uint64_t read_key_h() noexcept {
+    if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
+    if (p >= end || *p != '"') [[unlikely]] return 0;
+    const char *start = ++p;
+
+    // ── Hot path: key ≤8 bytes, no escape ──────────────────────────────────
+    if (p + 8 <= end) [[likely]] {
+      uint64_t w; std::memcpy(&w, p, 8);
+      uint64_t qm = w ^ 0x2222222222222222ULL;
+      uint64_t mq = (qm - 0x0101010101010101ULL) & ~qm & 0x8080808080808080ULL;
+      if (mq) [[likely]] {
+        uint64_t bm = w ^ 0x5c5c5c5c5c5c5c5cULL;
+        uint64_t mb = (bm - 0x0101010101010101ULL) & ~bm & 0x8080808080808080ULL;
+        if (!mb) [[likely]] {
+          // Quote found within 8 bytes, no backslash — key fits in one word
+          const int bp = static_cast<int>(__builtin_ctzll(mq) >> 3); // byte pos of '"'
+          p += bp + 1;                                                // skip key + '"'
+          if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
+          if (p < end && *p == ':') [[likely]] ++p;
+          // Hash = raw bytes [0..bp-1], zero-padded — identical to fast_key_hash_ce
+          const uint64_t mask = bp ? ((uint64_t(1) << (bp * 8)) - 1) : uint64_t(0);
+          return w & mask;
+        }
+      }
+    }
+
+    // ── General path: key >8 bytes or contains escape sequences ────────────
+#if defined(BEAST_ARCH_X86_64)
+    while (p + 16 <= end) {
+      __m128i v = _mm_loadu_si128(reinterpret_cast<const __m128i *>(p));
+      int mask = _mm_movemask_epi8(_mm_or_si128(
+          _mm_cmpeq_epi8(v, _mm_set1_epi8('"')),
+          _mm_cmpeq_epi8(v, _mm_set1_epi8('\\'))));
+      if (!mask) { p += 16; continue; }
+      p += __builtin_ctz(mask); break;
+    }
+#elif BEAST_HAS_NEON
+    while (p + 16 <= end) {
+      uint8x16_t v    = vld1q_u8(reinterpret_cast<const uint8_t *>(p));
+      uint8x16_t need = vorrq_u8(vceqq_u8(v, vdupq_n_u8('"')),
+                                 vceqq_u8(v, vdupq_n_u8('\\')));
+      uint64_t lo = vgetq_lane_u64(vreinterpretq_u64_u8(need), 0);
+      uint64_t hi = vgetq_lane_u64(vreinterpretq_u64_u8(need), 1);
+      if (!(lo | hi)) { p += 16; continue; }
+      p += lo ? (__builtin_ctzll(lo) >> 3) : (8 + (__builtin_ctzll(hi) >> 3));
+      break;
+    }
+#endif
+    while (p + 8 <= end) {
+      uint64_t w; std::memcpy(&w, p, 8);
+      uint64_t qm = w ^ 0x2222222222222222ULL;
+      uint64_t mq = (qm - 0x0101010101010101ULL) & ~qm & 0x8080808080808080ULL;
+      uint64_t bm = w ^ 0x5c5c5c5c5c5c5c5cULL;
+      uint64_t mb = (bm - 0x0101010101010101ULL) & ~bm & 0x8080808080808080ULL;
+      if ((mq | mb) == 0) { p += 8; continue; }
+      break;
+    }
+    while (p < end && *p != '"') { if (*p == '\\') p += 2; else ++p; }
+    const size_t n = static_cast<size_t>(p - start);
+    if (p < end) ++p;
+    if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
+    if (p < end && *p == ':') [[likely]] ++p;
+    return detail::fast_key_hash(std::string_view{start, n});
+  }
+
   template <typename T> inline void fill(T &obj);
 };
 
@@ -6871,15 +7145,65 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
     detail::ws(p, end);
     if (p < end && *p == '"') {
       const char *start = ++p;
-      while (p < end && *p != '"') {
-        if (*p == '\\')
-          p += 2;
-        else
-          ++p;
+      // Fast scan: find first '"' or '\'
+      const char *safe = p;
+#if defined(BEAST_ARCH_X86_64)
+      {
+        const __m128i vq  = _mm_set1_epi8('"');
+        const __m128i vbs = _mm_set1_epi8('\\');
+        while (safe + 16 <= end) {
+          __m128i v    = _mm_loadu_si128(reinterpret_cast<const __m128i *>(safe));
+          int     mask = _mm_movemask_epi8(_mm_or_si128(_mm_cmpeq_epi8(v, vq),
+                                                        _mm_cmpeq_epi8(v, vbs)));
+          if (!mask) { safe += 16; continue; }
+          safe += __builtin_ctz(mask);
+          break;
+        }
       }
-      out.assign(start, p - start);
-      if (p < end)
+#elif defined(BEAST_HAS_NEON)
+      {
+        const uint8x16_t vq  = vdupq_n_u8('"');
+        const uint8x16_t vbs = vdupq_n_u8('\\');
+        while (safe + 16 <= end) {
+          uint8x16_t v    = vld1q_u8(reinterpret_cast<const uint8_t *>(safe));
+          uint8x16_t need = vorrq_u8(vceqq_u8(v, vq), vceqq_u8(v, vbs));
+          uint64_t lo = vgetq_lane_u64(vreinterpretq_u64_u8(need), 0);
+          uint64_t hi = vgetq_lane_u64(vreinterpretq_u64_u8(need), 1);
+          if (!(lo | hi)) { safe += 16; continue; }
+          safe += lo ? (__builtin_ctzll(lo) >> 3) : (8 + (__builtin_ctzll(hi) >> 3));
+          break;
+        }
+      }
+#endif
+      // SWAR-8 fallback
+      {
+        const uint64_t kQ  = UINT64_C(0x2222222222222222); // '"' * 0x0101...
+        const uint64_t kBS = UINT64_C(0x5C5C5C5C5C5C5C5C); // '\\' * 0x0101...
+        while (safe + 8 <= end) {
+          uint64_t w; std::memcpy(&w, safe, 8);
+          auto has_byte = [](uint64_t v, uint64_t b) -> uint64_t {
+            uint64_t x = v ^ b;
+            return (x - UINT64_C(0x0101010101010101)) & ~x & UINT64_C(0x8080808080808080);
+          };
+          if (uint64_t hit = has_byte(w, kQ) | has_byte(w, kBS)) {
+            safe += __builtin_ctzll(hit) >> 3; break;
+          }
+          safe += 8;
+        }
+      }
+      p = safe;
+      // No-escape fast path
+      if (p < end && *p == '"') {
+        out.assign(start, p - start);
         ++p;
+      } else {
+        // Slow path: handle escape sequences
+        while (p < end && *p != '"') {
+          if (*p == '\\') p += 2; else ++p;
+        }
+        out.assign(start, p - start);
+        if (p < end) ++p;
+      }
     } else
       skip_direct(p, end);
   } else if constexpr (JsonDetailMap<T>) {
@@ -6943,12 +7267,22 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
 }
 
 template <typename T> inline void NexusScanner::fill(T &obj) {
-  ws(); if (p >= end || *p != '{') return;
-  ++p; ws();
+  ws();
+  if (p >= end || *p != '{') [[unlikely]] return;
+  ++p;
+  if (p < end && *p == '}') [[unlikely]] { ++p; return; } // empty object
+  ws();
   while (p < end && *p != '}') {
-    std::string_view key = read_key();
-    nexus_pulse(key, p, end, obj);
-    ws(); if (p < end && *p == ',') ++p; ws();
+    if constexpr (HasNexusPulseH<T>) {
+      // Fast path: hash computed during key scan — zero extra traversal
+      const uint64_t h = read_key_h();
+      nexus_pulse_h(h, p, end, obj);
+    } else {
+      nexus_pulse(read_key(), p, end, obj);
+    }
+    if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
+    if (p < end && *p == ',') [[likely]] { ++p; }
+    if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
   }
   if (p < end) ++p;
 }
