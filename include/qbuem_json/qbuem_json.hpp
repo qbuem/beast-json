@@ -7,8 +7,8 @@
  * (c) 2026 qbuem and the qbuem-json Authors.
  *
  * Performance (Hybrid Strategy):
- * ✨ Beast (DOM):   1200-1400 MB/s (High-Throughput SIMD)
- * ✨ Beast (Nexus): < 1.0 μs (Ultra-Low Latency Zero-Tape)
+ * ✨ qbuem-json DOM:   1200-1400 MB/s (High-Throughput SIMD)
+ * ✨ qbuem-json Nexus: < 1.0 μs (Ultra-Low Latency Zero-Tape)
  *
  * Core Engines:
  * ✅ Dual-Engine Architecture: Choose between DOM and Nexus Fusion.
@@ -47,7 +47,7 @@
  *    - Adding new loop back-edges (`continue`, `break`) in the core
  * serialization loop has historically devastated Apple Silicon (PGO/LTO)
  * performance.
- *    - `std::to_chars` is the backbone of the "Beast Float/Int" serialization
+ *    - `std::to_chars` is the backbone of the "qbuem-json Float/Int" serialization
  * paths.
  * ============================================================================
  */
@@ -93,12 +93,12 @@
 // ============================================================================
 // Zero-SIMD C++20 Architecture
 // ============================================================================
-// Notice: To achieve universal highest performance, BEAST JSON explicitly
+// Notice: To achieve universal highest performance, QBUEM-JSON explicitly
 // forbids SIMD intrinsics (<arm_neon.h>, <immintrin.h>) and relies purely
 // on 64-bit SWAR, C++20 branch hints, and consteval arrays.
 //
 // No external number parsing libraries (ryu, fast_float) are used. We utilize
-// the proprietary "Beast Float" theory.
+// the proprietary "qbuem-json Float" theory.
 
 // ============================================================================
 // Platform Detection
@@ -335,7 +335,7 @@ struct TapeNode {
 };
 static_assert(sizeof(TapeNode) == 8, "TapeNode must be exactly 8 bytes");
 
-// TapeArena — Beast Flat Arena
+// TapeArena — qbuem-json Flat Arena
 
 struct TapeArena {
   TapeNode *base = nullptr;
@@ -588,14 +588,14 @@ class SafeValue; // optional-propagating proxy (defined after Value)
 
 /// @brief The primary accessor type for the qbuem-json DOM.
 /// @details `Value` is a lightweight handle consisting of a pointer to the
-// ── bj_nc: Fast numeric serialization — defined early so Value/detail can use it
+// ── qj_nc: Fast numeric serialization — defined early so Value/detail can use it
 namespace detail {
 // ── Fast numeric serialization (Schubfach + yy-itoa) ────────────────────────
 // Algorithm : Schubfach (R. Giulietti 2020) for double→decimal
 //             yy-itoa   (Y. Yuan 2018)      for integer→decimal
 // Source    : https://github.com/ibireme/yyjson  (MIT)
 // Reference : https://github.com/stephenberry/glaze (MIT)
-namespace bj_nc {
+namespace qj_nc {
 using std::uint8_t; using std::uint16_t; using std::uint32_t; using std::uint64_t;
 using std::int32_t; using std::int64_t;
 
@@ -1921,8 +1921,8 @@ using std::int32_t; using std::int64_t;
    }
 
 
-} // namespace bj_nc
-} // namespace detail (bj_nc)
+} // namespace qj_nc
+} // namespace detail (qj_nc)
 
 /// owning `DocumentView` and a 32-bit tape index. It provides zero-copy,
 /// on-demand access to parsed JSON nodes. An invalid (null) `Value{}` is
@@ -2072,7 +2072,7 @@ public:
     if (!doc_)
       return;
     char buf[24];
-    char *ptr = detail::bj_nc::to_chars(buf, static_cast<int64_t>(val));
+    char *ptr = detail::qj_nc::to_chars(buf, static_cast<int64_t>(val));
     doc_->mutations_[idx_] = {TapeNodeType::Integer, std::string(buf, ptr)};
     doc_->last_dump_size_ = 0;
   }
@@ -2081,7 +2081,7 @@ public:
     if (!doc_)
       return;
     char buf[40];
-    char *ptr = detail::bj_nc::to_chars(buf, static_cast<double>(val));
+    char *ptr = detail::qj_nc::to_chars(buf, static_cast<double>(val));
     doc_->mutations_[idx_] = {TapeNodeType::Double, std::string(buf, ptr)};
     doc_->last_dump_size_ = 0;
   }
@@ -2198,7 +2198,7 @@ private:
 public:
   // ── Navigation: operator[] and find
   //
-  // Beast API philosophy:
+  // qbuem-json API philosophy:
   //   operator[](key/idx)   — non-throwing: returns an invalid Value{}
   //                           (is_valid() == false) when the key or index is
   //                           absent.  Use if(v) / v.is_valid() to check.
@@ -2396,7 +2396,7 @@ public:
 
   // ── as<T>(): typed value extraction
   //
-  // Beast unique pattern: as<T>() is the single canonical accessor.
+  // qbuem-json unique pattern: as<T>() is the single canonical accessor.
   // Throws std::runtime_error on type mismatch.
   // try_as<T>() is the non-throwing variant, returning std::optional<T>.
   //
@@ -3940,12 +3940,12 @@ private:
   static std::string scalar_to_json_(bool b) { return b ? "true" : "false"; }
   template <JsonInteger T> static std::string scalar_to_json_(T v) {
     char buf[24];
-    char *p = detail::bj_nc::to_chars(buf, static_cast<int64_t>(v));
+    char *p = detail::qj_nc::to_chars(buf, static_cast<int64_t>(v));
     return std::string(buf, p);
   }
   template <JsonFloat T> static std::string scalar_to_json_(T v) {
     char buf[40];
-    char *p = detail::bj_nc::to_chars(buf, static_cast<double>(v));
+    char *p = detail::qj_nc::to_chars(buf, static_cast<double>(v));
     return std::string(buf, p);
   }
   static std::string scalar_to_json_(std::string_view s) {
@@ -7768,17 +7768,17 @@ template <typename T> std::string to_json_str(const T &in) {
     char buf[24];
     char *p;
     if constexpr (std::is_unsigned_v<T>) {
-      if constexpr (sizeof(T) <= 4) p = bj_nc::to_chars(buf, static_cast<uint32_t>(in));
-      else                          p = bj_nc::to_chars(buf, static_cast<uint64_t>(in));
+      if constexpr (sizeof(T) <= 4) p = qj_nc::to_chars(buf, static_cast<uint32_t>(in));
+      else                          p = qj_nc::to_chars(buf, static_cast<uint64_t>(in));
     } else {
-      if constexpr (sizeof(T) <= 4) p = bj_nc::to_chars(buf, static_cast<int32_t>(in));
-      else                          p = bj_nc::to_chars(buf, static_cast<int64_t>(in));
+      if constexpr (sizeof(T) <= 4) p = qj_nc::to_chars(buf, static_cast<int32_t>(in));
+      else                          p = qj_nc::to_chars(buf, static_cast<int64_t>(in));
     }
     return std::string(buf, p);
   } else if constexpr (std::is_floating_point_v<T>) {
     char buf[40];
-    // bj_nc::to_chars handles NaN/Inf → "null" internally
-    char *ep = bj_nc::to_chars(buf, static_cast<double>(in));
+    // qj_nc::to_chars handles NaN/Inf → "null" internally
+    char *ep = qj_nc::to_chars(buf, static_cast<double>(in));
     return std::string(buf, ep);
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view>) {
@@ -7953,17 +7953,17 @@ template <typename W, typename T> void append_json(W &out, const T &in) {
       // bool is_integral but handled above — unreachable
       ep = buf;
     } else if constexpr (std::is_unsigned_v<T>) {
-      if constexpr (sizeof(T) <= 4) ep = bj_nc::to_chars(buf, static_cast<uint32_t>(in));
-      else                          ep = bj_nc::to_chars(buf, static_cast<uint64_t>(in));
+      if constexpr (sizeof(T) <= 4) ep = qj_nc::to_chars(buf, static_cast<uint32_t>(in));
+      else                          ep = qj_nc::to_chars(buf, static_cast<uint64_t>(in));
     } else {
-      if constexpr (sizeof(T) <= 4) ep = bj_nc::to_chars(buf, static_cast<int32_t>(in));
-      else                          ep = bj_nc::to_chars(buf, static_cast<int64_t>(in));
+      if constexpr (sizeof(T) <= 4) ep = qj_nc::to_chars(buf, static_cast<int32_t>(in));
+      else                          ep = qj_nc::to_chars(buf, static_cast<int64_t>(in));
     }
     json_write(out, buf, static_cast<size_t>(ep - buf));
   } else if constexpr (std::is_floating_point_v<T>) {
     char buf[40];
-    // bj_nc::to_chars handles NaN/Inf → "null" internally
-    char *ep = bj_nc::to_chars(buf, static_cast<double>(in));
+    // qj_nc::to_chars handles NaN/Inf → "null" internally
+    char *ep = qj_nc::to_chars(buf, static_cast<double>(in));
     json_write(out, buf, static_cast<size_t>(ep - buf));
   } else if constexpr (std::is_same_v<T, std::string> ||
                        std::is_same_v<T, std::string_view>) {

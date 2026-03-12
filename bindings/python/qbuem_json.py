@@ -2,7 +2,7 @@
 qbuem_json.py — Python bindings for qbuem-json via ctypes
 
 Usage:
-    from qbuem_json import BeastJSON, Document
+    from qbuem_json import QbuemJSON, Document
 
     # Parse
     doc = Document('{"name":"Alice","age":30,"tags":["a","b"]}')

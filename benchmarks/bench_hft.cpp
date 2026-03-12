@@ -10,7 +10,7 @@
 //   • Message throughput (M msgs/sec)
 //   • Document reuse (parse_reuse) for the DOM path
 //
-// Competitors: Beast Nexus | Beast DOM | Glaze | simdjson | RapidJSON | nlohmann
+// Competitors: qbuem-json Nexus | qbuem-json DOM | Glaze | simdjson | RapidJSON | nlohmann
 //
 // Typical HFT message types covered:
 //   L1 MarketTick   — highest frequency, ~100 bytes
@@ -258,7 +258,7 @@ static void bench_msg(const char *label, const std::string &json,
                       bool include_simdjson = false) {
     print_lat_header(label, json.size());
 
-    // ── Beast Nexus (zero-tape, zero-alloc hot path) ──────────────────────
+    // ── qbuem-json Nexus (zero-tape, zero-alloc hot path) ──────────────────────
     {
         size_t rss0 = bench::get_current_rss_kb();
         { T tmp = qbuem::fuse<T>(json); bench::do_not_optimize(tmp); }
@@ -268,10 +268,10 @@ static void bench_msg(const char *label, const std::string &json,
             T tmp = qbuem::fuse<T>(json);
             bench::do_not_optimize(tmp);
         });
-        LatStats::from(v, kb).print("Beast Nexus");
+        LatStats::from(v, kb).print("qbuem-json Nexus");
     }
 
-    // ── Beast DOM with document reuse (tape buffer reused across calls) ──
+    // ── qbuem-json DOM with document reuse (tape buffer reused across calls) ──
     {
         qbuem::Document doc;
         // cold parse to size the tape
@@ -287,7 +287,7 @@ static void bench_msg(const char *label, const std::string &json,
             qbuem::from_json(r, tmp);
             bench::do_not_optimize(tmp);
         });
-        LatStats::from(v, kb).print("Beast DOM");
+        LatStats::from(v, kb).print("qbuem-json DOM");
     }
 
 #ifdef BEAST_HAS_GLAZE
@@ -376,8 +376,8 @@ static void bench_throughput(const char *label, const std::string &json,
                lib, ns_per, 1000.0 / ns_per);
     };
 
-    // Beast Nexus
-    run("Beast Nexus", [&] {
+    // qbuem-json Nexus
+    run("qbuem-json Nexus", [&] {
         for (size_t i = 0; i < iters; ++i) {
             T tmp = qbuem::fuse<T>(json);
             bench::do_not_optimize(tmp);
@@ -449,7 +449,7 @@ static void bench_serialize_throughput(const char *label, const T &obj,
                lib, ns_per, 1000.0 / ns_per);
     };
 
-    run_s("Beast write_to", [&] {
+    run_s("qbuem-json write_to", [&] {
         for (size_t i = 0; i < iters; ++i) {
             buf.clear();
             qbuem::write_to(buf, obj);

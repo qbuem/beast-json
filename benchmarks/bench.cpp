@@ -575,7 +575,7 @@ static void run_benchmark(const std::string& name, const T& obj, size_t iteratio
     std::cout << "JSON Size: " << json_str.size() << " bytes\n";
     bench::print_table_header();
 
-    // ── Beast DOM ──
+    // ── qbuem-json DOM ──
     {
         bench::Timer pt, st;
         size_t rss0 = bench::get_current_rss_kb();
@@ -592,10 +592,10 @@ static void run_benchmark(const std::string& name, const T& obj, size_t iteratio
         st.start();
         for (size_t i = 0; i < iterations; ++i) { out.clear(); qbuem::write_to(out,obj); bench::do_not_optimize(out); }
         double s_ns = st.elapsed_ns() / iterations;
-        bench::Result{"Beast (DOM)", p_ns, s_ns, true, alloc_kb}.print();
+        bench::Result{"qbuem-json (DOM)", p_ns, s_ns, true, alloc_kb}.print();
     }
 
-    // ── Beast Nexus ──
+    // ── qbuem-json Nexus ──
     {
         bench::Timer pt, st;
         size_t rss0 = bench::get_current_rss_kb();
@@ -610,7 +610,7 @@ static void run_benchmark(const std::string& name, const T& obj, size_t iteratio
         st.start();
         for (size_t i = 0; i < iterations; ++i) { out.clear(); qbuem::write_to(out,obj); bench::do_not_optimize(out); }
         double s_ns = st.elapsed_ns() / iterations;
-        bench::Result{"Beast (Nexus)", p_ns, s_ns, true, alloc_kb}.print();
+        bench::Result{"qbuem-json (Nexus)", p_ns, s_ns, true, alloc_kb}.print();
     }
 
 #ifdef BEAST_HAS_GLAZE
@@ -755,7 +755,7 @@ int main(int argc, char** argv) {
 
         // General C++ structs
         run_benchmark("Simple Object",
-            SimpleStruct{123, 3.14159, "Beast Performance", true}, iter);
+            SimpleStruct{123, 3.14159, "qbuem-json Performance", true}, iter);
 
         run_benchmark("Nested Object",
             NestedStruct{9876543210ULL, {"Dynamic Drive","Silicon Valley",94025},
@@ -764,7 +764,7 @@ int main(int argc, char** argv) {
         Metadata meta{"High-performance JSON library", {{"lang","cpp20"},{"simd","swar"},{"speed","fastest"}}};
         NestedStruct ns{9876543210ULL,{"Main St","New York",10001},{1,2,3}};
         run_benchmark("Complex Object",
-            ComplexStruct{"Beast vs Glaze", {ns,ns,ns}, meta}, iter/5);
+            ComplexStruct{"qbuem-json vs Glaze", {ns,ns,ns}, meta}, iter/5);
 
         auto make_tree = [](auto self, int depth) -> Node {
             Node n{depth,{}}; if (depth>0) { n.children.push_back(self(self,depth-1)); n.children.push_back(self(self,depth-1)); } return n;

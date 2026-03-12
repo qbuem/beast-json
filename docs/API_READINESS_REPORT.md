@@ -85,14 +85,14 @@ We must dominate competing libraries not just in pure performance, but also in "
    - **Pros**: The world's fastest C JSON parser. Pure pointer structure with zero dynamic allocations.
    - **Cons**: Composed of entirely C APIs, completely unable to utilize modern C++ features like structured bindings (`for(auto[k, v])`) or `std::optional` flexibility.
 
-### 4-2. 🔥 The Ultimate Conclusion of Expert Debates: "Beast's Unique Paradigm Design"
+### 4-2. 🔥 The Ultimate Conclusion of Expert Debates: "qbuem-json's Unique Paradigm Design"
 While nlohmann's intuition, Glaze's meta-parsing, and simdjson's speed are excellent, they each have critical design limitations (forced Exception throws, complex error codes, lack of flexibility).
 After expert deliberation, qbuem-json 1.0 proposes a completely unique paradigm—**"An entirely unique and elegant API found nowhere else in the world"**—combining the latest C++ trends rather than simply mimicking competitors.
 
 Our core paradigm is the **"Zero-Overhead Monadic Proxy"**.
 
 #### 💡 Unique Innovation 1: "Miraculous Fallback utilizing the Pipe (`|`) Operator"
-During JSON traversal, if a key is missing or the type is wrong, programs either crash (nlohmann) or force checking complex error codes (simdjson). Beast silently propagates the error state (Monad) upon traversal failure, allowing users to immediately provide a Default value via the C++ Pipe (`|`) operator.
+During JSON traversal, if a key is missing or the type is wrong, programs either crash (nlohmann) or force checking complex error codes (simdjson). qbuem-json silently propagates the error state (Monad) upon traversal failure, allowing users to immediately provide a Default value via the C++ Pipe (`|`) operator.
 ```cpp
 // Even if "users" is not an array, its first element is missing, or "age" is missing/not an integer, 
 // you securely receive 18 without a single Exception or branch statement (if).
@@ -104,7 +104,7 @@ std::string_view name = doc["users"][0]["name"] | "Guest";
 This single line of code completely crushes the 10-line `if-else` error handling codes of other libraries.
 
 #### 💡 Unique Innovation 2: "Zero-Allocation Typed Views"
-Traditional libraries allocate memory on the heap to create an array when iterating `[1, 2, 3]`. Beast immediately casts C++ types while reading the Tape, offering stream-like iteration capabilities.
+Traditional libraries allocate memory on the heap to create an array when iterating `[1, 2, 3]`. qbuem-json immediately casts C++ types while reading the Tape, offering stream-like iteration capabilities.
 ```cpp
 // Memory allocation (dynamic array creation) size 0 Bytes! Casts to int immediately while reading the tape
 for(int id : doc["user_ids"].as_array<int>()) {

@@ -15,7 +15,7 @@ library (MIT License) by ibireme / Y. Yuan, with the floating-point core tracing
 
 `std::to_chars` is excellent — but it has inherent costs:
 
-| Factor | `std::to_chars` | Beast bj_nc |
+| Factor | `std::to_chars` | qbuem-json qj_nc |
 |:---|:---|:---|
 | **Integer** | Generic; handles all widths uniformly | Width-specialized dispatch — 32 vs 64-bit separate paths |
 | **Float** | Implementation-defined; libstdc++ uses Ryu or Dragon4 | Always Schubfach (consistent, tuned) |
@@ -124,7 +124,7 @@ qbuem-json dispatches to separate routines by type:
 <div class="bd-diagram">
   <div class="bd-col">
     <div class="bd-group" style="width:100%;max-width:560px;">
-      <div class="bd-group__title"><code>bj_nc::to_chars</code> dispatch tree</div>
+      <div class="bd-group__title"><code>qj_nc::to_chars</code> dispatch tree</div>
       <div class="bd-group__body">
 
 <div style="font-family:var(--vp-font-family-mono);font-size:0.82rem;line-height:1.7;padding:0.5rem 0;">
@@ -310,7 +310,7 @@ Schubfach produces `"3.14"` — 14 fewer bytes, same information.
 
 ### Special Value Handling
 
-qbuem-json's `bj_nc::to_chars(double)` maps non-finite values to JSON-safe strings:
+qbuem-json's `qj_nc::to_chars(double)` maps non-finite values to JSON-safe strings:
 
 ```cpp
 if (std::isinf(v) || std::isnan(v))  →  writes "null"
@@ -440,7 +440,7 @@ Putting it all together, here is what happens when you call `qbuem::write(my_str
 
 ## Attribution
 
-The `bj_nc` namespace in `qbuem_json.hpp` is a clean-room port and adaptation of
+The `qj_nc` namespace in `qbuem_json.hpp` is a clean-room port and adaptation of
 algorithms from two sources:
 
 ### yyjson (MIT License)

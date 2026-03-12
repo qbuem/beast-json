@@ -77,16 +77,16 @@ target_compile_features(qbuem_json_py PRIVATE cxx_std_20)
 ### Usage
 
 ```python
-import qbuem_json_py as bj
+import qbuem_json_py as qj
 
 # One-shot parse
-data = bj.loads('{"user": "Alice", "score": 42, "tags": ["vip", "beta"]}')
+data = qj.loads('{"user": "Alice", "score": 42, "tags": ["vip", "beta"]}')
 print(data["user"])          # "Alice"
 print(data["score"])         # 42
 print(data["tags"][0])       # "vip"
 
 # Hot-loop reuse — zero allocation after first parse
-doc = bj.Document()
+doc = qj.Document()
 for raw_line in socket_stream:
     row = doc.parse(raw_line)
     process(row["type"], row["payload"])

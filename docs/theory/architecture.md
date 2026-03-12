@@ -305,7 +305,7 @@ while (auto line = read_line()) {
 
 <TreeVsTape />
 
-| | Beast DOM | nlohmann/json | simdjson |
+| | qbuem-json DOM | nlohmann/json | simdjson |
 |:---|:---|:---|:---|
 | Allocations per parse | **1** | O(N elements) | 2 |
 | Memory layout | Contiguous tape | Scattered heap | Tape (read-only) |

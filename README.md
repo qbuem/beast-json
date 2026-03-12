@@ -17,7 +17,7 @@
 
 ---
 
-**qbuem-json** is a high-performance C++20 JSON engine providing a **Hybrid Strategy** for modern workloads. It offers two specialized engines: **Beast (DOM)** for massive-scale throughput and **Beast (Nexus)** for micro-latency Zero-Tape mapping.
+**qbuem-json** is a high-performance C++20 JSON engine providing a **Hybrid Strategy** for modern workloads. It offers two specialized engines: **qbuem-json DOM** for massive-scale throughput and **qbuem-json Nexus** for micro-latency Zero-Tape mapping.
 
 By leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, and **Nexus Fusion (Zero-Tape)** technology, qbuem-json eliminates traditional tree-based DOM overhead while retaining a beautiful, type-safe API.
 
@@ -25,7 +25,7 @@ By leveraging **C++20 Concepts**, **SIMD (AVX-512, NEON)**, and **Nexus Fusion (
 
 ## 🚀 Features
 
-* **Dual-Engine Architecture** — Choose between **Beast (DOM)** for bulk processing and **Beast (Nexus)** for sub-microsecond struct mapping.
+* **Dual-Engine Architecture** — Choose between **qbuem-json DOM** for bulk processing and **qbuem-json Nexus** for sub-microsecond struct mapping.
 * **World-Class Performance** — Outperforms `yyjson`, `simdjson`, and `glaze` in real-world complex STL benchmarks.
 * **Nexus Fusion (Zero-Tape)** — Direct JSON-to-struct mapping in a single pass. Zero Tape allocations.
 * **Zero-Allocation Execution** — Sequential memory layout and zero-copy strings for deterministic performance.
@@ -84,7 +84,7 @@ qbuem-json is licensed under the **Apache License 2.0** — permissive commercia
 ## 💡 Inspiration & Acknowledgements
 
 * **[Raffaello Giulietti](https://drive.google.com/file/d/1IEeATSVnEE6TkrHlCYNY2GjaraBjOT4f)** — Schubfach algorithm (2020), foundation for shortest round-trip double serialization.
-* **[yyjson / ibireme (Y. Yuan)](https://github.com/ibireme/yyjson)** — MIT-licensed source of the Schubfach port and yy-itoa integer serialization used in qbuem-json's `bj_nc` namespace.
+* **[yyjson / ibireme (Y. Yuan)](https://github.com/ibireme/yyjson)** — MIT-licensed source of the Schubfach port and yy-itoa integer serialization used in qbuem-json's `qj_nc` namespace.
 * **[Russ Cox](https://research.swtch.com/fp-all/)** — Fast Unrounded Scaling algorithm (2026), foundation for bit-accurate number **parsing**.
 * **[Daniel Lemire](https://github.com/lemire) & Michael Eisel** — Eisel-Lemire algorithm and [`fast_float`](https://github.com/fastfloat/fast_float), defining modern 64-bit float parsing.
 * **[simdjson](https://github.com/simdjson/simdjson)** — Pioneered SIMD-accelerated JSON parsing at L1-cache speeds.
@@ -107,7 +107,7 @@ qbuem-json is licensed under the **Apache License 2.0** — permissive commercia
 
 qbuem-json is licensed under the **Apache License 2.0**.
 
-* **Open Attribution** — The `bj_nc` numeric serialization namespace is adapted from
+* **Open Attribution** — The `qj_nc` numeric serialization namespace is adapted from
   [yyjson](https://github.com/ibireme/yyjson) (MIT License, Y. Yuan) with full attribution
   in source and documentation. All other code is an original C++20 implementation.
 * **Fair Use & Citation** — Academic and blog citations provided for attribution under fair use.

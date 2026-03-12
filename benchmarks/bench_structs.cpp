@@ -394,7 +394,7 @@ void run_benchmark(const std::string& name, const T& obj, size_t iterations) {
             bench::do_not_optimize(out);
         }
         double s_ns = st.elapsed_ns() / iterations;
-        bench::Result{"Beast (DOM)", p_ns, s_ns, true, alloc_kb}.print();
+        bench::Result{"qbuem-json (DOM)", p_ns, s_ns, true, alloc_kb}.print();
     }
 
     // ── qbuem-json (Nexus Fusion Core) ──
@@ -425,7 +425,7 @@ void run_benchmark(const std::string& name, const T& obj, size_t iterations) {
         }
         double s_ns = st.elapsed_ns() / iterations;
 
-        bench::Result{"Beast (Nexus)", p_ns, s_ns, true, alloc_kb}.print();
+        bench::Result{"qbuem-json (Nexus)", p_ns, s_ns, true, alloc_kb}.print();
     }
 
 #ifdef BEAST_HAS_GLAZE
@@ -556,7 +556,7 @@ int main(int argc, char** argv) {
     if (quick_mode) iterations = 100;
 
     // 1. Simple
-    SimpleStruct simple{123, 3.14159, "Beast Performance", true};
+    SimpleStruct simple{123, 3.14159, "qbuem-json Performance", true};
     run_benchmark("Simple Object", simple, iterations);
 
     // 2. Nested
@@ -569,7 +569,7 @@ int main(int argc, char** argv) {
 
     // 3. Complex
     Metadata meta{"High-performance JSON library", {{"lang", "cpp20"}, {"simd", "swar"}, {"speed", "fastest"}}};
-    ComplexStruct complex{"Beast vs Glaze", {nested, nested, nested}, meta};
+    ComplexStruct complex{"qbuem-json vs Glaze", {nested, nested, nested}, meta};
     run_benchmark("Complex Object", complex, iterations / 5);
 
     // 4. Deeply Nested

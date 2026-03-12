@@ -71,10 +71,10 @@ qbuem-json stores every JSON token as a flat `TapeNode` array (8 bytes/node) ins
 2. **Stage 2 (Sequential)**: Iterates the positions array, skipping whitespace instantly and computing string lengths in O(1) time.
 
 ### 3.3 SWAR String Scanning
-For files > 2MB or on AArch64, Beast uses a 64-bit GPR SWAR scan (8 bytes/cycle) to find quotes or escape characters without heavy SIMD overhead.
+For files > 2MB or on AArch64, qbuem-json uses a 64-bit GPR SWAR scan (8 bytes/cycle) to find quotes or escape characters without heavy SIMD overhead.
 
 ### 3.4 KeyLenCache
-For repeated object schemas (e.g., `citm_catalog.json`), Beast caches the length of keys seen at specific depths. Once cached, scanning a key becomes a single-byte `O(1)` comparison.
+For repeated object schemas (e.g., `citm_catalog.json`), qbuem-json caches the length of keys seen at specific depths. Once cached, scanning a key becomes a single-byte `O(1)` comparison.
 
 
 ## 4. API Reference

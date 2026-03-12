@@ -15,7 +15,7 @@ wget https://raw.githubusercontent.com/qbuem/qbuem-json/main/include/qbuem_json/
 
 qbuem-json offers two main ways to parse JSON data:
 
-#### A. Beast (DOM) — For Flexible Throughput
+#### A. qbuem-json DOM — For Flexible Throughput
 Best for general-purpose parsing, large files, or when you need a dynamic DOM.
 
 ```cpp
@@ -26,7 +26,7 @@ qbuem::Value root = qbuem::parse(doc, json_data);
 auto name = root["name"].as<std::string>();
 ```
 
-#### B. Beast (Nexus) — For Micro-Latency DTOs
+#### B. qbuem-json Nexus — For Micro-Latency DTOs
 Best for high-frequency objects where every nanosecond counts. It maps JSON **directly** into your struct with **zero intermediate tape**.
 
 ```cpp

@@ -15,7 +15,7 @@ theory pages.
 ### Raffaello Giulietti — Schubfach Algorithm
 
 - **What we use:** The core double-to-decimal algorithm that produces the **shortest
-  round-trip decimal string** for any IEEE 754 `double`. Used in `bj_nc::to_chars(double)`.
+  round-trip decimal string** for any IEEE 754 `double`. Used in `qj_nc::to_chars(double)`.
 - **Why it matters:** Schubfach guarantees that parsing the output gives back the exact
   same `double`. No fallback path, no precision loss, no trailing-zero bloat.
 - **Source:** *"The Schubfach way to render doubles,"* Raffaello Giulietti, 2020.
@@ -29,8 +29,8 @@ theory pages.
 
   | Adapted component | Origin in yyjson |
   |:---|:---|
-  | `bj_nc::to_chars(uint32/int32/uint64/int64)` | `yy_write_u32` / `yy_write_u64` integer routines |
-  | `bj_nc::to_chars(double)` | `yyjson_write_double` + `f64_bin_to_dec` (Schubfach) |
+  | `qj_nc::to_chars(uint32/int32/uint64/int64)` | `yy_write_u32` / `yy_write_u64` integer routines |
+  | `qj_nc::to_chars(double)` | `yyjson_write_double` + `f64_bin_to_dec` (Schubfach) |
   | 128-bit pow10 table (1,336 entries) | `f64_pow10_sig_table` in `yyjson.c` |
   | 2-digit ASCII table `char_table[200]` | `yy_digit_table` in `yyjson.c` |
 
@@ -96,7 +96,7 @@ own Lazy Tape design and provided a direct competitive reference point.
 
 > **Transparency note:** qbuem-json benchmarks include glaze as a primary competitor.
 > We believe open acknowledgment of mutual influence strengthens the ecosystem.
-> Where Beast Nexus wins, it is because we extended these ideas further.
+> Where qbuem-json Nexus wins, it is because we extended these ideas further.
 > Where glaze wins (or ties), those results are published honestly in our CI benchmarks.
 
 ### RapidJSON
