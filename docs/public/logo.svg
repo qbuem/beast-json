@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 220" width="200" height="220">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&amp;display=swap');
+    </style>
+  </defs>
+
+  <!-- Hexagon background -->
+  <polygon points="100,12 172,52 172,132 100,172 28,132 28,52"
+           fill="#1a2744" rx="6"/>
+
+  <!-- Rounded hexagon via path -->
+  <path d="M100 14 L168 52 L168 130 L100 168 L32 130 L32 52 Z"
+        fill="#1e2e5c" stroke="#1a2744" stroke-width="1"/>
+
+  <!-- Inner hex highlight -->
+  <path d="M100 22 L160 56 L160 126 L100 160 L40 126 L40 56 Z"
+        fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.5"/>
+
+  <!-- Q letter -->
+  <text x="68" y="115" font-family="Georgia, 'Times New Roman', serif" font-size="72"
+        font-weight="bold" fill="#ffffff" opacity="0.95">Q</text>
+
+  <!-- Curly brace -->
+  <text x="136" y="118" font-family="'Courier New', monospace" font-size="58"
+        font-weight="bold" fill="#ffffff" opacity="0.85">}</text>
+
+  <!-- Copper diagonal accent slash -->
+  <rect x="56" y="118" width="98" height="10" rx="5"
+        fill="#c05820"
+        transform="rotate(-30, 105, 123)"/>
+
+  <!-- qbuem-json wordmark -->
+  <text x="100" y="202" font-family="'Outfit', 'Nunito', 'Segoe UI', Arial, sans-serif"
+        font-size="20" font-weight="700" fill="#1e2e5c"
+        text-anchor="middle" letter-spacing="0.5">qbuem-json</text>
+</svg>

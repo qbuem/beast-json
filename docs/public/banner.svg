@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" width="900" height="280">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&amp;display=swap');
+    </style>
+    <!-- Background hex pattern -->
+    <pattern id="hexPat" x="0" y="0" width="80" height="92" patternUnits="userSpaceOnUse">
+      <polygon points="40,4 72,22 72,58 40,76 8,58 8,22"
+               fill="none" stroke="#c8bfa8" stroke-width="1.2" opacity="0.35"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="280" fill="#f2ece0"/>
+
+  <!-- Hex pattern on right side -->
+  <rect x="480" y="0" width="420" height="280" fill="url(#hexPat)" opacity="0.5"/>
+
+  <!-- Subtle gradient overlay on right -->
+  <defs>
+    <linearGradient id="fadeLeft" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f2ece0;stop-opacity:1"/>
+      <stop offset="40%" style="stop-color:#f2ece0;stop-opacity:0.7"/>
+      <stop offset="100%" style="stop-color:#f2ece0;stop-opacity:0"/>
+    </linearGradient>
+  </defs>
+  <rect x="480" y="0" width="320" height="280" fill="url(#fadeLeft)"/>
+
+  <!-- ─── Logo Section (left) ─── -->
+  <!-- Hexagon shape -->
+  <path d="M95 38 L163 76 L163 154 L95 192 L27 154 L27 76 Z"
+        fill="#1e2e5c" stroke="#1a2744" stroke-width="1.5"/>
+  <!-- Inner hex glow -->
+  <path d="M95 46 L155 80 L155 146 L95 180 L35 146 L35 80 Z"
+        fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
+
+  <!-- Q letter -->
+  <text x="55" y="145" font-family="Georgia, 'Times New Roman', serif" font-size="76"
+        font-weight="bold" fill="#ffffff" opacity="0.95">Q</text>
+
+  <!-- Curly brace -->
+  <text x="127" y="148" font-family="'Courier New', monospace" font-size="60"
+        font-weight="bold" fill="#ffffff" opacity="0.85">}</text>
+
+  <!-- Copper diagonal accent slash -->
+  <rect x="48" y="150" width="100" height="10" rx="5"
+        fill="#c05820"
+        transform="rotate(-30, 98, 155)"/>
+
+  <!-- Logo wordmark -->
+  <text x="95" y="225" font-family="'Outfit', 'Nunito', 'Segoe UI', Arial, sans-serif"
+        font-size="22" font-weight="700" fill="#1e2e5c"
+        text-anchor="middle" letter-spacing="0.5">qbuem-json</text>
+
+  <!-- ─── Banner Text (right) ─── -->
+  <text x="220" y="118" font-family="'Outfit', 'Nunito', 'Segoe UI Black', Arial, sans-serif"
+        font-size="52" font-weight="900" fill="#1e2e5c"
+        letter-spacing="1">UNIVERSAL JSON</text>
+  <text x="220" y="182" font-family="'Outfit', 'Nunito', 'Segoe UI Black', Arial, sans-serif"
+        font-size="52" font-weight="900" fill="#1e2e5c"
+        letter-spacing="1">HANDLING TOOLKIT</text>
+</svg>

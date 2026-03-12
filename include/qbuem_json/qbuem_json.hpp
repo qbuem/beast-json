@@ -1,10 +1,10 @@
 /**
- * @brief Beast JSON v1.0.5 - High-Performance C++20 JSON Parser
+ * @brief qbuem-json v1.0.5 - High-Performance C++20 JSON Parser
  * @version 1.0.5
  *
  * 🏆 Ultimate C++20 JSON Library - 100% Complete!
  *
- * (c) 2026 qbuem and the Beast JSON Authors.
+ * (c) 2026 qbuem and the qbuem-json Authors.
  *
  * Performance (Hybrid Strategy):
  * ✨ Beast (DOM):   1200-1400 MB/s (High-Throughput SIMD)
@@ -17,14 +17,14 @@
  * ✅ Full SIMD: AVX-512, NEON, and SWAR structural indexing.
  * ✅ C++20 Native: Concepts, Ranges, and std::pmr support.
  *
- * Documentation: https://qbuem.github.io/beast-json/
+ * Documentation: https://qbuem.github.io/qbuem-json/
  *
  * License: Apache License 2.0
  *
  * ============================================================================
  * 🤖 AI & Developer Context Guide
  * ============================================================================
- * Welcome to the beast_json source! When modifying this file, keep the
+ * Welcome to the qbuem_json source! When modifying this file, keep the
  * following architectural guidelines and constraints in mind:
  *
  * 1. The Value vs SafeValue Dichotomy
@@ -36,8 +36,8 @@
  * across deep chains. Terminated by `.value_or(default)`.
  *
  * 2. Auto-Serialization & ADL (Argument-Dependent Lookup)
- *    - The magic `BEAST_JSON_FIELDS` macro works by generating
- * `from_beast_json(const Value&, T&)` and `to_beast_json(Value&, const T&)`
+ *    - The magic `QBUEM_JSON_FIELDS` macro works by generating
+ * `from_qbuem_json(const Value&, T&)` and `to_qbuem_json(Value&, const T&)`
  * functions inside the struct's namespace.
  *    - To support third-party types without macro injection, simply implement
  * these two ADL functions manually in the target type's namespace.
@@ -52,8 +52,8 @@
  * ============================================================================
  */
 
-#ifndef BEAST_JSON_HPP
-#define BEAST_JSON_HPP
+#ifndef QBUEM_JSON_HPP
+#define QBUEM_JSON_HPP
 
 #include <algorithm>
 #include <array>
@@ -251,7 +251,7 @@
 #define BEAST_CLZ(x) std::countl_zero(static_cast<unsigned long long>(x))
 #define BEAST_CTZ(x) std::countr_zero(static_cast<unsigned long long>(x))
 
-namespace beast {
+namespace qbuem {
 namespace json {
 
 // Forward declarations
@@ -267,7 +267,7 @@ using String = std::pmr::string;
 template <typename T> using Vector = std::pmr::vector<T>;
 using Allocator = std::pmr::polymorphic_allocator<char>;
 #else
-#error "Beast JSON (Zero-SIMD) requires a C++20 compatible compiler."
+#error "qbuem-json (Zero-SIMD) requires a C++20 compatible compiler."
 #endif
 
 namespace simd {
@@ -586,7 +586,7 @@ class SafeValue; // optional-propagating proxy (defined after Value)
 
 // Value + zero-copy dump()
 
-/// @brief The primary accessor type for the Beast JSON DOM.
+/// @brief The primary accessor type for the qbuem-json DOM.
 /// @details `Value` is a lightweight handle consisting of a pointer to the
 // ── bj_nc: Fast numeric serialization — defined early so Value/detail can use it
 namespace detail {
@@ -2407,7 +2407,7 @@ public:
   template <typename T> T as() const {
     if (!doc_ || (!doc_->deleted_.empty() && doc_->deleted_.count(idx_)))
       throw std::runtime_error(
-          "beast::Value::as: value is missing, invalid, or deleted");
+          "qbuem::Value::as: value is missing, invalid, or deleted");
 
     // Check mutation overlay first — O(1) unordered_map lookup, only paid
     // when mutations_ is non-empty (guarded by BEAST_UNLIKELY branch).
@@ -2420,17 +2420,17 @@ public:
             return true;
           if (m.type == TapeNodeType::BooleanFalse)
             return false;
-          throw std::runtime_error("beast::Value::as<bool>: not a boolean");
+          throw std::runtime_error("qbuem::Value::as<bool>: not a boolean");
         } else if constexpr (std::is_integral_v<T>) {
           if (m.type != TapeNodeType::Integer)
             throw std::runtime_error(
-                "beast::Value::as<integral>: not an integer");
+                "qbuem::Value::as<integral>: not an integer");
           int64_t val = 0;
           std::from_chars(m.data.data(), m.data.data() + m.data.size(), val);
           return static_cast<T>(val);
         } else if constexpr (std::is_floating_point_v<T>) {
           if (m.type != TapeNodeType::Double && m.type != TapeNodeType::Integer)
-            throw std::runtime_error("beast::Value::as<float>: not a number");
+            throw std::runtime_error("qbuem::Value::as<float>: not a number");
           double val = 0.0;
           const char *beg = m.data.data();
           [[maybe_unused]] const char *end = beg + m.data.size();
@@ -2449,11 +2449,11 @@ public:
         } else if constexpr (std::is_same_v<T, std::string_view>) {
           if (m.type != TapeNodeType::StringRaw)
             throw std::runtime_error(
-                "beast::Value::as<string_view>: not a string");
+                "qbuem::Value::as<string_view>: not a string");
           return std::string_view(m.data);
         } else if constexpr (std::is_same_v<T, std::string>) {
           if (m.type != TapeNodeType::StringRaw)
-            throw std::runtime_error("beast::Value::as<string>: not a string");
+            throw std::runtime_error("qbuem::Value::as<string>: not a string");
           return m.data;
         }
       }
@@ -2466,24 +2466,24 @@ public:
         return true;
       if (t == TapeNodeType::BooleanFalse)
         return false;
-      throw std::runtime_error("beast::Value::as<bool>: not a boolean");
+      throw std::runtime_error("qbuem::Value::as<bool>: not a boolean");
     } else if constexpr (std::is_integral_v<T>) {
       const auto t = doc_->tape[idx_].type();
       if (t != TapeNodeType::Integer && t != TapeNodeType::NumberRaw)
-        throw std::runtime_error("beast::Value::as<integral>: not an integer");
+        throw std::runtime_error("qbuem::Value::as<integral>: not an integer");
       const TapeNode &nd = doc_->tape[idx_];
       int64_t val = 0;
       const char *beg = doc_->source.data() + nd.offset;
       const char *end = beg + nd.length();
       auto [ptr, ec] = std::from_chars(beg, end, val);
       if (ec != std::errc{})
-        throw std::runtime_error("beast::Value::as<integral>: parse error");
+        throw std::runtime_error("qbuem::Value::as<integral>: parse error");
       return static_cast<T>(val);
     } else if constexpr (std::is_floating_point_v<T>) {
       const auto t = doc_->tape[idx_].type();
       if (t != TapeNodeType::Double && t != TapeNodeType::NumberRaw &&
           t != TapeNodeType::Integer)
-        throw std::runtime_error("beast::Value::as<float>: not a number");
+        throw std::runtime_error("qbuem::Value::as<float>: not a number");
       const TapeNode &nd = doc_->tape[idx_];
       double val = 0.0;
       const char *beg = doc_->source.data() + nd.offset;
@@ -2491,7 +2491,7 @@ public:
 #if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
       auto [ptr, ec] = std::from_chars(beg, end, val);
       if (ec != std::errc{})
-        throw std::runtime_error("beast::Value::as<float>: parse error");
+        throw std::runtime_error("qbuem::Value::as<float>: parse error");
 #else
       char buf[64];
       size_t len = nd.length();
@@ -2502,18 +2502,18 @@ public:
       char *endp = nullptr;
       val = std::strtod(buf, &endp);
       if (endp == buf)
-        throw std::runtime_error("beast::Value::as<float>: parse error");
+        throw std::runtime_error("qbuem::Value::as<float>: parse error");
 #endif
       return static_cast<T>(val);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
       if (doc_->tape[idx_].type() != TapeNodeType::StringRaw)
-        throw std::runtime_error("beast::Value::as<string_view>: not a string");
+        throw std::runtime_error("qbuem::Value::as<string_view>: not a string");
       const TapeNode &nd = doc_->tape[idx_];
       return std::string_view(doc_->source.data() + nd.offset, nd.length());
     } else if constexpr (std::is_same_v<T, std::string>) {
       return std::string(as<std::string_view>());
     } else {
-      static_assert(sizeof(T) == 0, "beast::Value::as<T>: unsupported type");
+      static_assert(sizeof(T) == 0, "qbuem::Value::as<T>: unsupported type");
     }
   }
 
@@ -3718,7 +3718,7 @@ public:
   //
   // Usage:
   //   for (std::string_view k : root.keys())   { ... }
-  //   for (beast::Value     v : root.values()) { ... }
+  //   for (qbuem::Value     v : root.values()) { ... }
   //   auto first_key = *root.keys().begin();
 
   KeysRange keys() const noexcept { return KeysRange{items()}; }
@@ -3818,7 +3818,7 @@ public:
       // Validate: must start with '/' (RFC 6901) or be the empty document root
       if constexpr (N > 1) {
         if (s[0] != '/')
-          throw "beast::Value::at<Path>: JSON Pointer must start with '/'";
+          throw "qbuem::Value::at<Path>: JSON Pointer must start with '/'";
       }
     }
     std::string_view view() const noexcept { return {data, size}; }
@@ -7203,7 +7203,7 @@ inline SafeValue Value::get(int idx) const noexcept {
 }
 
 // ============================================================================
-// beast::rfc8259 — RFC 8259 strict validator
+// qbuem::rfc8259 — RFC 8259 strict validator
 // ============================================================================
 //
 // Validates a JSON string against RFC 8259 (the JSON specification).
@@ -7220,11 +7220,11 @@ inline SafeValue Value::get(int idx) const noexcept {
 //   • Accepts any JSON value at top level (RFC 8259 §2)
 //
 // Usage:
-//   beast::Document doc;
-//   beast::Value root = beast::parse_strict(doc, json);  // throws on violation
+//   qbuem::Document doc;
+//   qbuem::Value root = qbuem::parse_strict(doc, json);  // throws on violation
 //
 //   // Or just validate without parsing:
-//   beast::rfc8259::validate(json);  // throws std::runtime_error on violation
+//   qbuem::rfc8259::validate(json);  // throws std::runtime_error on violation
 // ============================================================================
 
 namespace rfc8259 {
@@ -7439,13 +7439,13 @@ inline void validate(std::string_view json) { detail_::Validator{}.run(json); }
 /// Throws std::runtime_error describing the violation and its byte offset.
 inline Value parse_strict(DocumentView &doc, ::std::string_view json) {
   rfc8259::validate(json);
-  return beast::json::parse_reuse(doc, json);
+  return qbuem::json::parse_reuse(doc, json);
 }
 
 } // namespace rfc8259
 
 // ============================================================================
-// beast::detail — Automatic Serialization / Deserialization Engine
+// qbuem::detail — Automatic Serialization / Deserialization Engine
 // ============================================================================
 //
 // Concept-based dispatch: zero user effort for all standard C++ types.
@@ -7464,13 +7464,13 @@ inline Value parse_strict(DocumentView &doc, ::std::string_view json) {
 //  ├─────────────────────────────────────────────────────────────────────┤
 //  │  Tier 2 — One macro line for custom structs                         │
 //  │    struct Point { int x, y; };                                      │
-//  │    BEAST_JSON_FIELDS(Point, x, y)    // done!                       │
+//  │    QBUEM_JSON_FIELDS(Point, x, y)    // done!                       │
 //  │                                                                     │
 //  │    Nested structs, STL containers, optional — all recursive.        │
 //  ├─────────────────────────────────────────────────────────────────────┤
 //  │  Tier 3 — Manual ADL (complex / polymorphic types)                  │
-//  │    void from_beast_json(const beast::Value&, MyType&);              │
-//  │    void to_beast_json(beast::Value&, const MyType&);                │
+//  │    void from_qbuem_json(const qbuem::Value&, MyType&);              │
+//  │    void to_qbuem_json(qbuem::Value&, const MyType&);                │
 //  └─────────────────────────────────────────────────────────────────────┘
 // ============================================================================
 
@@ -7615,16 +7615,16 @@ template <typename T>
 concept JsonDetailTuple = is_specialization_of<T, std::tuple>::value ||
                           is_specialization_of<T, std::pair>::value;
 
-// ADL hooks (user-defined or via BEAST_JSON_FIELDS)
+// ADL hooks (user-defined or via QBUEM_JSON_FIELDS)
 template <typename T>
-concept HasFromBeastJson =
-    requires(const Value &v, T &t) { from_beast_json(v, t); };
+concept HasFromQbuemJson =
+    requires(const Value &v, T &t) { from_qbuem_json(v, t); };
 template <typename T>
-concept HasToBeastJson =
-    requires(Value &v, const T &t) { to_beast_json(v, t); };
+concept HasToQbuemJson =
+    requires(Value &v, const T &t) { to_qbuem_json(v, t); };
 template <typename T>
-concept HasAppendBeastJson =
-    requires(std::string &out, const T &t) { append_beast_json(out, t); };
+concept HasAppendQbuemJson =
+    requires(std::string &out, const T &t) { append_qbuem_json(out, t); };
 template <typename T>
 concept HasNexusPulse =
     requires(std::string_view key, const char *&p, const char *end, T &t) {
@@ -7697,7 +7697,7 @@ void append_json_tuple_(W &out, const Tup &in) {
 //
 // Precedence (highest to lowest):
 //   nullptr_t → bool → arithmetic → string → optional → sequence → set →
-//   map → fixed-array → tuple → ADL from_beast_json → static_assert
+//   map → fixed-array → tuple → ADL from_qbuem_json → static_assert
 
 template <typename T> void from_json(const Value &v, T &out) {
   if constexpr (std::is_same_v<T, std::nullptr_t>) {
@@ -7747,13 +7747,13 @@ template <typename T> void from_json(const Value &v, T &out) {
     }
   } else if constexpr (JsonDetailTuple<T>) {
     from_json_tuple_(v, out);
-  } else if constexpr (HasFromBeastJson<T>) {
-    from_beast_json(v, out); // ADL: user-defined or BEAST_JSON_FIELDS-generated
+  } else if constexpr (HasFromQbuemJson<T>) {
+    from_qbuem_json(v, out); // ADL: user-defined or QBUEM_JSON_FIELDS-generated
   } else {
     static_assert(sizeof(T) == 0,
-                  "beast::read / from_json: no deserialization for T. "
-                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
-                  "from_beast_json(const beast::Value&, T&).");
+                  "qbuem::read / from_json: no deserialization for T. "
+                  "Use QBUEM_JSON_FIELDS(Type, field...) or define "
+                  "from_qbuem_json(const qbuem::Value&, T&).");
   }
 }
 
@@ -7855,22 +7855,22 @@ template <typename T> std::string to_json_str(const T &in) {
     return s + ']';
   } else if constexpr (JsonDetailTuple<T>) {
     return to_json_str_tuple_(in);
-  } else if constexpr (HasAppendBeastJson<T>) {
+  } else if constexpr (HasAppendQbuemJson<T>) {
     std::string s;
-    append_beast_json(s, in);
+    append_qbuem_json(s, in);
     return s;
-  } else if constexpr (HasToBeastJson<T>) {
-    // User-defined: create temp document, call to_beast_json, dump
+  } else if constexpr (HasToQbuemJson<T>) {
+    // User-defined: create temp document, call to_qbuem_json, dump
     ::std::string src = "{}";
     DocumentView doc;
-    Value root = ::beast::json::parse_reuse(doc, src);
-    to_beast_json(root, in); // ADL: user-defined or BEAST_JSON_FIELDS-generated
+    Value root = ::qbuem::json::parse_reuse(doc, src);
+    to_qbuem_json(root, in); // ADL: user-defined or QBUEM_JSON_FIELDS-generated
     return root.dump();
   } else {
     static_assert(sizeof(T) == 0,
-                  "beast::write / to_json_str: no serialization for T. "
-                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
-                  "to_beast_json(beast::Value&, const T&).");
+                  "qbuem::write / to_json_str: no serialization for T. "
+                  "Use QBUEM_JSON_FIELDS(Type, field...) or define "
+                  "to_qbuem_json(qbuem::Value&, const T&).");
   }
 }
 
@@ -7935,9 +7935,9 @@ concept JsonWriter = requires(W &w, char c, const char *p, size_t n) {
   json_write(w, p, n);
 };
 
-// ── Forward-declare HasBeastJsonFW concept (satisfied after macro expansion) ─
+// ── Forward-declare HasQbuemJsonFW concept (satisfied after macro expansion) ─
 template <typename T, typename W>
-concept HasBeastJsonFW = requires(W &w, const T &t) { beast_json_append_fw(w, t); };
+concept HasQbuemJsonFW = requires(W &w, const T &t) { qbuem_json_append_fw(w, t); };
 
 // ── append_json — zero-allocation concept-dispatched streaming ─────────────
 
@@ -8060,32 +8060,32 @@ template <typename W, typename T> void append_json(W &out, const T &in) {
     json_put(out, ']');
   } else if constexpr (JsonDetailTuple<T>) {
     append_json_tuple_(out, in);
-  } else if constexpr (HasBeastJsonFW<T, W>) {
-    // Fast path: uses beast_json_append_fw (generated by updated macro)
-    beast_json_append_fw(out, in);
-  } else if constexpr (HasAppendBeastJson<T>) {
-    // Legacy path: append_beast_json takes std::string
+  } else if constexpr (HasQbuemJsonFW<T, W>) {
+    // Fast path: uses qbuem_json_append_fw (generated by updated macro)
+    qbuem_json_append_fw(out, in);
+  } else if constexpr (HasAppendQbuemJson<T>) {
+    // Legacy path: append_qbuem_json takes std::string
     if constexpr (std::is_same_v<std::remove_cvref_t<W>, std::string>) {
-      append_beast_json(out, in);
+      append_qbuem_json(out, in);
     } else {
-      // W is FastWriter but type only has legacy append_beast_json:
+      // W is FastWriter but type only has legacy append_qbuem_json:
       // write to temp string, then bulk-copy into writer
       std::string tmp;
-      append_beast_json(tmp, in);
+      append_qbuem_json(tmp, in);
       json_write(out, tmp.data(), tmp.size());
     }
-  } else if constexpr (HasToBeastJson<T>) {
+  } else if constexpr (HasToQbuemJson<T>) {
     ::std::string src = "{}";
     DocumentView doc;
-    Value root = ::beast::json::parse_reuse(doc, src);
-    to_beast_json(root, in);
+    Value root = ::qbuem::json::parse_reuse(doc, src);
+    to_qbuem_json(root, in);
     const std::string ds = root.dump();
     json_write(out, ds.data(), ds.size());
   } else {
     static_assert(sizeof(T) == 0,
-                  "beast::write / append_json: no serialization for T. "
-                  "Use BEAST_JSON_FIELDS(Type, field...) or define "
-                  "append_beast_json(std::string&, const T&).");
+                  "qbuem::write / append_json: no serialization for T. "
+                  "Use QBUEM_JSON_FIELDS(Type, field...) or define "
+                  "append_qbuem_json(std::string&, const T&).");
   }
 }
 
@@ -8095,7 +8095,7 @@ template <typename T> void append_json(std::string &out, const T &in) {
   append_json<std::string, T>(out, in);
 }
 
-// ── Per-field helpers for BEAST_JSON_FIELDS
+// ── Per-field helpers for QBUEM_JSON_FIELDS
 
 template <typename T>
 inline void from_json_field(const Value &obj, const char *key, T &field) {
@@ -8173,101 +8173,101 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
       BEAST_DETAIL_FE_, BEAST_DETAIL_COUNT(__VA_ARGS__))(fn, __VA_ARGS__))
 
 // ============================================================================
-// BEAST_JSON_FIELDS — one-line struct serialization/deserialization
+// QBUEM_JSON_FIELDS — one-line struct serialization/deserialization
 // ============================================================================
 
-#define BEAST_JSON_DETAIL_READ(f)                                              \
-  ::beast::json::detail::from_json_field(v, #f, obj.f);
-#define BEAST_JSON_DETAIL_WRITE(f)                                             \
-  ::beast::json::detail::to_json_field(v, #f, obj.f);
-#define BEAST_JSON_DETAIL_APPEND(f)                                            \
+#define QBUEM_JSON_DETAIL_READ(f)                                              \
+  ::qbuem::json::detail::from_json_field(v, #f, obj.f);
+#define QBUEM_JSON_DETAIL_WRITE(f)                                             \
+  ::qbuem::json::detail::to_json_field(v, #f, obj.f);
+#define QBUEM_JSON_DETAIL_APPEND(f)                                            \
   out += "\"" #f "\":";                                                        \
-  ::beast::json::detail::append_json(out, obj.f);                              \
+  ::qbuem::json::detail::append_json(out, obj.f);                              \
   out += ',';
 
-#define BEAST_JSON_DETAIL_PULSE(f)                                             \
-  case ::beast::json::detail::fast_key_hash_ce(#f):                            \
-    ::beast::json::detail::from_json_direct(p, end, obj.f);                    \
+#define QBUEM_JSON_DETAIL_PULSE(f)                                             \
+  case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
+    ::qbuem::json::detail::from_json_direct(p, end, obj.f);                    \
     break;
 
-// BEAST_JSON_DETAIL_APPEND_OPT — legacy path (used if BEAST_JSON_DETAIL_APPEND_FW not available)
-#define BEAST_JSON_DETAIL_APPEND_OPT(f)                                        \
+// QBUEM_JSON_DETAIL_APPEND_OPT — legacy path (used if QBUEM_JSON_DETAIL_APPEND_FW not available)
+#define QBUEM_JSON_DETAIL_APPEND_OPT(f)                                        \
   {                                                                            \
     static constexpr ::std::string_view kf = "\"" #f "\":";                    \
     out.append(kf.data(), kf.size());                                          \
   }                                                                            \
-  ::beast::json::detail::append_json(out, obj.f);                              \
+  ::qbuem::json::detail::append_json(out, obj.f);                              \
   out += ',';
 
-// BEAST_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
-#define BEAST_JSON_DETAIL_APPEND_FW(f)                                         \
+// QBUEM_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
+#define QBUEM_JSON_DETAIL_APPEND_FW(f)                                         \
   {                                                                            \
     static constexpr char _bj_kf[] = "\"" #f "\":";                           \
     _bj_fw.write(_bj_kf, sizeof(_bj_kf) - 1);                                 \
   }                                                                            \
-  ::beast::json::detail::append_json(_bj_fw, obj.f);                          \
+  ::qbuem::json::detail::append_json(_bj_fw, obj.f);                          \
   _bj_fw.put(',');
 
-#define BEAST_JSON_FIELDS(Type, ...)                                           \
+#define QBUEM_JSON_FIELDS(Type, ...)                                           \
   /* Fast dispatch on pre-computed key hash — primary hot path */              \
   inline void nexus_pulse_h(uint64_t _h, const char *&p,                      \
                             const char *end, Type &obj) {                      \
     switch (_h) {                                                              \
-      BEAST_FOR_EACH(BEAST_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
+      BEAST_FOR_EACH(QBUEM_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
     default:                                                                   \
-      ::beast::json::detail::skip_direct(p, end);                              \
+      ::qbuem::json::detail::skip_direct(p, end);                              \
       break;                                                                   \
     }                                                                          \
   }                                                                            \
   /* Backward-compat wrapper: hashes the key then dispatches via nexus_pulse_h */\
   inline void nexus_pulse(::std::string_view key, const char *&p,              \
                           const char *end, Type &obj) {                        \
-    nexus_pulse_h(::beast::json::detail::fast_key_hash(key), p, end, obj);    \
+    nexus_pulse_h(::qbuem::json::detail::fast_key_hash(key), p, end, obj);    \
   }                                                                            \
-  inline void from_beast_json(const ::beast::json::Value &v, Type &obj) {      \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_READ, __VA_ARGS__)                        \
+  inline void from_qbuem_json(const ::qbuem::json::Value &v, Type &obj) {      \
+    BEAST_FOR_EACH(QBUEM_JSON_DETAIL_READ, __VA_ARGS__)                        \
   }                                                                            \
-  inline void to_beast_json(::beast::json::Value &v, const Type &obj) {        \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
+  inline void to_qbuem_json(::qbuem::json::Value &v, const Type &obj) {        \
+    BEAST_FOR_EACH(QBUEM_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
   }                                                                            \
   /* FastWriter serialization — zero std::string overhead */                   \
-  inline void beast_json_append_fw(::beast::json::detail::FastWriter &_bj_fw, \
+  inline void qbuem_json_append_fw(::qbuem::json::detail::FastWriter &_bj_fw, \
                                    const Type &obj) {                          \
     _bj_fw.put('{');                                                           \
-    BEAST_FOR_EACH(BEAST_JSON_DETAIL_APPEND_FW, __VA_ARGS__)                   \
+    BEAST_FOR_EACH(QBUEM_JSON_DETAIL_APPEND_FW, __VA_ARGS__)                   \
     _bj_fw.set_last('}');                                                      \
   }                                                                            \
-  inline void beast_json_append_fw(std::string &_bj_s, const Type &obj) {     \
-    ::beast::json::detail::FastWriter _bj_fw(_bj_s);  /* uses spare cap */    \
-    beast_json_append_fw(_bj_fw, obj);                                         \
+  inline void qbuem_json_append_fw(std::string &_bj_s, const Type &obj) {     \
+    ::qbuem::json::detail::FastWriter _bj_fw(_bj_s);  /* uses spare cap */    \
+    qbuem_json_append_fw(_bj_fw, obj);                                         \
   }                                                                            \
-  inline void append_beast_json(std::string &out, const Type &obj) {           \
-    beast_json_append_fw(out, obj);                                            \
+  inline void append_qbuem_json(std::string &out, const Type &obj) {           \
+    qbuem_json_append_fw(out, obj);                                            \
   }
 
-// Backward-compatibility alias: beast::json::lazy → beast::json
-// Tests and older code may reference types via beast::json::lazy::SafeValue,
-// beast::json::lazy::JsonInteger, etc.
-namespace lazy = ::beast::json;
+// Backward-compatibility alias: qbuem::json::lazy → qbuem::json
+// Tests and older code may reference types via qbuem::json::lazy::SafeValue,
+// qbuem::json::lazy::JsonInteger, etc.
+namespace lazy = ::qbuem::json;
 
 } // namespace json
-} // namespace beast
+} // namespace qbuem
 
 // ── C++20 ranges support ────────────────────────────────────────────────────
 namespace std::ranges {
 template <>
-inline constexpr bool enable_borrowed_range<beast::json::Value::ObjectRange> =
+inline constexpr bool enable_borrowed_range<qbuem::json::Value::ObjectRange> =
     true;
 
 template <>
-inline constexpr bool enable_borrowed_range<beast::json::Value::ArrayRange> =
+inline constexpr bool enable_borrowed_range<qbuem::json::Value::ArrayRange> =
     true;
 } // namespace std::ranges
 
-namespace beast {
+namespace qbuem {
 
 // ---------------------------------------------------------------------------
-// Tier 1 — beast::core
+// Tier 1 — qbuem::core
 // ---------------------------------------------------------------------------
 namespace core {
 using TapeNodeType = json::TapeNodeType;
@@ -8278,7 +8278,7 @@ using Parser = json::Parser;
 } // namespace core
 
 // ---------------------------------------------------------------------------
-// Tier 3 — beast:: public facade
+// Tier 3 — qbuem:: public facade
 // ---------------------------------------------------------------------------
 
 using Document = json::DocumentView;
@@ -8636,7 +8636,7 @@ template <typename T> T read(::std::string_view json) {
   Document doc;
   Value root = json::parse_reuse(doc, json);
   T obj{};
-  ::beast::json::detail::from_json(root, obj);
+  ::qbuem::json::detail::from_json(root, obj);
   return obj;
 }
 
@@ -8650,7 +8650,7 @@ template <typename T> T fuse(::std::string_view json) {
 template <typename T>::std::string write(const T &obj) {
   ::std::string out;
   out.reserve(512);
-  ::beast::json::detail::append_json(out, obj);
+  ::qbuem::json::detail::append_json(out, obj);
   return out;
 }
 
@@ -8668,27 +8668,27 @@ template <typename T>::std::string write(const T &obj, int indent) {
 // Appends the compact JSON representation of obj to an existing string buffer.
 // Call buf.clear() between iterations; the buffer's heap capacity is reused.
 template <typename T> void write_to(::std::string &buf, const T &obj) {
-  ::beast::json::detail::append_json(buf, obj);
+  ::qbuem::json::detail::append_json(buf, obj);
 }
 
 // write_to(buf, obj, indent) — pretty-printed buffer-append variant.
 template <typename T> void write_to(::std::string &buf, const T &obj, int indent) {
   ::std::string compact;
   compact.reserve(512);
-  ::beast::json::detail::append_json(compact, obj);
+  ::qbuem::json::detail::append_json(compact, obj);
   Document tmp;
   Value root = parse(tmp, compact);
   buf += root.dump(indent);
 }
 
 template <typename T> void from_json(const Value &v, T &out) {
-  ::beast::json::detail::from_json(v, out);
+  ::qbuem::json::detail::from_json(v, out);
 }
 
 template <typename T>::std::string to_json_str(const T &val) {
-  return ::beast::json::detail::to_json_str(val);
+  return ::qbuem::json::detail::to_json_str(val);
 }
 
-} // namespace beast
+} // namespace qbuem
 
-#endif // BEAST_JSON_HPP
+#endif // QBUEM_JSON_HPP
