@@ -6843,7 +6843,20 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
     while (p < end && (unsigned char)*p <= 32) ++p;
     const char *start = p;
     while (p < end && ((*p >= '0' && *p <= '9') || *p == '-' || *p == '.' || *p == 'e' || *p == 'E' || *p == '+')) ++p;
-    std::from_chars(start, p, out);
+    if constexpr (std::is_floating_point_v<T>) {
+#if __cpp_lib_to_chars >= 201611L && !defined(__APPLE__)
+      std::from_chars(start, p, out);
+#else
+      char _fc_buf[64];
+      size_t _fc_len = static_cast<size_t>(p - start);
+      if (_fc_len >= sizeof(_fc_buf)) _fc_len = sizeof(_fc_buf) - 1;
+      std::memcpy(_fc_buf, start, _fc_len);
+      _fc_buf[_fc_len] = '\0';
+      out = static_cast<T>(std::strtod(_fc_buf, nullptr));
+#endif
+    } else {
+      std::from_chars(start, p, out);
+    }
   } else if constexpr (JsonDetailOptional<T>) {
     detail::ws(p, end);
     if (p + 4 <= end && !std::memcmp(p, "null", 4)) {
