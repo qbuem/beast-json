@@ -1,62 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 280" width="900" height="280">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 280" width="960" height="280">
   <defs>
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800;900&amp;display=swap');
-    </style>
-    <!-- Background hex pattern -->
-    <pattern id="hexPat" x="0" y="0" width="80" height="92" patternUnits="userSpaceOnUse">
-      <polygon points="40,4 72,22 72,58 40,76 8,58 8,22"
-               fill="none" stroke="#c8bfa8" stroke-width="1.2" opacity="0.35"/>
+    <!-- Hex tile pattern (same as brand image background) -->
+    <pattern id="hexTile" x="0" y="0" width="72" height="83" patternUnits="userSpaceOnUse">
+      <polygon points="36,3 66,20 66,54 36,71 6,54 6,20"
+               fill="none" stroke="#1a2744" stroke-width="0.8" opacity="0.10"/>
     </pattern>
-  </defs>
-
-  <!-- Background -->
-  <rect width="900" height="280" fill="#f2ece0"/>
-
-  <!-- Hex pattern on right side -->
-  <rect x="480" y="0" width="420" height="280" fill="url(#hexPat)" opacity="0.5"/>
-
-  <!-- Subtle gradient overlay on right -->
-  <defs>
-    <linearGradient id="fadeLeft" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#f2ece0;stop-opacity:1"/>
-      <stop offset="40%" style="stop-color:#f2ece0;stop-opacity:0.7"/>
-      <stop offset="100%" style="stop-color:#f2ece0;stop-opacity:0"/>
+    <!-- Left fade for pattern -->
+    <linearGradient id="fadeRight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   style="stop-color:#f5f0e5;stop-opacity:1"/>
+      <stop offset="55%"  style="stop-color:#f5f0e5;stop-opacity:0.85"/>
+      <stop offset="100%" style="stop-color:#f5f0e5;stop-opacity:0.40"/>
+    </linearGradient>
+    <linearGradient id="fadeLeft" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%"   style="stop-color:#f5f0e5;stop-opacity:1"/>
+      <stop offset="50%"  style="stop-color:#f5f0e5;stop-opacity:0.5"/>
+      <stop offset="100%" style="stop-color:#f5f0e5;stop-opacity:0"/>
     </linearGradient>
   </defs>
-  <rect x="480" y="0" width="320" height="280" fill="url(#fadeLeft)"/>
 
-  <!-- ─── Logo Section (left) ─── -->
-  <!-- Hexagon shape -->
-  <path d="M95 38 L163 76 L163 154 L95 192 L27 154 L27 76 Z"
-        fill="#1e2e5c" stroke="#1a2744" stroke-width="1.5"/>
-  <!-- Inner hex glow -->
-  <path d="M95 46 L155 80 L155 146 L95 180 L35 146 L35 80 Z"
+  <!-- ── Background ── -->
+  <rect width="960" height="280" fill="#f5f0e5"/>
+  <!-- Hex pattern covering full area -->
+  <rect width="960" height="280" fill="url(#hexTile)"/>
+  <!-- Vignette: edges fade the pattern -->
+  <rect width="260" height="280" fill="url(#fadeRight)"/>
+  <rect x="700" width="260" height="280" fill="url(#fadeLeft)"/>
+
+  <!-- ══ LEFT SECTION — Logo block ══════════════════════════════════ -->
+
+  <!-- Hexagon icon -->
+  <path d="M58 30 L106 57 L106 111 L58 138 L10 111 L10 57 Z" fill="#1a2744"/>
+  <!-- inner subtle ring -->
+  <path d="M58 37 L99 61 L99 107 L58 131 L17 107 L17 61 Z"
         fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>
 
-  <!-- Q letter -->
-  <text x="55" y="145" font-family="Georgia, 'Times New Roman', serif" font-size="76"
-        font-weight="bold" fill="#ffffff" opacity="0.95">Q</text>
+  <!-- Q circle (white) -->
+  <ellipse cx="47" cy="87" rx="14" ry="15.5" fill="none"
+           stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- Q tail in gold -->
+  <line x1="54" y1="97" x2="63" y2="107"
+        stroke="#c4a052" stroke-width="5.5" stroke-linecap="round"/>
+  <!-- } in gold -->
+  <text x="67" y="98" font-family="Georgia, 'Times New Roman', serif"
+        font-size="26" font-weight="bold" fill="#c4a052"
+        dominant-baseline="middle">}</text>
 
-  <!-- Curly brace -->
-  <text x="127" y="148" font-family="'Courier New', monospace" font-size="60"
-        font-weight="bold" fill="#ffffff" opacity="0.85">}</text>
+  <!-- qbuem-json wordmark (italic bold, dark navy) -->
+  <text x="126" y="95" font-family="Georgia, 'Palatino Linotype', 'Book Antiqua', serif"
+        font-size="46" font-weight="bold" font-style="italic"
+        fill="#1a2744" dominant-baseline="middle"
+        letter-spacing="-1">qbuem-json</text>
 
-  <!-- Copper diagonal accent slash -->
-  <rect x="48" y="150" width="100" height="10" rx="5"
-        fill="#c05820"
-        transform="rotate(-30, 98, 155)"/>
+  <!-- Tagline "small changes, big future" in gold -->
+  <text x="130" y="130" font-family="Georgia, 'Palatino Linotype', serif"
+        font-size="17" font-style="italic" font-weight="normal"
+        fill="#c4a052" dominant-baseline="middle"
+        letter-spacing="0.3">small changes, big future</text>
 
-  <!-- Logo wordmark -->
-  <text x="95" y="225" font-family="'Outfit', 'Nunito', 'Segoe UI', Arial, sans-serif"
-        font-size="22" font-weight="700" fill="#1e2e5c"
-        text-anchor="middle" letter-spacing="0.5">qbuem-json</text>
+  <!-- ══ DIVIDER ══════════════════════════════════════════════════== -->
+  <line x1="490" y1="55" x2="490" y2="225"
+        stroke="rgba(26, 39, 68, 0.12)" stroke-width="1.5"/>
 
-  <!-- ─── Banner Text (right) ─── -->
-  <text x="220" y="118" font-family="'Outfit', 'Nunito', 'Segoe UI Black', Arial, sans-serif"
-        font-size="52" font-weight="900" fill="#1e2e5c"
-        letter-spacing="1">UNIVERSAL JSON</text>
-  <text x="220" y="182" font-family="'Outfit', 'Nunito', 'Segoe UI Black', Arial, sans-serif"
-        font-size="52" font-weight="900" fill="#1e2e5c"
-        letter-spacing="1">HANDLING TOOLKIT</text>
+  <!-- ══ RIGHT SECTION — Slogan ════════════════════════════════════ -->
+  <text x="520" y="108"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-size="42" font-weight="900" font-style="normal"
+        fill="#1a2744" dominant-baseline="middle"
+        letter-spacing="0.5">FEEL THE POWER OF</text>
+  <text x="520" y="166"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-size="42" font-weight="900" font-style="normal"
+        fill="#1a2744" dominant-baseline="middle"
+        letter-spacing="0.5">ULTIMATE JSON SPEED</text>
 </svg>

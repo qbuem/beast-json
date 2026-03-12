@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: "qbuem-json"
-  text: "Universal JSON Handling Toolkit"
-  tagline: "C++20 · Single Header · Zero Dependencies · AVX-512 & NEON SIMD · Zero-Allocation Design"
+  text: "Feel the Power of Ultimate JSON Speed"
+  tagline: "small changes, big future · C++20 · Single Header · Zero Dependencies · AVX-512 & NEON SIMD"
   image:
     src: /logo.svg
     alt: qbuem-json Logo
@@ -45,9 +45,9 @@ features:
     details: "Drop in qbuem_json.hpp and ship. No build system changes. No transitive dependencies. Free for commercial use."
 ---
 
-<div style="background: #1e2e5c; padding: 3rem 1.5rem; margin-top: 0; text-align: center;">
-  <img src="/banner.svg" alt="qbuem-json — Universal JSON Handling Toolkit"
-       style="max-width: 860px; width: 100%; margin: 0 auto; border-radius: 12px; border: none; box-shadow: 0 16px 48px rgba(0,0,0,0.30);" />
+<div style="background: #f5f0e5; padding: 2rem 1.5rem; margin-top: 0; text-align: center; border-top: 1px solid rgba(26,39,68,0.10); border-bottom: 1px solid rgba(26,39,68,0.10);">
+  <img src="/banner.svg" alt="qbuem-json — Feel the Power of Ultimate JSON Speed"
+       style="max-width: 900px; width: 100%; margin: 0 auto; border-radius: 10px; border: 1px solid rgba(26,39,68,0.10); box-shadow: 0 8px 32px rgba(26,39,68,0.12);" />
 </div>
 
 <div style="max-width: 900px; margin: 4rem auto; padding: 0 1.5rem;">
