@@ -439,7 +439,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 | Language | Status | Package |
 |:---|:---|:---|
 | Python | Planned | `pip install qbuem-json` (PyPI wheels) |
-| Go | Planned | `go get github.com/qbuem-json/go-beast` |
+| Go | Planned | `go get github.com/qbuem/qbuem-json-go` |
 | Rust | Planned | `qbuem-json` on crates.io |
 | Node.js | Planned | N-API native addon, `npm install qbuem-json` |
 | Ruby | Exploring | Native C extension via `rice` |
