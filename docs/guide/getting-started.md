@@ -4,11 +4,65 @@ Integrating qbuem-json into your project is designed to be effortless.
 
 ## 📦 Installation
 
-qbuem-json is a **single-header library**. Just download `qbuem_json.hpp` and include it.
+qbuem-json is a **single-header library**. Pick the method that fits your workflow.
+
+### Option A: Single Header Drop-in
+
+No CMake required — just copy the header.
 
 ```bash
-# Clone the repo or just grab the header
+# Grab the header directly
 wget https://raw.githubusercontent.com/qbuem/qbuem-json/main/include/qbuem_json/qbuem_json.hpp
+# or: cp include/qbuem_json/qbuem_json.hpp /your/project/include/
+```
+
+```cpp
+#include "qbuem_json.hpp"
+```
+
+Compile with C++20:
+
+```bash
+g++ -std=c++20 -O3 main.cpp -o main
+```
+
+### Option B: CMake FetchContent
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(
+    qbuem_json
+    GIT_REPOSITORY https://github.com/qbuem/qbuem-json
+    GIT_TAG        main
+)
+FetchContent_MakeAvailable(qbuem_json)
+
+target_link_libraries(your_target PRIVATE qbuem_json)
+```
+
+### Option C: Clone & Build
+
+```bash
+git clone https://github.com/qbuem/qbuem-json.git
+cd qbuem-json
+
+cmake -S . -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DQBUEM_JSON_BUILD_TESTS=ON
+cmake --build build -j$(nproc)
+
+# Run tests
+ctest --test-dir build --output-on-failure
+
+# Optional: install system-wide
+cmake --install build --prefix /usr/local
+```
+
+After install, link in your CMakeLists:
+
+```cmake
+find_package(qbuem_json REQUIRED)
+target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
 ```
 
 ### 1. Choice of Engines
@@ -33,8 +87,8 @@ Best for high-frequency objects where every nanosecond counts. It maps JSON **di
 struct User {
     int id;
     std::string name;
-    QBUEM_JSON_FIELDS(User, id, name)
 };
+QBUEM_JSON_FIELDS(User, id, name)   // ← outside the struct, at namespace scope
 
 // Zero-Tape Fusion
 User u = qbuem::fuse<User>(json_data);
