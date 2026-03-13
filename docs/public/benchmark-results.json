@@ -10,7 +10,7 @@
           "file": "twitter.json",
           "results": [
             {
-              "library": "qbuem::lazy",
+              "library": "qbuem-json (DOM)",
               "parse_us": 252.5,
               "serialize_us": 155.59,
               "alloc_kb": 484
@@ -51,7 +51,7 @@
           "file": "canada.json",
           "results": [
             {
-              "library": "qbuem::lazy",
+              "library": "qbuem-json (DOM)",
               "parse_us": 1603.42,
               "serialize_us": 959.62,
               "alloc_kb": 1748
@@ -92,7 +92,7 @@
           "file": "citm_catalog.json",
           "results": [
             {
-              "library": "qbuem::lazy",
+              "library": "qbuem-json (DOM)",
               "parse_us": 636.56,
               "serialize_us": 409.17,
               "alloc_kb": 1108
@@ -133,7 +133,7 @@
           "file": "gsoc-2018.json",
           "results": [
             {
-              "library": "qbuem::lazy",
+              "library": "qbuem-json (DOM)",
               "parse_us": 795.82,
               "serialize_us": 411.94,
               "alloc_kb": 328
@@ -174,7 +174,7 @@
           "file": "harsh.json",
           "results": [
             {
-              "library": "qbuem::lazy",
+              "library": "qbuem-json (DOM)",
               "parse_us": 8639.07,
               "serialize_us": 4614.25,
               "alloc_kb": 7096
