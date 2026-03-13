@@ -65,7 +65,9 @@ if(QBUEM_BUILD_GLAZE)
     FetchContent_MakeAvailable(glaze)
 endif()
 
-# Download benchmark data
+# Benchmark data files
+# CI pre-downloads files into BENCHMARK_DATA_PREDOWNLOAD_DIR to avoid network
+# failures during cmake configure. Fall back to direct download for local builds.
 set(BENCHMARK_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 set(BENCHMARK_FILES
@@ -77,12 +79,25 @@ set(BENCHMARK_FILES
 
 foreach(file ${BENCHMARK_FILES})
     if(NOT EXISTS ${BENCHMARK_DATA_DIR}/${file})
-        message(STATUS "Downloading ${file}...")
-        file(DOWNLOAD 
-            https://raw.githubusercontent.com/simdjson/simdjson-data/master/jsonexamples/${file}
-            ${BENCHMARK_DATA_DIR}/${file}
-            SHOW_PROGRESS
-        )
+        # Check if CI pre-downloaded the file
+        if(BENCHMARK_DATA_PREDOWNLOAD_DIR AND
+           EXISTS "${BENCHMARK_DATA_PREDOWNLOAD_DIR}/${file}")
+            message(STATUS "Copying pre-downloaded ${file}")
+            file(COPY "${BENCHMARK_DATA_PREDOWNLOAD_DIR}/${file}"
+                 DESTINATION ${BENCHMARK_DATA_DIR})
+        else()
+            message(STATUS "Downloading ${file}...")
+            file(DOWNLOAD
+                https://raw.githubusercontent.com/simdjson/simdjson-data/master/jsonexamples/${file}
+                ${BENCHMARK_DATA_DIR}/${file}
+                SHOW_PROGRESS
+                STATUS _dl_status
+            )
+            list(GET _dl_status 0 _dl_code)
+            if(NOT _dl_code EQUAL 0)
+                message(WARNING "Failed to download ${file} (code ${_dl_code}) — benchmark will skip this file")
+            endif()
+        endif()
     endif()
 endforeach()
 
@@ -215,10 +230,11 @@ if(QBUEM_BUILD_GLAZE)
         target_compile_options(bench PRIVATE -std=c++2b)
     endif()
 else()
-    target_compile_features(bench_all PRIVATE cxx_std_23)
-    target_compile_features(bench_structs PRIVATE cxx_std_23)
-    target_compile_features(bench_hft PRIVATE cxx_std_23)
-    target_compile_features(bench PRIVATE cxx_std_23)
+    # Glaze disabled: compiler lacks C++23 — use C++20 which is sufficient for the library
+    target_compile_features(bench_all PRIVATE cxx_std_20)
+    target_compile_features(bench_structs PRIVATE cxx_std_20)
+    target_compile_features(bench_hft PRIVATE cxx_std_20)
+    target_compile_features(bench PRIVATE cxx_std_20)
 endif()
 
 

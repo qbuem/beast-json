@@ -52,11 +52,35 @@ jobs:
         key: bench-deps-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cc }}-${{ hashFiles('benchmarks/CMakeLists.txt') }}
         restore-keys: bench-deps-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cc }}-
 
+    # Cache the benchmark JSON data files separately so network failures
+    # on simdjson-data do not silently produce empty general-section results.
+    - name: Cache benchmark data files
+      uses: actions/cache@v4
+      with:
+        path: bench_data
+        key: bench-data-v1
+
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         key: bench-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cc }}
         max-size: 128M
+
+    # Pre-download benchmark JSON files into a cached directory so CMake
+    # configure does not need network access (avoids rate-limit / timeout failures).
+    - name: Download benchmark data files
+      run: |
+        mkdir -p bench_data
+        for file in twitter.json canada.json citm_catalog.json gsoc-2018.json; do
+          if [ ! -f "bench_data/${file}" ]; then
+            echo "Downloading ${file}..."
+            curl -fsSL \
+              "https://raw.githubusercontent.com/simdjson/simdjson-data/master/jsonexamples/${file}" \
+              -o "bench_data/${file}" || echo "Warning: failed to download ${file}"
+          else
+            echo "Using cached ${file}"
+          fi
+        done
 
     - name: Configure CMake
       env:
@@ -69,24 +93,37 @@ jobs:
         -DQBUEM_JSON_BUILD_BENCHMARKS=ON
         -DCMAKE_C_COMPILER_LAUNCHER=ccache
         -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        -DBENCHMARK_DATA_PREDOWNLOAD_DIR="${{ github.workspace }}/bench_data"
 
     - name: Build
       run: cmake --build build_bench --config Release -j2
 
+    # Copy pre-downloaded JSON files into the build directory so bench can find them.
     # bench uses system() to re-invoke itself per library for the general section,
     # so the working directory must contain both the binary and JSON data files.
+    - name: Copy data files into build directory
+      run: |
+        cp bench_data/*.json build_bench/benchmarks/ 2>/dev/null || true
+
     - name: Run benchmarks
       working-directory: build_bench/benchmarks
+      # Use "|| true" so a crash or non-zero exit does NOT skip the parse/upload
+      # steps. bench_output.txt is always created by tee; we process whatever we got.
       run: |
-        ./bench --quick --all 2>&1 | tee bench_output.txt
+        ./bench --quick --all 2>&1 | tee bench_output.txt || true
 
+    # Run even if the benchmark step failed/crashed — we still upload partial results.
     - name: Parse results into JSON artifact
+      if: always()
       run: |
         python3 << 'PYEOF'
         import re, json, os
 
-        with open("build_bench/benchmarks/bench_output.txt", encoding="utf-8") as f:
-            text = f.read()
+        import pathlib
+        p = pathlib.Path("build_bench/benchmarks/bench_output.txt")
+        text = p.read_text(encoding="utf-8") if p.exists() else ""
+        if not text.strip():
+            print("bench_output.txt is empty or missing — no results to parse")
 
         # Output format:
         #   ##section general          ← section switch marker
@@ -167,7 +204,9 @@ jobs:
         print(f"Wrote {len(general)} general + {len(structs)} struct entries to {out}")
         PYEOF
 
+    # Upload even when benchmark step failed so aggregate always gets data.
     - name: Upload results artifact
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: bench-results-${{ matrix.arch }}
