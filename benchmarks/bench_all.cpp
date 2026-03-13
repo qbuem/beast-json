@@ -1,5 +1,5 @@
 // benchmarks/bench_all.cpp
-// Unified benchmark: qbuem::json::lazy vs yyjson vs nlohmann/json
+// Unified benchmark: qbuem-json (DOM) vs yyjson vs nlohmann/json
 // Measures parse + serialize throughput on 4 standard JSON files.
 //
 // Usage:
@@ -48,7 +48,7 @@ static void run_file(const std::string &exe_path, const std::string &lib_filter,
               << "  Iterations: " << N << "\n";
     bench::print_table_header();
 
-    std::vector<std::string> libs = {"qbuem::lazy", "simdjson",  "yyjson",
+    std::vector<std::string> libs = {"qbuem-json (DOM)", "simdjson",  "yyjson",
                                      "RapidJSON",   "Glaze DOM", "nlohmann"};
     for (const auto &lib : libs) {
 #ifndef QBUEM_HAS_GLAZE
@@ -75,7 +75,7 @@ static void run_file(const std::string &exe_path, const std::string &lib_filter,
   }
 
   // ── 1. qbuem::json::lazy (production path) ──────────────────────────────
-  if (lib_filter == "qbuem::lazy") {
+  if (lib_filter == "qbuem-json (DOM)") {
     // Memory: RSS before vs after cold parse — measures tape arena size
     size_t rss0 = bench::get_current_rss_kb();
     qbuem::Document ctx;
@@ -104,7 +104,7 @@ static void run_file(const std::string &exe_path, const std::string &lib_filter,
       ok = !out.empty();
     }
 
-    bench::Result{"qbuem::lazy", p_ns, s_ns, ok, alloc_kb}.print();
+    bench::Result{"qbuem-json (DOM)", p_ns, s_ns, ok, alloc_kb}.print();
   }
 
   // ── 1.5 simdjson ─────────────────────────────────────────────────────────
