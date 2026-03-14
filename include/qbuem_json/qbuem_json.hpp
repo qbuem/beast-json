@@ -17,7 +17,7 @@
  * ✅ Full SIMD: AVX-512, NEON, and SWAR structural indexing.
  * ✅ C++20 Native: Concepts, Ranges, and std::pmr support.
  *
- * Documentation: https://qbuem.github.io/qbuem-json/
+ * Documentation: https://qbuem.com/qbuem-json/
  *
  * License: Apache License 2.0
  *

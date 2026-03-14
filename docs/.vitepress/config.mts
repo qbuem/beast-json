@@ -27,6 +27,16 @@ export default withMermaid(
             ])
         },
         head: [
+            // Domain Redirect (github.io -> qbuem.com)
+            ['script', {}, `
+                (function() {
+                    if (window.location.hostname === 'qbuem.github.io') {
+                        var newUrl = window.location.href.replace('qbuem.github.io', 'qbuem.com');
+                        window.location.replace(newUrl);
+                    }
+                })();
+            `],
+
             // Google Site Verification
             ['meta', { name: 'google-site-verification', content: 'lyhYqUe6A757oe9CdwPEGxsyL7jHnqJ87ssXVuJdE_k' }],
 

@@ -8,7 +8,7 @@
   </p>
 
   <p>
-    <a href="https://qbuem.github.io/qbuem-json/">
+    <a href="https://qbuem.com/qbuem-json/">
       <img src="https://img.shields.io/badge/Documentation-Hub-orange?style=for-the-badge&logo=vitepress" alt="Documentation Hub">
     </a>
   </p>
@@ -46,7 +46,7 @@ QBUEM_JSON_FIELDS(User, id, username, tags, active)
 
 ## ⚡ Performance
 
-**[→ Live CI Benchmark Results](https://qbuem.github.io/qbuem-json/guide/benchmarks)**
+**[→ Live CI Benchmark Results](https://qbuem.com/qbuem-json/guide/benchmarks)**
 
 Benchmarks run automatically on every push to `main` across three native GitHub-hosted runners.
 Results cover all standard datasets (`twitter`, `canada`, `citm`, `gsoc`, `harsh`) with **Parse**, **Serialize**, and **Memory (Alloc KB)** metrics.
@@ -61,14 +61,14 @@ Results cover all standard datasets (`twitter`, `canada`, `citm`, `gsoc`, `harsh
 
 ## 📖 Documentation
 
-**[qbuem.github.io/qbuem-json](https://qbuem.github.io/qbuem-json/)**
+**[qbuem.com/qbuem-json](https://qbuem.com/qbuem-json/)**
 
 | Category | Topics |
 |:---|:---|
-| **Engineering Theory** | [Tape DOM](https://qbuem.github.io/qbuem-json/theory/architecture), [Nexus Fusion](https://qbuem.github.io/qbuem-json/theory/nexus-fusion), [SIMD Acceleration](https://qbuem.github.io/qbuem-json/theory/simd), [Russ Cox Algorithm](https://qbuem.github.io/qbuem-json/theory/russ-cox) |
-| **Advanced Usage** | [HFT Optimization Patterns](https://qbuem.github.io/qbuem-json/guide/hft-patterns), [Custom Allocators](https://qbuem.github.io/qbuem-json/guide/allocators), [Language Bindings](https://qbuem.github.io/qbuem-json/guide/bindings) |
-| **Guides** | [Getting Started](https://qbuem.github.io/qbuem-json/guide/getting-started), [Object Mapping](https://qbuem.github.io/qbuem-json/guide/mapping), [Error Handling](https://qbuem.github.io/qbuem-json/guide/errors) |
-| **API Reference** | [Full C++ Doxygen Reference](https://qbuem.github.io/qbuem-json/api/reference/index.html) |
+| **Engineering Theory** | [Tape DOM](https://qbuem.com/qbuem-json/theory/architecture), [Nexus Fusion](https://qbuem.com/qbuem-json/theory/nexus-fusion), [SIMD Acceleration](https://qbuem.com/qbuem-json/theory/simd), [Russ Cox Algorithm](https://qbuem.com/qbuem-json/theory/russ-cox) |
+| **Advanced Usage** | [HFT Optimization Patterns](https://qbuem.com/qbuem-json/guide/hft-patterns), [Custom Allocators](https://qbuem.com/qbuem-json/guide/allocators), [Language Bindings](https://qbuem.com/qbuem-json/guide/bindings) |
+| **Guides** | [Getting Started](https://qbuem.com/qbuem-json/guide/getting-started), [Object Mapping](https://qbuem.com/qbuem-json/guide/mapping), [Error Handling](https://qbuem.com/qbuem-json/guide/errors) |
+| **API Reference** | [Full C++ Doxygen Reference](https://qbuem.com/qbuem-json/api/reference/index.html) |
 
 ---
 
