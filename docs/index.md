@@ -93,8 +93,8 @@ int              score = root["score"].as<int>();
 struct Player {
     std::string name;
     int         score = 0;
-    QBUEM_JSON_FIELDS(name, score)
 };
+QBUEM_JSON_FIELDS(Player, name, score)
 
 auto player = qbuem::read<Player>(R"({"name":"Bob","score":99})");
 std::string json = qbuem::write(player);

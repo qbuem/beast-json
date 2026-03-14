@@ -215,58 +215,43 @@ send(buf);
 
 ---
 
-## 📦 Large Structs (> 16 Fields)
+## 📦 Large Structs (> 32 Fields)
 
-`QBUEM_JSON_FIELDS` is a variadic macro that supports up to **16 fields** per struct. If your struct has more, you have two options:
+`QBUEM_JSON_FIELDS` is a variadic macro that supports up to **32 fields** per struct. If your struct has more, you have two options:
 
 ### Option A: Manual ADL Hooks (flat JSON layout preserved)
 
 Define `from_qbuem_json`, `to_qbuem_json`, and `append_qbuem_json` free functions yourself in the same namespace. These are exactly what the macro generates internally — you are just writing them by hand.
 
 ```cpp
-struct BigEvent {
-    // 17 fields — one too many for QBUEM_JSON_FIELDS
-    int64_t  seq;
-    int64_t  ts;
-    double   price;
-    double   qty;
-    double   bid;
-    double   ask;
-    double   bid_qty;
-    double   ask_qty;
-    int      side;
-    int      type;
-    bool     is_snapshot;
-    bool     is_last;
-    std::string symbol;
-    std::string venue;
-    std::string feed;
-    std::string session;
-    std::string trader_id;
+struct BigData {
+    // 33 fields — one too many for QBUEM_JSON_FIELDS
+    int f1, f2, f3, f4, f5, f6, f7, f8, f9, f10;
+    int f11, f12, f13, f14, f15, f16, f17, f18, f19, f20;
+    int f21, f22, f23, f24, f25, f26, f27, f28, f29, f30;
+    int f31, f32, f33;
 };
 
 // In the same namespace (or global if the struct is global):
-inline void from_qbuem_json(const qbuem::json::Value& v, BigEvent& o) {
-    qbuem::json::detail::from_json_field(v, "seq",       o.seq);
-    qbuem::json::detail::from_json_field(v, "ts",        o.ts);
-    qbuem::json::detail::from_json_field(v, "price",     o.price);
-    // ... repeat for all 17 fields
-    qbuem::json::detail::from_json_field(v, "trader_id", o.trader_id);
+inline void from_qbuem_json(const qbuem::json::Value& v, BigData& o) {
+    qbuem::json::detail::from_json_field(v, "f1",  o.f1);
+    qbuem::json::detail::from_json_field(v, "f2",  o.f2);
+    // ... repeat for all 33 fields
+    qbuem::json::detail::from_json_field(v, "f33", o.f33);
 }
 
-inline void to_qbuem_json(qbuem::json::Value& v, const BigEvent& o) {
-    qbuem::json::detail::to_json_field(v, "seq",       o.seq);
-    qbuem::json::detail::to_json_field(v, "ts",        o.ts);
-    // ... repeat for all 17 fields
-    qbuem::json::detail::to_json_field(v, "trader_id", o.trader_id);
+inline void to_qbuem_json(qbuem::json::Value& v, const BigData& o) {
+    qbuem::json::detail::to_json_field(v, "f1",  o.f1);
+    // ... repeat for all 33 fields
+    qbuem::json::detail::to_json_field(v, "f33", o.f33);
 }
 ```
 
-See the [API Reference — Large Structs](/api/#large-structs-16-fields) for the complete `append_qbuem_json` signature used by `qbuem::write()` and `qbuem::write_to()`.
+See the [API Reference — Large Structs](/api/#large-structs-32-fields) for the complete `append_qbuem_json` signature used by `qbuem::write()` and `qbuem::write_to()`.
 
 ### Option B: Split into Sub-Structs (recommended if JSON shape is flexible)
 
-Decompose the large struct into smaller nested structs, each with ≤ 16 fields, and use `QBUEM_JSON_FIELDS` on all of them:
+Decompose the large struct into smaller nested structs, each with ≤ 32 fields, and use `QBUEM_JSON_FIELDS` on all of them:
 
 ```cpp
 struct EventHeader {
