@@ -162,12 +162,3 @@ typedef struct {
 
 ---
 
-## 🗺 Roadmap for Unsupported Languages
-
-We are actively looking for contributors for:
-- **Java/Kotlin**: JNI/FFI-based wrapper for Android and Backend.
-- **Node.js**: N-API bridge for the V8 engine.
-- **C# / .NET**: P/Invoke wrapper for Game Development (Unity).
-- **Ruby**: Native extension for high-performance Rails APIs.
-
-If you are interested in creating one, please open an Issue on GitHub!
