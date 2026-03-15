@@ -1,21 +1,40 @@
 # Correctness & Safety
 
-<div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 1.5rem; line-height: 1.9;">
-  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml">
-    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml/badge.svg" alt="CI" />
-  </a>
-  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml">
-    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml/badge.svg" alt="Sanitizers (ASan · UBSan · TSan)" />
-  </a>
-  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml">
-    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" />
-  </a>
+<div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 1rem 0 1.25rem; line-height: 1.9;">
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml/badge.svg" alt="Sanitizers (ASan · UBSan · TSan)" /></a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml/badge.svg" alt="Benchmark CI" /></a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
   <img src="https://img.shields.io/badge/tests-521%20passing-brightgreen" alt="521 tests passing" />
   <img src="https://img.shields.io/badge/fuzz-3%20libFuzzer%20targets-orange" alt="3 libFuzzer targets" />
   <img src="https://img.shields.io/badge/RFC%208259-compliant-brightgreen" alt="RFC 8259" />
   <img src="https://img.shields.io/badge/RFC%206901-JSON%20Pointer-brightgreen" alt="RFC 6901" />
   <img src="https://img.shields.io/badge/RFC%206902-JSON%20Patch-brightgreen" alt="RFC 6902" />
   <img src="https://img.shields.io/badge/IEEE%20754-round--trip-brightgreen" alt="IEEE 754 round-trip" />
+</div>
+
+<!-- Summary stats -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.75rem; background: linear-gradient(135deg, #f0f4ff, #e8f0ff); border: 1px solid #c0d0ff; border-radius: 12px; padding: 1.25rem 1.5rem; margin: 0 0 2rem; text-align: center;">
+  <div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">521</div>
+    <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">tests passing</div>
+  </div>
+  <div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">73</div>
+    <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">RFC 8259 cases</div>
+  </div>
+  <div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">12</div>
+    <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">CI configurations</div>
+  </div>
+  <div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">3×</div>
+    <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">sanitizers</div>
+  </div>
+  <div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">3</div>
+    <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">fuzz targets</div>
+  </div>
 </div>
 
 This page documents the concrete testing and verification infrastructure behind

@@ -1,8 +1,13 @@
 # Performance Benchmarks
 
-qbuem-json is engineered to be the benchmark leader in both parsing and serialization across all major architectures.
+<div style="display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.75rem 0 1.5rem; line-height: 1.9;">
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml/badge.svg" alt="Benchmark CI" /></a>
+  <img src="https://img.shields.io/badge/data-open%20source-blue" alt="Open benchmark data" />
+  <img src="https://img.shields.io/badge/platforms-x86__64%20%7C%20aarch64%20%7C%20Apple%20Silicon-lightgrey" alt="Platforms" />
+</div>
 
-Automatically updated on every push to `main` that touches `include/` or `benchmarks/`.
+All benchmark data is generated automatically on every push to `main` that touches `include/` or `benchmarks/`.
 Runs in parallel on three native GitHub-hosted runners (x86\_64 / Apple Silicon / Linux AArch64).
 
 > **All benchmark data is open.**  The raw JSON results file is committed to the repository at
