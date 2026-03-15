@@ -55,7 +55,7 @@ json_str = json.dumps(sample)
 print(f"Benchmarking with {len(json_str)} bytes JSON, 1000 iterations\n")
 
 print("##section bindings")
-print("=== Language Bindings ===")
+print("=== Python Bindings ===")
 
 # 1. Standard json
 avg_p = bench("Python stdlib", json.loads, json_str)

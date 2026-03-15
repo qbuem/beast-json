@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   release:
@@ -27,6 +27,13 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Generate Checksums
+        run: |
+          cd dist
+          sha256sum *.whl > SHA256SUMS.txt
+          cd ..
+          sha256sum include/qbuem_json/qbuem_json.hpp >> dist/SHA256SUMS.txt
+
       - name: Create or Update GitHub Release
         id: create_release
         uses: softprops/action-gh-release@v2
@@ -36,6 +43,7 @@ jobs:
           files: |
             include/qbuem_json/qbuem_json.hpp
             dist/*.whl
+            dist/SHA256SUMS.txt
 
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
