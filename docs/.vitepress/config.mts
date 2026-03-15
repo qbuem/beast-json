@@ -87,6 +87,7 @@ export default withMermaid(
                 { text: 'Guide', link: '/guide/introduction' },
                 { text: 'Architecture', link: '/theory/architecture' },
                 { text: 'Benchmarks', link: '/guide/benchmarks' },
+                { text: 'Correctness', link: '/guide/correctness' },
                 {
                     text: 'API Reference',
                     items: [
@@ -110,6 +111,7 @@ export default withMermaid(
                         items: [
                             { text: 'What is qbuem-json?', link: '/guide/introduction' },
                             { text: 'Getting Started', link: '/guide/getting-started' },
+                            { text: 'Correctness & Safety', link: '/guide/correctness' },
                             { text: 'Vision & Roadmap', link: '/guide/vision' },
                             { text: 'Acknowledgments', link: '/guide/acknowledgments' }
                         ]

@@ -35,7 +35,7 @@ features:
 
   - icon: 🔒
     title: "RFC Compliant & Hardened"
-    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. ASan, UBSan, TSan clean on every commit."
+    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 521 tests · ASan, UBSan, TSan run on every commit · 3 libFuzzer targets."
 
   - icon: 📦
     title: "Single Header · Apache 2.0"
@@ -44,6 +44,24 @@ features:
 
 
 <div style="max-width: 900px; margin: 4rem auto; padding: 0 1.5rem;">
+
+<div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 2rem 0 1rem;">
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml">
+    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  </a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml">
+    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml/badge.svg" alt="Sanitizers" />
+  </a>
+  <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml">
+    <img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" />
+  </a>
+  <a href="https://github.com/qbuem/qbuem-json/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License: Apache 2.0" />
+  </a>
+  <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.0.6">
+    <img src="https://img.shields.io/badge/version-v1.0.6-green.svg" alt="Version" />
+  </a>
+</div>
 
 ## Why qbuem-json?
 
@@ -142,5 +160,48 @@ cp include/qbuem_json/qbuem_json.hpp /path/to/your/project/
 ```bash
 g++ -std=c++20 -O3 -march=native my_app.cpp -o my_app
 ```
+
+## Correctness & Safety
+
+We are a new library and we take verification seriously.  Every claim here links
+to CI you can inspect:
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.5rem 0 2rem;">
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">521 tests · 20 files</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">5,556 lines of C++ tests covering DOM, Nexus, STL mapping, error handling, Unicode, and edge cases.  <a href="/guide/correctness">Details →</a></div>
+</div>
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">73 RFC 8259 tests</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">y_/n_/i_ JSONTestSuite naming convention.  RFC 6901 JSON Pointer and RFC 6902 JSON Patch with transactional rollback.  <a href="/guide/correctness#rfc-8259-compliance">Details →</a></div>
+</div>
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">ASan · UBSan · TSan</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">Sanitizer jobs run on every commit via <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml">sanitizers.yml</a>.  Heap overflow, use-after-free, data races — all caught automatically.</div>
+</div>
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">3 libFuzzer targets</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">fuzz_dom · fuzz_parse · fuzz_rfc8259.  Seed corpus from real-world benchmark datasets.  <a href="/guide/correctness#fuzz-testing">Details →</a></div>
+</div>
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">12-config CI matrix</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">GCC 13/14 · Clang 18 · Apple Clang · x86_64 · aarch64 · Apple Silicon · Debug + Release — native runners, no QEMU.</div>
+</div>
+
+<div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">IEEE 754 round-trip</div>
+  <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;"><code>parse(serialize(x)) == x</code> for all finite doubles.  Schubfach serialisation · Eisel-Lemire parsing.  <a href="/guide/correctness#ieee-754-floating-point-correctness">Details →</a></div>
+</div>
+
+</div>
+
+<div style="text-align: center; margin: 0 0 3rem;">
+  <a href="/guide/correctness" style="display: inline-block; background: #1e2e5c; color: white; padding: 0.65rem 1.6rem; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 0.95rem;">View full correctness report →</a>
+</div>
 
 </div>
