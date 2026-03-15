@@ -196,7 +196,7 @@ jobs:
         #   === Struct: <name> ===     ← item header (structs section)
         #   <lib> | Parse: N.N µs | Serialize: N.N µs | Alloc: N KB
         SECTION_RE = re.compile(r'^##section\s+(\w+)')
-        HEADER_RE  = re.compile(r'^=== (?:bench_all \u2014 |Struct: |HFT: )(.+?) ===')
+        HEADER_RE  = re.compile(r'^=== (?:bench_all \u2014 |Struct: |HFT: )?(.+?) ===')
 
         general = []
         structs = []
