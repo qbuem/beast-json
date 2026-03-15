@@ -227,6 +227,17 @@
 #ifdef __GNUC__
 #define QBUEM_INLINE __attribute__((always_inline)) inline
 #define QBUEM_NOINLINE __attribute__((noinline))
+// QBUEM_COLD marks functions that are never on the hot path (error handlers,
+// skip helpers, type-mismatch reporters).  Two effects:
+//   1. noinline — prevents the compiler from copying the function body into
+//      every template instantiation of from_json_direct<T>.  Each call site
+//      becomes a single `call` instruction, shrinking per-type code and
+//      reducing compile time for projects with many mapped structs.
+//   2. cold — moves the function to a "cold" ELF section, freeing instruction
+//      cache for the hot path, and improves branch-prediction in callers
+//      (the compiler knows branches leading here are unlikely).
+// Net effect: faster compile, smaller object files, zero hot-path overhead.
+#define QBUEM_COLD __attribute__((cold, noinline))
 // Read-ahead prefetch with architecture-tuned locality hint.
 // Always use this macro in the parse hot loop — never hardcode
 // distance/locality.
@@ -235,6 +246,7 @@
 #else
 #define QBUEM_INLINE inline
 #define QBUEM_NOINLINE
+#define QBUEM_COLD
 #define QBUEM_PREFETCH(addr) ((void)0)
 #endif
 
@@ -8444,7 +8456,7 @@ struct NexusScanner {
 
 template <typename T> void from_json_direct(const char *&p, const char *end, T &out);
 
-inline void skip_direct(const char *&p, const char *end) {
+QBUEM_COLD inline void skip_direct(const char *&p, const char *end) {
   rfc8259::detail_::Validator v;
   v.p = p; v.end = end; v.begin = p;
   try { v.parse_value(); p = v.p; } catch (...) { p = end; }
@@ -8474,7 +8486,7 @@ inline bool &nexus_strict_mode() noexcept {
 // peek_json_type: returns a human-readable label for the JSON token at *p.
 // Used in Nexus error messages so callers see "expected number, got string"
 // instead of a raw type tag or a silent skip.
-inline const char *peek_json_type(const char *p, const char *end) noexcept {
+QBUEM_COLD inline const char *peek_json_type(const char *p, const char *end) noexcept {
   if (p >= end) return "end-of-input";
   switch (static_cast<unsigned char>(*p)) {
     case '{': return "object";
@@ -8492,7 +8504,7 @@ inline const char *peek_json_type(const char *p, const char *end) noexcept {
 // nexus_type_error: build and throw a runtime_error describing a Nexus type
 // mismatch.  |expected| is the C++ side expectation, |p| points to the
 // offending JSON token, |begin| (may be nullptr) enables byte-offset reporting.
-[[noreturn]] inline void nexus_type_error(
+[[noreturn]] QBUEM_COLD inline void nexus_type_error(
     const char *expected, const char *p, const char *end,
     const char *begin = nullptr)
 {

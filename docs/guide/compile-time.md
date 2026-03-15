@@ -82,7 +82,46 @@ when JSON handling is concentrated in a few modules.
 
 ---
 
-## Strategy 3 — Selective feature control macros
+## Strategy 3 — `QBUEM_COLD` and why it already helps you
+
+**This requires no action on your part** — it is applied automatically to the
+right functions inside the library.
+
+Every template instantiation of `from_json_direct<T>` has branches that lead to
+`skip_direct`, `peek_json_type`, and `nexus_type_error`.  Before the
+`QBUEM_COLD` annotation, these were regular `inline` functions, so the compiler
+copied their bodies into every instantiation:
+
+```
+from_json_direct<int>    → inlines skip_direct (try/catch + Validator)
+from_json_direct<double> → inlines skip_direct (same code, duplicated)
+from_json_direct<string> → inlines skip_direct (same code, duplicated again)
+…
+```
+
+With `QBUEM_COLD` (`__attribute__((cold, noinline))` on GCC/Clang):
+
+```
+from_json_direct<int>    → call  skip_direct   ← 5 bytes
+from_json_direct<double> → call  skip_direct   ← 5 bytes (shared)
+from_json_direct<string> → call  skip_direct   ← 5 bytes (shared)
+```
+
+Effects:
+- **Compile time**: fewer instructions generated and optimised per type → faster
+  template instantiation, smaller `.o` files
+- **Runtime (hot path)**: unchanged — `skip_direct` is only called on error/mismatch
+- **Runtime (I-cache)**: improved — cold code is placed in a separate ELF section,
+  freeing cache lines for the hot path
+- **Branch prediction**: improved — `cold` tells the CPU/compiler that branches
+  leading here are very unlikely
+
+In a project with 30 `QBUEM_JSON_FIELDS` structs, this eliminates roughly
+30 × 3 inlined function bodies from the generated code.
+
+---
+
+## Strategy 4 — Selective feature control macros
 
 Defining any of the macros below *before* including the header disables or
 replaces the corresponding feature, reducing instantiation work:
@@ -103,7 +142,7 @@ replaces the corresponding feature, reducing instantiation work:
 
 ---
 
-## Strategy 4 — Unity builds
+## Strategy 5 — Unity builds
 
 If your project already uses a unity build (all sources combined into a single
 TU), the header is parsed exactly once.  CMake supports this natively:
@@ -114,7 +153,7 @@ set_target_properties(my_target PROPERTIES UNITY_BUILD ON)
 
 ---
 
-## Strategy 5 — Measure before optimising
+## Strategy 6 — Measure before optimising
 
 Use `clang -ftime-trace` (Clang ≥ 9) or GCC's `-ftime-report` to identify
 which files account for most parse time before applying any of the strategies
@@ -135,8 +174,8 @@ for less than 10 % of total build time, no action is needed.
 
 ## Practical recommendations for large projects
 
-1. **≤ 20 TUs including the header** — no action required; the default single
-   header is fast enough.
+1. **≤ 20 TUs including the header** — `QBUEM_COLD` already helps; no further
+   action required.
 2. **20–100 TUs** — add a PCH (`target_precompile_headers`).
 3. **> 100 TUs** — combine a PCH with the isolation-TU strategy.  Put all
    `QBUEM_JSON_FIELDS` struct definitions in a shared header that is itself
