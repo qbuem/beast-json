@@ -144,3 +144,58 @@ jobs:
       env:
         TSAN_OPTIONS: "halt_on_error=1:abort_on_error=1"
       run: ctest --output-on-failure --timeout 300
+
+  # ── AddressSanitizer + UndefinedBehaviorSanitizer · Apple Silicon ─────────
+  # Apple Silicon runs the same NEON code path as Linux ARM64 but under Darwin:
+  # different allocator, syscall ABI, and Apple Clang sanitizer runtime — bugs
+  # that are silent on Linux aarch64 can surface here and vice-versa.
+  # Note: LeakSanitizer is not supported on macOS; detect_leaks is omitted.
+  asan-ubsan-apple-silicon:
+    name: ASan + UBSan · Apple Clang · Apple Silicon
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Configure (ASan + UBSan)
+      run: >
+        cmake -B build
+        -DCMAKE_BUILD_TYPE=Debug
+        -DQBUEM_JSON_BUILD_TESTS=ON
+        -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
+        -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+
+    - name: Build
+      run: cmake --build build -j3
+
+    - name: Test (ASan + UBSan)
+      working-directory: build
+      env:
+        ASAN_OPTIONS: "halt_on_error=1:abort_on_error=1"
+        UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1:abort_on_error=1"
+      run: ctest --output-on-failure --timeout 300
+
+  # ── ThreadSanitizer · Apple Silicon ──────────────────────────────────────
+  tsan-apple-silicon:
+    name: TSan · Apple Clang · Apple Silicon
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Configure (TSan)
+      run: >
+        cmake -B build
+        -DCMAKE_BUILD_TYPE=Debug
+        -DQBUEM_JSON_BUILD_TESTS=ON
+        -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
+        -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer -g"
+
+    - name: Build
+      run: cmake --build build -j3
+
+    - name: Test (TSan)
+      working-directory: build
+      env:
+        TSAN_OPTIONS: "halt_on_error=1:abort_on_error=1"
+      run: ctest --output-on-failure --timeout 300
