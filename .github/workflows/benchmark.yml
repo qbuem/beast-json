@@ -183,7 +183,7 @@ jobs:
         export PYTHONPATH=$(pwd)/bindings/python:$(pwd)/build_bench/bindings/python
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/build_bench/bindings/c
         export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(pwd)/build_bench/bindings/c
-        python3 benchmarks/bench_bindings.py 2>&1 | tee -a build_bench/benchmarks/bench_output.txt || true
+        python3 bindings/python/bench/bench.py 2>&1 | tee -a build_bench/benchmarks/bench_output.txt || true
 
     # Run even if the benchmark step failed/crashed — we still upload partial results.
     - name: Parse results into JSON artifact
