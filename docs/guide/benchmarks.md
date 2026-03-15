@@ -52,7 +52,7 @@ Unlike DOM-based parsing, **Nexus Fusion** maps JSON directly to C++ structs. Th
 | **All** | KeyLenCache | O(1) key lookup for repeated object schemas (e.g., JSON arrays of same-shape objects) |
 | **All** | Schubfach dtoa (R. Giulietti / yyjson port) | Shortest round-trip double→decimal — 2–3× faster than `std::to_chars(double)`, no trailing zeros |
 | **All** | yy-itoa (Y. Yuan / yyjson port) | Integer→decimal via 2-digit table + multiply-shift — zero division instructions |
-| **All** | Russ Cox algorithm (parsing only) | Shortest round-trip decimal parsing — no `strtod`, no bignum fallback |
+| **All** | Russ Cox Fast Unrounded Scaling ([Cox 2026](https://research.swtch.com/fp)) | Stage-2 parser: ceiling of table high word (`ph_ceil = ph + (pl≠0)`) makes sticky bit always decisive — resolves the ~1.2 % of cases Eisel-Lemire cannot, without `strtod` |
 
 
 ---

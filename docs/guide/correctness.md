@@ -55,7 +55,7 @@ reproduce locally.
 | UndefinedBehaviorSanitizer (UBSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | ThreadSanitizer (TSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | Fuzz testing | ✅ | 3 libFuzzer targets · seed corpus |
-| IEEE 754 round-trip | ✅ | All 64-bit doubles; Schubfach serialization (Giulietti 2020) + Eisel-Lemire parsing with `std::strtod` fallback |
+| IEEE 754 round-trip | ✅ | All 64-bit doubles; Schubfach (Giulietti 2020) serialization + Eisel-Lemire → Russ Cox Unrounded Scaling → `std::strtod` parsing pipeline |
 | CodeQL static analysis | ✅ CI weekly | security-extended query suite |
 | Multi-platform CI | ✅ [10 configs](https://github.com/qbuem/qbuem-json/blob/main/.github/workflows/ci.yml) | GCC 13/14 · Clang 18 · Apple Clang · x86_64 · aarch64 · Apple Silicon |
 
@@ -178,7 +178,10 @@ satisfies the **shortest round-trip** guarantee:
 
 This is enforced by two algorithms working in tandem:
 
-- **Parsing** — Eisel-Lemire fast path ([Eisel & Lemire 2020](https://arxiv.org/abs/2101.11408)) handles ~98.8 % of inputs in constant time using 128-bit multiplication against the pre-built power-of-10 table.  `std::strtod` is the always-correct fallback for subnormals, >19-digit mantissas, and the rare ambiguous-rounding case.  Both paths are provably correct for all IEEE 754 finite doubles.
+- **Parsing — three-stage pipeline:**
+  1. **Eisel-Lemire** ([Eisel & Lemire 2020](https://arxiv.org/abs/2101.11408)) — 128-bit multiplication against the pre-built power-of-10 table, with a second-multiply refinement.  Handles ~98.8 % of inputs in constant time.
+  2. **Russ Cox Fast Unrounded Scaling** ([Cox 2026](https://research.swtch.com/fp)) — ceiling of the table's high word (`ph_ceil = ph + (pl ≠ 0)`) ensures the sticky bit is always decisive, eliminating the ~1.2 % of cases Eisel-Lemire cannot resolve.  Proved correct for all finite float64 by the [Ivy companion proof](https://research.swtch.com/fp-proof).
+  3. **`std::strtod`** — always-correct fallback for subnormals and >19-digit mantissas only (< 0.01 % of typical JSON workloads).
 - **Serialisation** — Schubfach (Giulietti 2020) produces the unique shortest
   decimal representation.  No trailing zeros, no round-trip loss.
 
