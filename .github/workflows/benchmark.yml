@@ -9,6 +9,9 @@ on:
       - '.github/workflows/benchmark.yml'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ── Per-platform benchmark ────────────────────────────────────────────────
   benchmark:
@@ -119,12 +122,13 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.24'
+        cache: false
 
     - name: Run Go benchmarks
       working-directory: bindings/go
       run: |
         echo "##section bindings" >> ../../build_bench/benchmarks/bench_output.txt
-        echo "=== Go Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
+        echo "=== Language Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
         DYLD_LIBRARY_PATH=../../build_bench/bindings/c LD_LIBRARY_PATH=../../build_bench/bindings/c \
         go test -bench=. -benchmem qbuem_bench_test.go qbuem_json.go marshal.go decode.go | \
         awk '/BenchmarkQbuemJSON/ { p=$3 } \
@@ -141,7 +145,7 @@ jobs:
       working-directory: bindings/rust
       run: |
         echo "##section bindings" >> ../../build_bench/benchmarks/bench_output.txt
-        echo "=== Rust Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
+        echo "=== Language Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
         DYLD_LIBRARY_PATH=../../build_bench/bindings/c LD_LIBRARY_PATH=../../build_bench/bindings/c \
         cargo bench --bench qbuem_bench | \
         awk '/Parsing\/qbuem_json/ { name="qbuem-json (Rust)" } \
@@ -213,7 +217,7 @@ jobs:
         current_results = []
 
         def flush():
-            global current_item, current_results
+            global current_item, current_results, bindings
             if current_item is not None:
                 # Basic normalization of the item name
                 name = current_item
@@ -221,14 +225,23 @@ jobs:
                     if name.startswith(prefix):
                         name = name[len(prefix):]
                 
-                entry = {"file": name, "results": current_results}
-                print(f"Flushing [{current_section}] -> {name} ({len(current_results)} results)")
-                if current_section == "general":
-                    general.append(entry)
-                elif current_section == "structs":
-                    structs.append(entry)
-                elif current_section == "bindings":
-                    bindings.append(entry)
+                # Consolidation for bindings: Merge everything into one entry
+                if current_section == "bindings":
+                    target_name = "Language Bindings"
+                    # Find if "Language Bindings" already exists in the current run
+                    match = next((b for b in bindings if b["file"] == target_name), None)
+                    if match:
+                        match["results"].extend(current_results)
+                    else:
+                        bindings.append({"file": target_name, "results": current_results})
+                else:
+                    entry = {"file": name, "results": current_results}
+                    print(f"Flushing [{current_section}] -> {name} ({len(current_results)} results)")
+                    if current_section == "general":
+                        general.append(entry)
+                    elif current_section == "structs":
+                        structs.append(entry)
+
             current_item    = None
             current_results = []
 
@@ -294,7 +307,7 @@ jobs:
         out = "bench_artifacts/results-${{ matrix.arch }}.json"
         with open(out, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
-        print(f"Wrote {len(general)} general + {len(structs)} struct entries to {out}")
+        print(f"Wrote {len(general)} general + {len(structs)} struct + {len(bindings)} binding entries to {out}")
         PYEOF
 
     # Upload even when benchmark step failed so aggregate always gets data.
