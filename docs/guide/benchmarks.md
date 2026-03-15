@@ -73,25 +73,33 @@ under 10 minutes.
 git clone https://github.com/qbuem/qbuem-json.git
 cd qbuem-json
 
-# 2. Configure with benchmarks enabled
-cmake -B build \
+# 2. Download the standard benchmark datasets from simdjson-data
+mkdir -p bench_data
+for file in twitter.json canada.json citm_catalog.json gsoc-2018.json; do
+  curl -fsSL \
+    "https://raw.githubusercontent.com/simdjson/simdjson-data/master/jsonexamples/${file}" \
+    -o "bench_data/${file}"
+done
+
+# 3. Configure — point CMake at the pre-downloaded data directory
+cmake -B build_bench \
   -DCMAKE_BUILD_TYPE=Release \
+  -DQBUEM_JSON_BUILD_TESTS=OFF \
   -DQBUEM_JSON_BUILD_BENCHMARKS=ON \
-  -DCMAKE_CXX_FLAGS="-march=native"
+  -DCMAKE_CXX_FLAGS="-march=native" \
+  -DBENCHMARK_DATA_PREDOWNLOAD_DIR="$(pwd)/bench_data"
 
-# 3. Build (only the benchmark targets, faster)
-cmake --build build --target bench_general bench_structs -j$(nproc)
+# 4. Build
+cmake --build build_bench -j$(nproc)
 
-# 4. Download the standard datasets (twitter, canada, citm, gsoc, harsh)
-cmake --build build --target download_bench_data
+# 5. Copy data files next to the binaries (bench_all re-invokes itself per library)
+cp bench_data/*.json build_bench/benchmarks/
 
-# 5. Run and emit the results JSON
-./build/benchmarks/bench_general  --output results_dom.json
-./build/benchmarks/bench_structs  --output results_structs.json
+# 6. Run
+cd build_bench/benchmarks
+./bench_all --all       # DOM parsing + serialisation
+./bench_structs --all   # Struct-mapping (Nexus Fusion)
 ```
-
-The output files use the same schema as `docs/public/benchmark-results.json`,
-so you can drop them into the VitePress site for a local comparison.
 
 ### Benchmark methodology
 
@@ -108,16 +116,18 @@ so you can drop them into the VitePress site for a local comparison.
 
 ### Competing library versions tested
 
-| Library | Version | Source |
+| Library | Pinned version | Source |
 |:---|:---|:---|
-| simdjson | 3.11.x | FetchContent from GitHub |
-| yyjson | 0.10.x | FetchContent from GitHub |
-| RapidJSON | 1.1.0 + HEAD | FetchContent from GitHub |
-| Glaze DOM | 4.x | FetchContent from GitHub |
-| nlohmann/json | 3.11.x | FetchContent from GitHub |
+| simdjson | v3.10.1 | FetchContent from GitHub |
+| yyjson | 0.10.0 | FetchContent from GitHub |
+| RapidJSON | master HEAD | FetchContent from GitHub |
+| Glaze | latest (C++23, optional) | FetchContent from GitHub |
+| nlohmann/json | v3.11.3 | FetchContent tarball |
 
 All libraries are compiled from source with the same `-O3 -march=native` flags.
-No library-specific tuning flags are applied to any competitor.
+The one exception: `yyjson` also receives `-march=native` explicitly via
+`target_compile_options` to ensure it can use AVX2/AVX-512 on x86_64 — the
+same hardware advantage qbuem-json uses.  This makes the comparison fair.
 
 ### Frequently asked questions
 
