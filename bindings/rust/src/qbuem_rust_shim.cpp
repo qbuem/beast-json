@@ -32,7 +32,8 @@ size_t size(const Value &v) { return v.size(); }
 }
 
 std::unique_ptr<Value> get_key(const Value &v, ::rust::Str key) {
-    return std::make_unique<Value>(v[std::string(key)]);
+    // Use string_view overload of operator[] to avoid heap-allocating a std::string.
+    return std::make_unique<Value>(v[std::string_view(key.data(), key.size())]);
 }
 
 std::unique_ptr<Value> get_idx(const Value &v, size_t idx) {
@@ -78,6 +79,12 @@ double as_f64(const Value &v) { return v.as<double>(); }
 
 ::rust::String dump(const Value &v, int32_t indent) {
     return ::rust::String(v.dump(indent));
+}
+
+void dump_to(const Value &v, ::rust::String &out) {
+    thread_local std::string buf;
+    v.dump(buf);
+    out = ::rust::String(buf);
 }
 
 void set_null(Value &v) { v.set(nullptr); }

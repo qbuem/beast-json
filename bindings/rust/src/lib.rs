@@ -40,6 +40,8 @@ mod ffi {
         fn as_str(v: &Value) -> &str;
         
         fn dump(v: &Value, indent: i32) -> String;
+        // Buffer-reuse dump: reduces allocation pressure in serialization hot-loops.
+        fn dump_to(v: &Value, out: &mut String);
 
         // Mutation
         fn set_null(v: Pin<&mut Value>);
@@ -117,6 +119,10 @@ impl Value {
     pub fn as_str(&self) -> &str { ffi::as_str(&self.0) }
 
     pub fn dump(&self, indent: i32) -> String { ffi::dump(&self.0, indent) }
+
+    /// Buffer-reuse serialization: writes compact JSON into `out` without allocating
+    /// a fresh String per call. Ideal for hot serialization loops.
+    pub fn dump_to(&self, out: &mut String) { ffi::dump_to(&self.0, out) }
 }
 
 pub struct ObjectItems {

@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.15)
 project(qbuem_json_python)
 
-# bindings/python/CMakeLists.txt — qbuem-json Python Bindings (nanobind)
+# bindings/python/CMakeLists.txt — qbuem-json Python Bindings (nanobind + ctypes support)
 
+# Find nanobind or fetch it
 include(FetchContent)
 FetchContent_Declare(
     nanobind
@@ -10,15 +11,38 @@ FetchContent_Declare(
     GIT_TAG        v1.9.0
 )
 FetchContent_MakeAvailable(nanobind)
-
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 
-nanobind_add_module(qbuem_json_py qbuem_json_py.cpp)
-# target_link_libraries(qbuem_json_py PRIVATE qbuem_json::qbuem_json)
-target_include_directories(qbuem_json_py PRIVATE ${Python_INCLUDE_DIRS} ../../include)
-target_compile_features(qbuem_json_py PRIVATE cxx_std_20)
+# The C++ library is header-only; we point to the root include directory.
+set(QBUEM_JSON_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../include")
 
-# Set output name to avoid collision/confusion
+# 1. Native Extension (nanobind)
+nanobind_add_module(qbuem_json_py qbuem_json_py.cpp)
+target_include_directories(qbuem_json_py PRIVATE ${Python_INCLUDE_DIRS} ${QBUEM_JSON_INCLUDE_DIR})
+target_compile_features(qbuem_json_py PRIVATE cxx_std_20)
+target_link_libraries(qbuem_json_py PRIVATE ${Python_LIBRARIES})
 set_target_properties(qbuem_json_py PROPERTIES OUTPUT_NAME "qbuem_json_native")
 
-message(STATUS "qbuem-json Python (nanobind) extension configured")
+# 2. C Shared Library (for ctypes wrapper)
+# We build it here as well so it can be bundled in the wheel.
+add_library(qbuem_json_c_native SHARED ../c/qbuem_json_c.cpp)
+target_include_directories(qbuem_json_c_native PRIVATE ${QBUEM_JSON_INCLUDE_DIR} ../c)
+target_compile_features(qbuem_json_c_native PRIVATE cxx_std_20)
+set_target_properties(qbuem_json_c_native PROPERTIES
+    OUTPUT_NAME "qbuem_json_c"
+    VERSION 1.0.0
+    SOVERSION 1)
+
+# Install rules for scikit-build-core
+# Both targets and the python wrapper go into the 'qbuem_json' package directory.
+install(TARGETS qbuem_json_py qbuem_json_c_native
+        LIBRARY DESTINATION qbuem_json
+        RUNTIME DESTINATION qbuem_json
+        COMPONENT python_bindings)
+
+install(FILES qbuem_json.py
+        DESTINATION qbuem_json
+        RENAME __init__.py
+        COMPONENT python_bindings)
+
+message(STATUS "qbuem-json Python bindings (nanobind + ctypes) configured with install rules")

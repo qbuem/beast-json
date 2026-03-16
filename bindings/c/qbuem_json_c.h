@@ -211,9 +211,23 @@ void qbuem_json_set_bool(QbuemJSONValue val, int b);
 void qbuem_json_insert_raw(QbuemJSONValue val, const char* key, const char* raw_json);
 
 /**
+ * Insert a key-value pair into an object value using another Value handle.
+ * More efficient than qbuem_json_insert_raw when the value already exists in
+ * a document (avoids a round-trip through JSON text).
+ */
+void qbuem_json_insert_val(QbuemJSONValue val, const char* key, QbuemJSONValue sub_val);
+
+/**
  * Append a raw JSON value to an array value.
  */
 void qbuem_json_append_raw(QbuemJSONValue val, const char* raw_json);
+
+/**
+ * Append a Value handle to an array value.
+ * More efficient than qbuem_json_append_raw when the value already exists in
+ * a document.
+ */
+void qbuem_json_append_val(QbuemJSONValue val, QbuemJSONValue sub_val);
 
 /** Remove a key from an object value. */
 void qbuem_json_erase_key(QbuemJSONValue val, const char* key);
