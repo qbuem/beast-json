@@ -163,7 +163,7 @@ qbuem-json ships **two complementary engines** in a single header:
 
 | Engine | Use Case | Allocation | Throughput (twitter.json) |
 |---|---|---|---|
-| **DOM (Tape)** | Exploratory access, partial reads, dynamic keys | Single arena | [2.0–2.5 GB/s](/qbuem-json/guide/benchmarks) |
+| **DOM (Tape)** | Exploratory access, partial reads, dynamic keys | Single arena | [2.0–2.5 GB/s](/guide/benchmarks) |
 | **Nexus Fusion** | Struct mapping, HFT, embedded | Zero tape | Compile-time dispatch |
 
 Choose the DOM engine when key names are dynamic or unknown at compile time. Switch to Nexus when you know your schema upfront and want maximum throughput with deterministic latency.
