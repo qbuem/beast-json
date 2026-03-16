@@ -68,6 +68,9 @@ double as_f64(const qbuem::Value &v);
 ::rust::Str as_str(const qbuem::Value &v);
 
 ::rust::String dump(const qbuem::Value &v, int32_t indent);
+// Buffer-reuse dump: writes compact JSON into a Rust String without a fresh allocation per call.
+// Uses a thread_local std::string buffer internally and copies once into out.
+void dump_to(const qbuem::Value &v, ::rust::String &out);
 
 // Mutation
 void set_null(qbuem::Value &v);

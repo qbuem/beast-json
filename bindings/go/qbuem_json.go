@@ -278,6 +278,48 @@ func (v Value) AppendRaw(rawJSON string) {
 	C.qbuem_json_append_raw(v.handle, cRaw)
 }
 
+// SetInt sets an integer value directly (faster than Set for known int types).
+func (v Value) SetInt(val int64) { C.qbuem_json_set_int(v.handle, C.int64_t(val)) }
+
+// SetDouble sets a floating-point value directly.
+func (v Value) SetDouble(val float64) { C.qbuem_json_set_double(v.handle, C.double(val)) }
+
+// SetString sets a string value directly (faster than Set for known string types).
+func (v Value) SetString(val string) {
+	cs := C.CString(val)
+	defer C.free(unsafe.Pointer(cs))
+	C.qbuem_json_set_string(v.handle, cs, C.size_t(len(val)))
+}
+
+// SetNull sets the value to null.
+func (v Value) SetNull() { C.qbuem_json_set_null(v.handle) }
+
+// SetBool sets a boolean value directly.
+func (v Value) SetBool(val bool) {
+	b := 0
+	if val {
+		b = 1
+	}
+	C.qbuem_json_set_bool(v.handle, C.int(b))
+}
+
+// Type returns the raw integer type of the value (QBUEM_JSON_TYPE_* constants).
+func (v Value) Type() int { return int(C.qbuem_json_type(v.handle)) }
+
+// InsertValue adds a key-value pair to an object using another Value handle.
+// Avoids the round-trip through JSON text that InsertRaw requires.
+func (v Value) InsertValue(key string, val Value) {
+	cKey := C.CString(key)
+	defer C.free(unsafe.Pointer(cKey))
+	C.qbuem_json_insert_val(v.handle, cKey, val.handle)
+}
+
+// AppendValue appends a Value handle to an array.
+// Avoids the round-trip through JSON text that AppendRaw requires.
+func (v Value) AppendValue(val Value) {
+	C.qbuem_json_append_val(v.handle, val.handle)
+}
+
 // Erase removes a key (from object) or an index (from array).
 func (v Value) Erase(keyOrIdx interface{}) {
 	switch tv := keyOrIdx.(type) {
