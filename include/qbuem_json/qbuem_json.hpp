@@ -5241,6 +5241,8 @@ class Parser {
   // Supports up to depth 1087 (same as old bit-stack + overflow).
   uint8_t cur_state_ = 0;
   uint8_t cstate_stack_[1088] = {};
+  uint32_t node_stack_[1088] = {};
+  uint32_t child_count_stack_[1088] = {};
 
   // Technique 8: local tape_head_ register variable.
   // Kept as a field but initialized from doc_->tape.base in parse().
@@ -6048,32 +6050,37 @@ class Parser {
   //   key) sep = 1  → comma         (non-first array element or object key)
   //   sep = 2  → colon         (object value, always)
   QBUEM_INLINE void push(TapeNodeType t, uint16_t l, uint32_t o) noexcept {
-    // prefetch tape write slot 16 TapeNodes (192B) ahead — store
-    // hint. Hides tape-arena write latency; significant gain on large files
-    // (canada).
     __builtin_prefetch(tape_head_ + 16, 1, 1);
     uint8_t sep = 0;
     if (QBUEM_LIKELY(depth_ > 0)) {
-      // (x86_64): LUT-based sep+state computation.
-      // Replaces 14-instruction bit arithmetic with 2 table loads.
-      // Valid states: 0(arr,no-elem), 3(obj,key,no-elem), 4(arr,has-elem),
-      //               6(obj,val), 7(obj,key,has-elem).
-      // sep_lut  maps cur_state_ → separator byte (0=none, 1=comma, 2=colon)
-      // ncs_lut  maps cur_state_ → next cur_state_ after this push()
-      // Both tables fit in a single 8-byte pair (trivially L1-resident).
       static constexpr uint8_t sep_lut[8] = {0, 0, 0, 0, 1, 0, 2, 1};
-      // ncs_lut[cs] = next cur_state_ after push():
-      //   000(0)→100(4): arr, gains has_elem
-      //   011(3)→110(6): obj key (no-elem) → obj val (has-elem)
-      //   100(4)→100(4): arr, has_elem stays
-      //   110(6)→111(7): obj val → obj key (has-elem)
-      //   111(7)→110(6): obj key → obj val
       static constexpr uint8_t ncs_lut[8] = {4, 0, 0, 6, 4, 0, 7, 6};
       const uint8_t cs = cur_state_;
       sep = sep_lut[cs];
       cur_state_ = ncs_lut[cs];
+      
+      const bool is_key = cs & 1;
+      const bool in_obj = (cs >> 1) & 1;
+      if (!in_obj || is_key) {
+        child_count_stack_[depth_ - 1]++;
+      }
+      
+      if (t == TapeNodeType::StringRaw && is_key && l > 0) {
+          const char* s = data_ + o;
+          uint8_t fp = (static_cast<uint8_t>(s[0]) ^ 
+                        static_cast<uint8_t>(s[l-1]) ^ 
+                        static_cast<uint8_t>(l)) & 0x3Fu;
+          sep = (sep & 0x03u) | (fp << 2);
+      }
     }
+    
+    if (t == TapeNodeType::ObjectStart || t == TapeNodeType::ArrayStart) {
+      node_stack_[depth_] = tape_size();
+      child_count_stack_[depth_] = 0;
+    }
+    
     TapeNode *n = tape_head_++;
+    // meta: [type:8] [fp:6][sep:2] [length:16]
     n->meta = (static_cast<uint32_t>(t) << 24) |
               (static_cast<uint32_t>(sep) << 16) | static_cast<uint32_t>(l);
     n->offset = o;
@@ -6081,6 +6088,20 @@ class Parser {
 
   // push_end(): for ObjectEnd / ArrayEnd — always sep=0, no state update.
   QBUEM_INLINE void push_end(TapeNodeType t, uint32_t o) noexcept {
+    uint32_t current_idx = tape_size();
+    if (depth_ > 0) {
+      uint32_t start_idx = node_stack_[depth_ - 1];
+      uint32_t distance = current_idx - start_idx;
+      uint32_t children = child_count_stack_[depth_ - 1];
+      
+      TapeNode &start_node = doc_->tape.base[start_idx];
+      uint16_t dist_stored = (distance <= 0xFFFFu) ? static_cast<uint16_t>(distance) : 0xFFFFu;
+      uint8_t count_stored = (children <= 0xFFu) ? static_cast<uint8_t>(children) : 0xFFu;
+      
+      start_node.meta = (start_node.meta & 0xFF000000u) | 
+                        (static_cast<uint32_t>(count_stored) << 16) |
+                        static_cast<uint32_t>(dist_stored);
+    }
     TapeNode *n = tape_head_++;
     n->meta = static_cast<uint32_t>(t) << 24; // sep=0, len=0
     n->offset = o;
