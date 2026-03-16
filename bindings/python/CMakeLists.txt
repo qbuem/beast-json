@@ -36,7 +36,6 @@ set(QBUEM_JSON_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../include")
 nanobind_add_module(qbuem_json_py qbuem_json_py.cpp)
 target_include_directories(qbuem_json_py PRIVATE ${Python_INCLUDE_DIRS} ${QBUEM_JSON_INCLUDE_DIR})
 target_compile_features(qbuem_json_py PRIVATE cxx_std_20)
-target_link_libraries(qbuem_json_py PRIVATE ${Python_LIBRARIES})
 set_target_properties(qbuem_json_py PROPERTIES OUTPUT_NAME "qbuem_json_native")
 
 # 2. C Shared Library (for ctypes wrapper)
