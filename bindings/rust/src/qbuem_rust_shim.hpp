@@ -6,9 +6,10 @@
 #include "rust/cxx.h"
 
 namespace qbuem::rust {
-using Value = qbuem::Value;
 
-class PyDocument {
+struct TapeNode; // Forward declaration (cxx provides the definition)
+
+class RustDocument {
 public:
     qbuem::Document doc;
     qbuem::Value    root;
@@ -23,61 +24,34 @@ public:
     }
 
     qbuem::Value get_root() const { return root; }
+    qbuem::Value get_value(uint32_t idx) const { 
+        return qbuem::Value(const_cast<qbuem::Document&>(doc), idx); 
+    }
 };
 
-class ObjectIterator {
-public:
-    using NativeIter = decltype(std::declval<qbuem::Value>().items().begin());
-    NativeIter current;
-    NativeIter end;
-    bool started = false;
+std::unique_ptr<RustDocument> create_doc();
+void parse(RustDocument &doc, ::rust::Str json);
 
-    ObjectIterator(NativeIter begin, NativeIter end) : current(begin), end(end) {}
-};
+// Direct accessors
+const TapeNode* get_tape_ptr(const RustDocument &doc);
+size_t get_tape_size(const RustDocument &doc);
+const uint8_t* get_source_ptr(const RustDocument &doc);
+size_t get_source_size(const RustDocument &doc);
 
-std::unique_ptr<PyDocument> create_doc();
-void parse(PyDocument &doc, ::rust::Str json);
-std::unique_ptr<qbuem::Value> root(const PyDocument &doc);
+// Complex ops
+::rust::String dump(const RustDocument &doc, uint32_t idx, int32_t indent);
+void dump_to(const RustDocument &doc, uint32_t idx, int32_t indent, ::rust::String &out);
+uint32_t at_path_idx(const RustDocument &doc, uint32_t idx, ::rust::Str path);
 
-// Value wrappers for cxx
-bool is_valid(const qbuem::Value &v);
-bool is_null(const qbuem::Value &v);
-bool is_bool(const qbuem::Value &v);
-bool is_int(const qbuem::Value &v);
-bool is_double(const qbuem::Value &v);
-bool is_string(const qbuem::Value &v);
-bool is_array(const qbuem::Value &v);
-bool is_object(const qbuem::Value &v);
+// Mutations
+void set_null(RustDocument &doc, uint32_t idx);
+void set_bool(RustDocument &doc, uint32_t idx, bool b);
+void set_int(RustDocument &doc, uint32_t idx, int64_t i);
+void set_double(RustDocument &doc, uint32_t idx, double d);
+void set_string(RustDocument &doc, uint32_t idx, ::rust::Str s);
 
-size_t size(const qbuem::Value &v);
-::rust::Str type_name(const qbuem::Value &v);
-
-std::unique_ptr<qbuem::Value> get_key(const qbuem::Value &v, ::rust::Str key);
-std::unique_ptr<qbuem::Value> get_idx(const qbuem::Value &v, size_t idx);
-std::unique_ptr<qbuem::Value> at_path(const qbuem::Value &v, ::rust::Str path);
-
-// Iteration
-std::unique_ptr<ObjectIterator> create_iter(const qbuem::Value &v);
-bool iter_next(ObjectIterator &it);
-::rust::Str iter_key(const ObjectIterator &it);
-std::unique_ptr<qbuem::Value> iter_value(const ObjectIterator &it);
-
-bool as_bool(const qbuem::Value &v);
-int64_t as_i64(const qbuem::Value &v);
-double as_f64(const qbuem::Value &v);
-::rust::Str as_str(const qbuem::Value &v);
-
-::rust::String dump(const qbuem::Value &v, int32_t indent);
-
-// Mutation
-void set_null(qbuem::Value &v);
-void set_bool(qbuem::Value &v, bool b);
-void set_int(qbuem::Value &v, int64_t i);
-void set_double(qbuem::Value &v, double d);
-void set_string(qbuem::Value &v, ::rust::Str s);
-
-void insert_raw(qbuem::Value &v, ::rust::Str key, ::rust::Str raw_json);
-void erase_key(qbuem::Value &v, ::rust::Str key);
-void erase_idx(qbuem::Value &v, size_t idx);
+void insert_raw(RustDocument &doc, uint32_t idx, ::rust::Str key, ::rust::Str raw_json);
+void erase_key(RustDocument &doc, uint32_t idx, ::rust::Str key);
+void erase_idx(RustDocument &doc, uint32_t idx, size_t idx_to_erase);
 
 } // namespace qbuem::rust

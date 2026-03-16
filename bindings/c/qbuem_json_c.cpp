@@ -264,11 +264,25 @@ void qbuem_json_insert_raw(QbuemJSONValue val, const char* key, const char* raw_
       cv.insert_json(std::string_view(key), std::string_view(raw_json));
     } catch (...) {}
 }
+void qbuem_json_insert_val(QbuemJSONValue val, const char* key, QbuemJSONValue sub_val) {
+  auto cv = to_cpp(val);
+  if (cv.is_valid() && key)
+    try {
+      cv.insert(std::string_view(key), to_cpp(sub_val));
+    } catch (...) {}
+}
 void qbuem_json_append_raw(QbuemJSONValue val, const char* raw_json) {
   auto cv = to_cpp(val);
   if (cv.is_valid() && raw_json)
     try {
       cv.push_back_json(std::string_view(raw_json));
+    } catch (...) {}
+}
+void qbuem_json_append_val(QbuemJSONValue val, QbuemJSONValue sub_val) {
+  auto cv = to_cpp(val);
+  if (cv.is_valid())
+    try {
+      cv.push_back(to_cpp(sub_val));
     } catch (...) {}
 }
 void qbuem_json_erase_key(QbuemJSONValue val, const char* key) {

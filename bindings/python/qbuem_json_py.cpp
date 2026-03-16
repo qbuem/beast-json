@@ -38,6 +38,32 @@ public:
     qbuem::Value get_root() const { return root; }
 };
 
+// ── Recursive conversion to Python objects ──────────────────────────────────
+
+nb::object to_python(const qbuem::Value &v) {
+    if (v.is_null())   return nb::none();
+    if (v.is_bool())   return nb::cast(v.as<bool>());
+    if (v.is_int())    return nb::cast(v.as<int64_t>());
+    if (v.is_double()) return nb::cast(v.as<double>());
+    if (v.is_string()) return nb::cast(v.as<std::string_view>());
+    
+    if (v.is_object()) {
+        nb::dict d;
+        for (auto [key, val] : v.items()) {
+            d[nb::cast(key)] = to_python(val);
+        }
+        return d;
+    }
+    if (v.is_array()) {
+        nb::list l;
+        for (auto val : v.elements()) {
+            l.append(to_python(val));
+        }
+        return l;
+    }
+    return nb::none();
+}
+
 // ── Module Definition ────────────────────────────────────────────────────────
 
 NB_MODULE(qbuem_json_native, m) {
@@ -57,17 +83,24 @@ NB_MODULE(qbuem_json_native, m) {
             auto child = v[key];
             if (!child.is_valid()) throw nb::key_error(key.c_str());
             return child;
-        })
+        }, nb::keep_alive<0, 1>())
         .def("__getitem__", [](const qbuem::Value &v, size_t idx) {
             auto child = v[idx];
             if (!child.is_valid()) throw nb::index_error();
             return child;
-        })
+        }, nb::keep_alive<0, 1>())
         .def("as_bool", [](const qbuem::Value &v) { return v.as<bool>(); })
         .def("as_int", [](const qbuem::Value &v) { return v.as<int64_t>(); })
         .def("as_double", [](const qbuem::Value &v) { return v.as<double>(); })
         .def("as_string", [](const qbuem::Value &v) { return std::string(v.as<std::string_view>()); })
-        .def("dump", [](const qbuem::Value &v, int indent) { return v.dump(indent); }, "indent"_a = 0)
+        .def("dump", [](const qbuem::Value &v, int indent) {
+            thread_local std::string buf;
+            if (indent > 0) {
+                return v.dump(indent);
+            }
+            v.dump(buf);
+            return buf;
+        }, "indent"_a = 0)
         .def("__iter__", [](const qbuem::Value &v) -> nb::object {
             if (v.is_object()) {
                 auto range = v.items();
@@ -79,16 +112,29 @@ NB_MODULE(qbuem_json_native, m) {
                                          range.begin(), range.end());
             }
             throw nb::type_error("Value is not iterable");
+        }, nb::keep_alive<0, 1>())
+        .def("items", [](const qbuem::Value &v) -> nb::object {
+            if (!v.is_object()) throw nb::type_error("Value is not an object");
+            auto range = v.items();
+            return nb::make_iterator(nb::type<qbuem::Value>(), "ObjectIterator", 
+                                     range.begin(), range.end());
         }, nb::keep_alive<0, 1>());
 
     nb::class_<PyDocument>(m, "Document")
         .def(nb::init<>())
         .def("parse", &PyDocument::parse)
-        .def("root", &PyDocument::get_root);
+        .def("root", &PyDocument::get_root, nb::keep_alive<0, 1>());
 
     m.def("loads", [](const std::string &s) {
+        qbuem::Document doc;
+        auto root = qbuem::parse(doc, s);
+        if (!root.is_valid()) throw std::runtime_error("qbuem-json: parse error");
+        return to_python(root);
+    });
+
+    m.def("loads_lazy", [](const std::string &s) {
         auto d = std::make_unique<PyDocument>();
         d->parse(s);
-        return d; // nanobind handles unique_ptr
+        return d;
     });
 }

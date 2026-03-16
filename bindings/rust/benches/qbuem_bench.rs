@@ -56,5 +56,38 @@ fn bench_access(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_parsing, bench_access);
+fn bench_serialization(c: &mut Criterion) {
+    let mut group = c.benchmark_group("Serialization");
+
+    // Serde
+    let v: SerdeValue = serde_json::from_str(BENCH_DATA).unwrap();
+    group.bench_function("serde_json", |b| {
+        b.iter(|| {
+            let _ = serde_json::to_string(black_box(&v)).unwrap();
+        })
+    });
+
+    // Qbuem
+    let mut doc = Document::new();
+    doc.parse(BENCH_DATA).unwrap();
+    let root = doc.root();
+    
+    group.bench_function("qbuem_json (dump)", |b| {
+        b.iter(|| {
+            let _ = black_box(root).dump(0);
+        })
+    });
+
+    group.bench_function("qbuem_json (dump_to)", |b| {
+        let mut buf = String::with_capacity(1024);
+        b.iter(|| {
+            buf.clear();
+            root.dump_to(black_box(&mut buf), 0);
+        })
+    });
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_parsing, bench_access, bench_serialization);
 criterion_main!(benches);

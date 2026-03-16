@@ -278,14 +278,42 @@ func (v Value) AppendRaw(rawJSON string) {
 	C.qbuem_json_append_raw(v.handle, cRaw)
 }
 
-// Erase removes a key (from object) or an index (from array).
-func (v Value) Erase(keyOrIdx interface{}) {
-	switch tv := keyOrIdx.(type) {
-	case string:
-		cKey := C.CString(tv)
-		defer C.free(unsafe.Pointer(cKey))
-		C.qbuem_json_erase_key(v.handle, cKey)
-	case int:
-		C.qbuem_json_erase_idx(v.handle, C.size_t(tv))
+// SetInt sets an integer value.
+func (v Value) SetInt(val int64) { C.qbuem_json_set_int(v.handle, C.int64_t(val)) }
+
+// SetDouble sets a floating-point value.
+func (v Value) SetDouble(val float64) { C.qbuem_json_set_double(v.handle, C.double(val)) }
+
+// SetString sets a string value.
+func (v Value) SetString(val string) {
+	cs := C.CString(val)
+	defer C.free(unsafe.Pointer(cs))
+	C.qbuem_json_set_string(v.handle, cs, C.size_t(len(val)))
+}
+
+// SetNull sets the value to null.
+func (v Value) SetNull() { C.qbuem_json_set_null(v.handle) }
+
+// SetBool sets a boolean value.
+func (v Value) SetBool(val bool) {
+	b := 0
+	if val {
+		b = 1
 	}
+	C.qbuem_json_set_bool(v.handle, C.int(b))
+}
+
+// Type returns the type of the value
+func (v Value) Type() int { return int(C.qbuem_json_type(v.handle)) }
+
+// InsertValue adds a key-value pair to an object using another Value.
+func (v Value) InsertValue(key string, val Value) {
+	cKey := C.CString(key)
+	defer C.free(unsafe.Pointer(cKey))
+	C.qbuem_json_insert_val(v.handle, cKey, val.handle)
+}
+
+// AppendValue appends a Value to an array.
+func (v Value) AppendValue(val Value) {
+	C.qbuem_json_append_val(v.handle, val.handle)
 }

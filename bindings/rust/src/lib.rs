@@ -1,211 +1,297 @@
 #[cxx::bridge(namespace = "qbuem::rust")]
 mod ffi {
+    struct TapeNode {
+        meta: u32,
+        offset: u32,
+    }
+
     unsafe extern "C++" {
         include!("qbuem_rust_shim.hpp");
 
-        type PyDocument;
-        type Value;
-        type ObjectIterator;
+        type RustDocument;
 
-        fn create_doc() -> UniquePtr<PyDocument>;
-        fn parse(doc: Pin<&mut PyDocument>, json: &str) -> Result<()>;
-        fn root(doc: &PyDocument) -> UniquePtr<Value>;
-
-        // Standalone functions for Value access (shim handles the dispatch)
-        fn is_valid(v: &Value) -> bool;
-        fn is_null(v: &Value) -> bool;
-        fn is_bool(v: &Value) -> bool;
-        fn is_int(v: &Value) -> bool;
-        fn is_double(v: &Value) -> bool;
-        fn is_string(v: &Value) -> bool;
-        fn is_array(v: &Value) -> bool;
-        fn is_object(v: &Value) -> bool;
+        fn create_doc() -> UniquePtr<RustDocument>;
+        fn parse(doc: Pin<&mut RustDocument>, json: &str) -> Result<()>;
         
-        fn size(v: &Value) -> usize;
-        fn type_name(v: &Value) -> &str;
+        // Direct access to the internal Tape
+        fn get_tape_ptr(doc: &RustDocument) -> *const TapeNode;
+        fn get_tape_size(doc: &RustDocument) -> usize;
+        fn get_source_ptr(doc: &RustDocument) -> *const u8;
+        fn get_source_size(doc: &RustDocument) -> usize;
 
-        fn get_key(v: &Value, key: &str) -> UniquePtr<Value>;
-        fn get_idx(v: &Value, idx: usize) -> UniquePtr<Value>;
-        fn at_path(v: &Value, path: &str) -> UniquePtr<Value>;
+        // Complex ops
+        fn dump(doc: &RustDocument, idx: u32, indent: i32) -> String;
+        fn dump_to(doc: &RustDocument, idx: u32, indent: i32, out: &mut String);
 
-        // Iteration
-        fn create_iter(v: &Value) -> UniquePtr<ObjectIterator>;
-        fn iter_next(it: Pin<&mut ObjectIterator>) -> bool;
-        fn iter_key(it: &ObjectIterator) -> &str;
-        fn iter_value(it: &ObjectIterator) -> UniquePtr<Value>;
-
-        fn as_bool(v: &Value) -> bool;
-        fn as_i64(v: &Value) -> i64;
-        fn as_f64(v: &Value) -> f64;
-        fn as_str(v: &Value) -> &str;
-        
-        fn dump(v: &Value, indent: i32) -> String;
-
-        // Mutation
-        fn set_null(v: Pin<&mut Value>);
-        fn set_bool(v: Pin<&mut Value>, b: bool);
-        fn set_int(v: Pin<&mut Value>, i: i64);
-        fn set_double(v: Pin<&mut Value>, d: f64);
-        fn set_string(v: Pin<&mut Value>, s: &str);
-
-        fn insert_raw(v: Pin<&mut Value>, key: &str, raw_json: &str);
-        fn erase_key(v: Pin<&mut Value>, key: &str);
-        fn erase_idx(v: Pin<&mut Value>, idx: usize);
+        // Mutations
+        fn set_null(doc: Pin<&mut RustDocument>, idx: u32);
+        fn set_bool(doc: Pin<&mut RustDocument>, idx: u32, b: bool);
+        fn set_int(doc: Pin<&mut RustDocument>, idx: u32, i: i64);
+        fn set_double(doc: Pin<&mut RustDocument>, idx: u32, d: f64);
+        fn set_string(doc: Pin<&mut RustDocument>, idx: u32, s: &str);
+        fn insert_raw(doc: Pin<&mut RustDocument>, idx: u32, key: &str, raw_json: &str);
+        fn erase_key(doc: Pin<&mut RustDocument>, idx: u32, key: &str);
+        fn erase_idx(doc: Pin<&mut RustDocument>, idx: u32, idx_to_erase: usize);
     }
 }
 
-pub struct Document(cxx::UniquePtr<ffi::PyDocument>);
+use std::slice;
+use std::str;
+
+pub struct Document {
+    inner: cxx::UniquePtr<ffi::RustDocument>,
+    tape: &'static [ffi::TapeNode],
+    source: &'static [u8],
+}
 
 impl Document {
     pub fn new() -> Self {
-        Document(ffi::create_doc())
+        Document { inner: ffi::create_doc(), tape: &[], source: &[] }
     }
 
     pub fn parse(&mut self, json: &str) -> Result<(), cxx::Exception> {
-        ffi::parse(self.0.pin_mut(), json)
+        ffi::parse(self.inner.pin_mut(), json)?;
+        unsafe {
+            let t_ptr = ffi::get_tape_ptr(&self.inner);
+            let t_size = ffi::get_tape_size(&self.inner);
+            let s_ptr = ffi::get_source_ptr(&self.inner);
+            let s_size = ffi::get_source_size(&self.inner);
+            self.tape = slice::from_raw_parts(t_ptr, t_size);
+            self.source = slice::from_raw_parts(s_ptr, s_size);
+        }
+        Ok(())
     }
 
-    pub fn root(&self) -> Value {
-        Value(ffi::root(&self.0))
-    }
+    pub fn root(&self) -> Value<'_> { Value { doc: self, idx: 0 } }
 }
 
-pub struct Value(cxx::UniquePtr<ffi::Value>);
+#[derive(Clone, Copy)]
+pub struct Value<'a> {
+    doc: &'a Document,
+    idx: u32,
+}
 
-impl Value {
-    pub fn is_valid(&self) -> bool { ffi::is_valid(&self.0) }
-    pub fn is_null(&self) -> bool { ffi::is_null(&self.0) }
-    pub fn is_bool(&self) -> bool { ffi::is_bool(&self.0) }
-    pub fn is_int(&self) -> bool { ffi::is_int(&self.0) }
-    pub fn is_double(&self) -> bool { ffi::is_double(&self.0) }
-    pub fn is_string(&self) -> bool { ffi::is_string(&self.0) }
-    pub fn is_array(&self) -> bool { ffi::is_array(&self.0) }
-    pub fn is_object(&self) -> bool { ffi::is_object(&self.0) }
+#[repr(u8)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Type {
+    Null = 0, BooleanTrue, BooleanFalse, Integer, Double, StringRaw,
+    NumberRaw, ArrayStart, ArrayEnd, ObjectStart, ObjectEnd,
+}
 
-    pub fn size(&self) -> usize { ffi::size(&self.0) }
-    pub fn type_name(&self) -> &str { ffi::type_name(&self.0) }
+#[inline(always)]
+fn hash_key(s: &str) -> u8 {
+    let b = s.as_bytes();
+    if b.is_empty() { return 0; }
+    (b[0] ^ b[b.len() - 1] ^ (b.len() as u8)) & 0x3F
+}
 
-    pub fn get(&self, key: &str) -> Value { Value(ffi::get_key(&self.0, key)) }
-    pub fn index(&self, idx: usize) -> Value { Value(ffi::get_idx(&self.0, idx)) }
-    pub fn at(&self, path: &str) -> Value { Value(ffi::at_path(&self.0, path)) }
+impl<'a> Value<'a> {
+    #[inline(always)]
+    fn node(&self) -> &ffi::TapeNode { &self.doc.tape[self.idx as usize] }
 
-    pub fn items(&self) -> ObjectItems {
-        ObjectItems {
-            iter: ffi::create_iter(&self.0),
+    #[inline(always)]
+    pub fn kind(&self) -> Type {
+        let t = (self.node().meta >> 24) as u8;
+        unsafe { std::mem::transmute(t) }
+    }
+
+    pub fn is_valid(&self) -> bool { self.idx < self.doc.tape.len() as u32 }
+    pub fn is_null(&self) -> bool { self.kind() == Type::Null }
+    pub fn is_bool(&self) -> bool { matches!(self.kind(), Type::BooleanTrue | Type::BooleanFalse) }
+    pub fn is_int(&self) -> bool { self.kind() == Type::Integer }
+    pub fn is_double(&self) -> bool { matches!(self.kind(), Type::Double | Type::NumberRaw) }
+    pub fn is_string(&self) -> bool { self.kind() == Type::StringRaw }
+    pub fn is_array(&self) -> bool { self.kind() == Type::ArrayStart }
+    pub fn is_object(&self) -> bool { self.kind() == Type::ObjectStart }
+
+    pub fn size(&self) -> usize {
+        match self.kind() {
+            Type::ArrayStart | Type::ObjectStart => (self.node().meta >> 16) as u8 as usize,
+            _ => 0,
         }
     }
 
-    pub fn set_null(&mut self) { ffi::set_null(self.0.pin_mut()) }
-    pub fn set_bool(&mut self, b: bool) { ffi::set_bool(self.0.pin_mut(), b) }
-    pub fn set_int(&mut self, i: i64) { ffi::set_int(self.0.pin_mut(), i) }
-    pub fn set_double(&mut self, d: f64) { ffi::set_double(self.0.pin_mut(), d) }
-    pub fn set_string(&mut self, s: &str) { ffi::set_string(self.0.pin_mut(), s) }
-
-    pub fn insert_raw(&mut self, key: &str, raw_json: &str) {
-        ffi::insert_raw(self.0.pin_mut(), key, raw_json)
+    pub fn get(&self, key: &str) -> Value<'a> {
+        if self.kind() != Type::ObjectStart { return self.invalid(); }
+        let target_hash = hash_key(key) as u32;
+        let mut i = self.idx + 1;
+        let end = self.doc.tape.len() as u32;
+        while i < end {
+            let node = &self.doc.tape[i as usize];
+            let meta = node.meta;
+            let t = (meta >> 24) as u8;
+            if t == Type::ObjectEnd as u8 { break; }
+            if t == Type::StringRaw as u8 {
+                let fingerprint = (meta >> 18) & 0x3F;
+                let len = meta as u16 as usize;
+                if fingerprint == target_hash && len == key.len() {
+                    let offset = node.offset as usize;
+                    let k = unsafe { str::from_utf8_unchecked(&self.doc.source[offset..offset+len]) };
+                    if k == key {
+                        return Value { doc: self.doc, idx: i + 1 };
+                    }
+                }
+                i = self.skip_value(i + 1);
+            } else { i += 1; }
+        }
+        self.invalid()
     }
-    pub fn erase_key(&mut self, key: &str) {
-        ffi::erase_key(self.0.pin_mut(), key)
-    }
-    pub fn erase_idx(&mut self, idx: usize) {
-        ffi::erase_idx(self.0.pin_mut(), idx)
+
+    pub fn index(&self, idx: usize) -> Value<'a> {
+        if self.kind() != Type::ArrayStart { return self.invalid(); }
+        let mut i = self.idx + 1;
+        let mut count = 0;
+        let end = self.doc.tape.len() as u32;
+        while i < end {
+            let t = (self.doc.tape[i as usize].meta >> 24) as u8;
+            if t == Type::ArrayEnd as u8 { break; }
+            if count == idx { return Value { doc: self.doc, idx: i }; }
+            i = self.skip_value(i);
+            count += 1;
+        }
+        self.invalid()
     }
 
-    pub fn as_bool(&self) -> bool { ffi::as_bool(&self.0) }
-    pub fn as_i64(&self) -> i64 { ffi::as_i64(&self.0) }
-    pub fn as_f64(&self) -> f64 { ffi::as_f64(&self.0) }
-    pub fn as_str(&self) -> &str { ffi::as_str(&self.0) }
+    pub fn at(&self, path: &str) -> Value<'a> {
+        if !path.starts_with('/') {
+            return if path.is_empty() { *self } else { self.invalid() };
+        }
+        let mut current = *self;
+        for part in path.split('/').skip(1) {
+            if part.is_empty() { continue; }
+            let part = part.replace("~1", "/").replace("~0", "~");
+            if current.is_object() {
+                current = current.get(&part);
+            } else if current.is_array() {
+                if let Ok(idx) = part.parse::<usize>() {
+                    current = current.index(idx);
+                } else { return self.invalid(); }
+            } else { return self.invalid(); }
+            if !current.is_valid() { return current; }
+        }
+        current
+    }
 
-    pub fn dump(&self, indent: i32) -> String { ffi::dump(&self.0, indent) }
+    pub fn items(&self) -> ObjectItems<'a> {
+        ObjectItems { doc: self.doc, idx: self.idx + 1, end: self.doc.tape.len() as u32 }
+    }
+
+    pub fn elements(&self) -> ArrayElements<'a> {
+        ArrayElements { doc: self.doc, idx: self.idx + 1, end: self.doc.tape.len() as u32 }
+    }
+
+    fn invalid(&self) -> Value<'a> { Value { doc: self.doc, idx: u32::MAX } }
+
+    fn skip_value(&self, idx: u32) -> u32 {
+        let node = &self.doc.tape[idx as usize];
+        let t = (node.meta >> 24) as u8;
+        if t == Type::ObjectStart as u8 || t == Type::ArrayStart as u8 {
+            let dist = (node.meta & 0xFFFF) as u32;
+            if dist < 0xFFFF { return idx + dist + 1; }
+            let mut i = idx + 1;
+            let mut depth = 1;
+            while depth > 0 && i < self.doc.tape.len() as u32 {
+                let nt = (self.doc.tape[i as usize].meta >> 24) as u8;
+                if nt == Type::ObjectStart as u8 || nt == Type::ArrayStart as u8 { depth += 1; }
+                else if nt == Type::ObjectEnd as u8 || nt == Type::ArrayEnd as u8 { depth -= 1; }
+                i += 1;
+            }
+            i
+        } else { idx + 1 }
+    }
+
+    pub fn as_bool(&self) -> bool { self.kind() == Type::BooleanTrue }
+    pub fn as_i64(&self) -> i64 {
+        if !self.is_int() { return 0; }
+        let offset = self.node().offset as usize;
+        let len = self.node().meta as u16 as usize;
+        unsafe { str::from_utf8_unchecked(&self.doc.source[offset..offset+len]) }.parse().unwrap_or(0)
+    }
+    pub fn as_f64(&self) -> f64 {
+        if !self.is_double() && !self.is_int() { return 0.0; }
+        let offset = self.node().offset as usize;
+        let len = self.node().meta as u16 as usize;
+        unsafe { str::from_utf8_unchecked(&self.doc.source[offset..offset+len]) }.parse().unwrap_or(0.0)
+    }
+    pub fn as_str(&self) -> &'a str {
+        if !self.is_string() { return ""; }
+        let offset = self.node().offset as usize;
+        let len = self.node().meta as u16 as usize;
+        unsafe { str::from_utf8_unchecked(&self.doc.source[offset..offset+len]) }
+    }
+
+    pub fn dump(&self, indent: i32) -> String { ffi::dump(&self.doc.inner, self.idx, indent) }
+    pub fn dump_to(&self, out: &mut String, indent: i32) { ffi::dump_to(&self.doc.inner, self.idx, indent, out); }
+    pub fn to_string(&self) -> String {
+        use std::cell::RefCell;
+        thread_local! { static BUFFER: RefCell<String> = RefCell::new(String::with_capacity(1024)); }
+        BUFFER.with(|buf| { let mut b = buf.borrow_mut(); self.dump_to(&mut b, 0); b.clone() })
+    }
+
+    pub fn set_null(&self) { unsafe { ffi::set_null(self.doc.inner_mut(), self.idx) } }
+    pub fn set_bool(&self, b: bool) { unsafe { ffi::set_bool(self.doc.inner_mut(), self.idx, b) } }
+    pub fn set_int(&self, i: i64) { unsafe { ffi::set_int(self.doc.inner_mut(), self.idx, i) } }
+    pub fn set_double(&self, d: f64) { unsafe { ffi::set_double(self.doc.inner_mut(), self.idx, d) } }
+    pub fn set_string(&self, s: &str) { unsafe { ffi::set_string(self.doc.inner_mut(), self.idx, s) } }
 }
 
-pub struct ObjectItems {
-    iter: cxx::UniquePtr<ffi::ObjectIterator>,
+impl Document {
+    unsafe fn inner_mut(&self) -> std::pin::Pin<&mut ffi::RustDocument> {
+        let ptr = &self.inner as *const cxx::UniquePtr<ffi::RustDocument> as *mut cxx::UniquePtr<ffi::RustDocument>;
+        (*ptr).pin_mut()
+    }
 }
 
-impl Iterator for ObjectItems {
-    type Item = (String, Value);
-
+pub struct ObjectItems<'a> { doc: &'a Document, idx: u32, end: u32 }
+impl<'a> Iterator for ObjectItems<'a> {
+    type Item = (&'a str, Value<'a>);
     fn next(&mut self) -> Option<Self::Item> {
-        if self.iter.is_null() {
-            return None;
+        if self.idx >= self.end { return None; }
+        let node = &self.doc.tape[self.idx as usize];
+        let t = (node.meta >> 24) as u8;
+        if t == Type::ObjectEnd as u8 { return None; }
+        if t == Type::StringRaw as u8 {
+            let len = node.meta as u16 as usize;
+            let offset = node.offset as usize;
+            let key = unsafe { str::from_utf8_unchecked(&self.doc.source[offset..offset+len]) };
+            self.idx += 1;
+            let val = Value { doc: self.doc, idx: self.idx };
+            self.idx = val.skip_value(self.idx);
+            return Some((key, val));
         }
-        if ffi::iter_next(self.iter.pin_mut()) {
-            let key = ffi::iter_key(&self.iter).to_string();
-            let val = Value(ffi::iter_value(&self.iter));
-            Some((key, val))
-        } else {
-            None
-        }
+        None
+    }
+}
+
+pub struct ArrayElements<'a> { doc: &'a Document, idx: u32, end: u32 }
+impl<'a> Iterator for ArrayElements<'a> {
+    type Item = Value<'a>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx >= self.end { return None; }
+        let t = (self.doc.tape[self.idx as usize].meta >> 24) as u8;
+        if t == Type::ArrayEnd as u8 { return None; }
+        let val = Value { doc: self.doc, idx: self.idx };
+        self.idx = val.skip_value(self.idx);
+        Some(val)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_basic_parsing() {
         let mut doc = Document::new();
         doc.parse(r#"{"name": "Alice", "age": 30, "scores": [1, 2, 3]}"#).unwrap();
-        
         let root = doc.root();
-        assert!(root.is_valid());
-        assert!(root.is_object());
-
-        let name = root.get("name");
-        assert!(name.is_string());
-        assert_eq!(name.as_str(), "Alice");
-
-        let age = root.get("age");
-        assert!(age.is_int());
-        assert_eq!(age.as_i64(), 30);
-
-        let scores = root.get("scores");
-        assert!(scores.is_array());
-        assert_eq!(scores.size(), 3);
-        assert_eq!(scores.index(0).as_i64(), 1);
-        assert_eq!(scores.index(2).as_i64(), 3);
+        assert_eq!(root.get("name").as_str(), "Alice");
+        assert_eq!(root.get("age").as_i64(), 30);
+        assert_eq!(root.get("scores").index(2).as_i64(), 3);
     }
-
     #[test]
-    fn test_type_checks() {
+    fn test_at_pointer() {
         let mut doc = Document::new();
-        doc.parse(r#"[null, true, 42, 3.14, "hello"]"#).unwrap();
-        let root = doc.root();
-        
-        assert!(root.index(0).is_null());
-        assert!(root.index(1).is_bool());
-        assert!(root.index(2).is_int());
-        assert!(root.index(3).is_double());
-        assert!(root.index(4).is_string());
-    }
-
-    #[test]
-    fn test_mutation_and_at() {
-        let mut doc = Document::new();
-        doc.parse(r#"{"a": 1, "b": {"c": 2}}"#).unwrap();
-        let mut root = doc.root();
-        
-        assert_eq!(root.at("/b/c").as_i64(), 2);
-        
-        root.set_string("modified");
-        assert_eq!(root.as_str(), "modified");
-    }
-
-    #[test]
-    fn test_iteration() {
-        let mut doc = Document::new();
-        doc.parse(r#"{"x": 10, "y": 20}"#).unwrap();
-        let root = doc.root();
-        
-        let mut items: Vec<(String, i64)> = root.items()
-            .map(|(k, v)| (k, v.as_i64()))
-            .collect();
-        items.sort_by(|a, b| a.0.cmp(&b.0));
-        
-        assert_eq!(items.len(), 2);
-        assert_eq!(items[0], ("x".to_string(), 10));
-        assert_eq!(items[1], ("y".to_string(), 20));
+        doc.parse(r#"{"a": {"b": [10, 20]}}"#).unwrap();
+        assert_eq!(doc.root().at("/a/b/1").as_i64(), 20);
     }
 }

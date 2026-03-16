@@ -1,95 +1,81 @@
 #include "qbuem_rust_shim.hpp"
+#include "qbuem-json/src/lib.rs.h"
 #include <stdexcept>
 
 namespace qbuem::rust {
 
-std::unique_ptr<PyDocument> create_doc() {
-    return std::make_unique<PyDocument>();
+// Both TapeNode (from CXX) and qbuem::TapeNode should be identical
+// Note: In qbuem_json.hpp, TapeNode is in global namespace or qbuem?
+// Let's check the previous read_file output.
+// L330: struct TapeNode { ... } -- it was inside namespace qbuem { ... } in the file?
+// No, the file read started with // TapeNode -- 8 bytes (compaction)
+// I will use sizeof(::TapeNode) if qbuem::TapeNode fails.
+// But the error said "no member named 'TapeNode' in namespace 'qbuem'".
+// This means it's likely in global namespace.
+
+static_assert(sizeof(TapeNode) == 8, "TapeNode size mismatch");
+
+std::unique_ptr<RustDocument> create_doc() {
+    return std::make_unique<RustDocument>();
 }
 
-void parse(PyDocument &doc, ::rust::Str json) {
+void parse(RustDocument &doc, ::rust::Str json) {
     doc.parse(json);
 }
 
-std::unique_ptr<Value> root(const PyDocument &doc) {
-    return std::make_unique<Value>(doc.get_root());
+const TapeNode* get_tape_ptr(const RustDocument &doc) {
+    // We just need the raw pointer to the first element
+    return reinterpret_cast<const TapeNode*>(doc.doc.state()->tape.base);
 }
 
-bool is_valid(const Value &v) { return v.is_valid(); }
-bool is_null(const Value &v) { return v.is_null(); }
-bool is_bool(const Value &v) { return v.is_bool(); }
-bool is_int(const Value &v) { return v.is_int(); }
-bool is_double(const Value &v) { return v.is_double(); }
-bool is_string(const Value &v) { return v.is_string(); }
-bool is_array(const Value &v) { return v.is_array(); }
-bool is_object(const Value &v) { return v.is_object(); }
-
-size_t size(const Value &v) { return v.size(); }
-
-::rust::Str type_name(const Value &v) {
-    auto sv = v.type_name();
-    return ::rust::Str(sv.data(), sv.size());
+size_t get_tape_size(const RustDocument &doc) {
+    return doc.doc.state()->tape.size();
 }
 
-std::unique_ptr<Value> get_key(const Value &v, ::rust::Str key) {
-    return std::make_unique<Value>(v[std::string(key)]);
+const uint8_t* get_source_ptr(const RustDocument &doc) {
+    return reinterpret_cast<const uint8_t*>(doc.source.data());
 }
 
-std::unique_ptr<Value> get_idx(const Value &v, size_t idx) {
-    return std::make_unique<Value>(v[idx]);
+size_t get_source_size(const RustDocument &doc) {
+    return doc.source.size();
 }
 
-std::unique_ptr<Value> at_path(const Value &v, ::rust::Str path) {
-    return std::make_unique<Value>(v.at(std::string(path)));
+::rust::String dump(const RustDocument &doc, uint32_t idx, int32_t indent) {
+    return ::rust::String(doc.get_value(idx).dump(indent));
 }
 
-std::unique_ptr<ObjectIterator> create_iter(const Value &v) {
-    if (!v.is_object()) return nullptr;
-    auto items = v.items();
-    return std::make_unique<ObjectIterator>(items.begin(), items.end());
-}
-
-bool iter_next(ObjectIterator &it) {
-    if (!it.started) {
-        it.started = true;
-    } else if (it.current != it.end) {
-        ++it.current;
+void dump_to(const RustDocument &doc, uint32_t idx, int32_t indent, ::rust::String &out) {
+    thread_local std::string buf;
+    auto v = doc.get_value(idx);
+    if (indent > 0) {
+        buf = v.dump(indent);
+    } else {
+        v.dump(buf);
     }
-    return it.current != it.end;
+    out = ::rust::String(buf);
 }
 
-::rust::Str iter_key(const ObjectIterator &it) {
-    auto sv = std::get<0>(*it.current);
-    return ::rust::Str(sv.data(), sv.size());
+uint32_t at_path_idx(const RustDocument &doc, uint32_t idx, ::rust::Str path) {
+    auto v = doc.get_value(idx).at(std::string_view(path.data(), path.size()));
+    return v.is_valid() ? v.index() : 0xFFFFFFFFu;
 }
 
-std::unique_ptr<Value> iter_value(const ObjectIterator &it) {
-    return std::make_unique<Value>(std::get<1>(*it.current));
+void set_null(RustDocument &doc, uint32_t idx) { doc.get_value(idx).set(nullptr); }
+void set_bool(RustDocument &doc, uint32_t idx, bool b) { doc.get_value(idx).set(b); }
+void set_int(RustDocument &doc, uint32_t idx, int64_t i) { doc.get_value(idx).set(i); }
+void set_double(RustDocument &doc, uint32_t idx, double d) { doc.get_value(idx).set(d); }
+void set_string(RustDocument &doc, uint32_t idx, ::rust::Str s) { 
+    doc.get_value(idx).set(std::string_view(s.data(), s.size())); 
 }
 
-bool as_bool(const Value &v) { return v.as<bool>(); }
-int64_t as_i64(const Value &v) { return v.as<int64_t>(); }
-double as_f64(const Value &v) { return v.as<double>(); }
-
-::rust::Str as_str(const Value &v) {
-    auto sv = v.as<std::string_view>();
-    return ::rust::Str(sv.data(), sv.size());
+void insert_raw(RustDocument &doc, uint32_t idx, ::rust::Str key, ::rust::Str raw_json) {
+    doc.get_value(idx).insert(std::string(key), std::string(raw_json));
 }
-
-::rust::String dump(const Value &v, int32_t indent) {
-    return ::rust::String(v.dump(indent));
+void erase_key(RustDocument &doc, uint32_t idx, ::rust::Str key) { 
+    doc.get_value(idx).erase(std::string(key)); 
 }
-
-void set_null(Value &v) { v.set(nullptr); }
-void set_bool(Value &v, bool b) { v.set(b); }
-void set_int(Value &v, int64_t i) { v.set(i); }
-void set_double(Value &v, double d) { v.set(d); }
-void set_string(Value &v, ::rust::Str s) { v.set(std::string_view(s.data(), s.size())); }
-
-void insert_raw(Value &v, ::rust::Str key, ::rust::Str raw_json) {
-    v.insert(std::string(key), std::string(raw_json));
+void erase_idx(RustDocument &doc, uint32_t idx, size_t idx_to_erase) { 
+    doc.get_value(idx).erase(idx_to_erase); 
 }
-void erase_key(Value &v, ::rust::Str key) { v.erase(std::string(key)); }
-void erase_idx(Value &v, size_t idx) { v.erase(idx); }
 
 } // namespace qbuem::rust

@@ -12,7 +12,6 @@ import (
 import "C"
 
 // Marshal returns the JSON encoding of v.
-// It uses qbuem-json mutation API to build the document.
 func Marshal(v interface{}) ([]byte, error) {
 	rv := reflect.ValueOf(v)
 	doc := NewDocument()

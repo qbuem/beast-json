@@ -11,11 +11,11 @@ requires-python = ">=3.8"
 authors = [
     { name = "The Qbuem Team" },
 ]
-license = { text = "MIT" }
+license = { text = "Apache-2.0" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: C++",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
 ]
 
 [tool.scikit-build]

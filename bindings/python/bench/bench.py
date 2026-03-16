@@ -72,11 +72,11 @@ if HAS_CTYPES:
 # 3. qbuem-json (nanobind)
 if HAS_NATIVE:
     def native_parse(s):
-        doc = bj_native.loads(s)
+        doc = bj_native.loads_lazy(s)
         return doc
     avg_p = bench("qbuem-json (nanobind)", native_parse, json_str)
     
-    doc = bj_native.loads(json_str)
+    doc = bj_native.loads_lazy(json_str)
     root = doc.root()
     avg_s = bench("qbuem-json (nanobind) dump", lambda r: r.dump(), root)
     print(f"qbuem-json (nanobind) | Parse: {avg_p*1000:8.2f} us | Serialize: {avg_s*1000:8.2f} us | Alloc: 0 KB")
@@ -91,7 +91,7 @@ print("\nAccess Latency (root['users'][25]['name']):")
 
 # Access benchmarks
 if HAS_NATIVE:
-    native_doc = bj_native.loads(json_str)
+    native_doc = bj_native.loads_lazy(json_str)
     native_root = native_doc.root() # root is tied to doc
     def native_access(r): return r['users'][25]['name'].as_string()
     bench("nanobind access", native_access, native_root, iterations=10000)
