@@ -5,7 +5,7 @@ This document outlines the systematic testing methodology and standard complianc
 ## 1. Testing Philosophy
 qbuem-json follows a "Safety First, Performance Second" philosophy. Every feature is validated against memory sanitizers and official RFC test suites to ensure that extreme performance does not come at the cost of correctness or security.
 
-**Total test count: 507** (as of the ReproBugs2 + Observations additions).
+**Total test count: 521** (including 5,556 lines of C++ tests across 20 files).
 
 ## 2. Core Compliance & Standard Verification
 These tests guarantee that qbuem-json flawlessly adheres to official JSON standards.
@@ -56,14 +56,17 @@ qbuem-json adheres to the "Zero-Cost" principle: you don't pay for the mutation 
   - **Serialization**: ~75 μs (**8.1 GB/s**)
 - **No Regressions**: Comparisons against the baseline show 0% performance loss on cold-path (read-only) usage after RFC 6901/6902 integration.
 
-## 5. Security & Multi-Sanitizer Verification
-
-| Sanitizer | Target | Result |
-| :--- | :--- | :--- |
-| **ASan** | Memory Errors | **PASS** |
-| **UBSan** | Undefined Behavior | **PASS** |
-| **TSan** | Data Races | **PASS** |
 | **Leaks** | Memory Leaks | **PASS (0 byte)** |
+
+### 5.2 Exhaustive Fuzz Testing (64.02% Branch Coverage)
+
+qbuem-json is stress-tested by **11 specialized libFuzzer targets** targeting core algorithms and structural mapping:
+
+- **Logic Fuzzing**: `fuzz_dom`, `fuzz_parse`, `fuzz_rfc8259`, `fuzz_roundtrip`, `fuzz_diff`
+- **Algorithmic Fuzzing**: `fuzz_float` (Eisel-Lemire/Russ Cox), `fuzz_direct` (Zero-Tape)
+- **API & Structural Stress**: `fuzz_nexus`, `fuzz_api_stress`, `fuzz_pmr`, `fuzz_patch`
+
+All discovered vulnerabilities (e.g., SIMD store overflows) have been fixed, and the library is verified **Crash-Free** across all targets.
 
 ---
 

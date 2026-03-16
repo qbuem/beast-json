@@ -35,7 +35,7 @@ features:
 
   - icon: 🔒
     title: "RFC Compliant & Hardened"
-    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 521 tests · ASan, UBSan, TSan run on every commit · 3 libFuzzer targets."
+    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 521 tests · ASan, UBSan, TSan run on every commit · 11 libFuzzer targets."
 
   - icon: 📦
     title: "Single Header · Apache 2.0"
@@ -70,7 +70,7 @@ features:
   <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
     <span style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #999; min-width: 5.5rem; flex-shrink: 0;">Testing</span>
     <a href="/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-521%20passing-brightgreen" alt="521 tests passing" /></a>
-    <a href="/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-3%20libFuzzer%20targets-orange" alt="3 libFuzzer targets" /></a>
+    <a href="/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-11%20libFuzzer%20targets-orange" alt="11 libFuzzer targets" /></a>
   </div>
 
   <!-- Row 4: Package -->

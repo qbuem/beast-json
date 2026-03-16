@@ -80,3 +80,13 @@ docs/api/reference/
 bindings/python/build/
 bindings/rust/target/
 bindings/go/qbuem_json.test
+
+# Fuzzing
+fuzz/*.profraw
+fuzz/*.profdata
+fuzz/coverage_report/
+fuzz/corpus_fuzz_*/
+crash-*
+oom-*
+leak-*
+timeout-*

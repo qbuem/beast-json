@@ -1,14 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(qbuem_json_benchmarks)
 
-include(FetchContent)
-
-# Fetch nlohmann/json
-FetchContent_Declare(
-    nlohmann_json
-    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-)
-FetchContent_MakeAvailable(nlohmann_json)
+# Fetch external dependencies (nlohmann_json now in root)
 
 # Fetch RapidJSON
 set(RAPIDJSON_BUILD_DOC OFF CACHE BOOL "" FORCE)

@@ -2834,7 +2834,8 @@ public:
     size_t mutation_extra = 0;
     for (const auto &[k, m] : doc_->mutations_)
       mutation_extra += m.data.size() + 16;
-    const size_t buf_cap = doc_->source.size() + 16 + mutation_extra;
+    // Account for per-token overhead (quotes, colons, commas) + safety margin
+    const size_t buf_cap = doc_->source.size() + (ntape * 2) + 64 + mutation_extra;
     std::string out;
     out.resize(buf_cap);
     char *w = out.data();
@@ -8612,7 +8613,14 @@ struct NexusScanner {
       if ((mq | mb) == 0) { p += 8; continue; }
       break;
     }
-    while (p < end && *p != '"') { if (*p == '\\') p += 2; else ++p; }
+    while (p < end && *p != '"') {
+      if (*p == '\\') [[unlikely]] {
+        if (p + 1 < end) [[likely]] p += 2;
+        else { p = end; break; }
+      } else {
+        ++p;
+      }
+    }
     std::string_view key(start, static_cast<size_t>(p - start));
     if (p < end) ++p;
     if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
@@ -8681,7 +8689,14 @@ struct NexusScanner {
       if ((mq | mb) == 0) { p += 8; continue; }
       break;
     }
-    while (p < end && *p != '"') { if (*p == '\\') p += 2; else ++p; }
+    while (p < end && *p != '"') {
+      if (*p == '\\') [[unlikely]] {
+        if (p + 1 < end) [[likely]] p += 2;
+        else { p = end; break; }
+      } else {
+        ++p;
+      }
+    }
     const size_t n = static_cast<size_t>(p - start);
     if (p < end) ++p;
     if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();

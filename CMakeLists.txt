@@ -33,6 +33,17 @@ install(EXPORT qbuem_jsonTargets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qbuem_json
 )
 
+include(FetchContent)
+
+# Shared dependencies for tests, benchmarks, and fuzzing
+if(QBUEM_JSON_BUILD_TESTS OR QBUEM_JSON_BUILD_BENCHMARKS OR QBUEM_JSON_BUILD_FUZZ)
+    FetchContent_Declare(
+        nlohmann_json
+        URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+    )
+    FetchContent_MakeAvailable(nlohmann_json)
+endif()
+
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file(
     "qbuem_jsonConfigVersion.cmake"
