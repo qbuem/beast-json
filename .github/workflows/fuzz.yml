@@ -1,0 +1,83 @@
+name: Fuzz
+
+# libFuzzer smoke-fuzzing on every change to the parser/serializer.  Each
+# target builds with ASan+UBSan+libFuzzer and runs for a bounded time seeded
+# from the in-repo corpus.  This guards the memory-safety / data-integrity bug
+# classes (buffer overflows, OOB reads, output blow-ups) that unit tests miss.
+#
+# Only the memory-safety targets run here.  The differential/semantic targets
+# (fuzz_diff vs nlohmann, fuzz_roundtrip) intentionally surface KNOWN, documented
+# behavioural differences — chiefly that as<string>() returns the raw (still
+# escaped) slice rather than decoding \uXXXX — so they are excluded from the
+# blocking gate; run them locally when working on string-decoding semantics.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'include/**'
+      - 'fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  pull_request:
+    branches: ["main"]
+    paths:
+      - 'include/**'
+      - 'fuzz/**'
+      - '.github/workflows/fuzz.yml'
+  schedule:
+    # Weekly deeper run (Monday 04:00 UTC) to explore beyond PR-time budget.
+    - cron: '0 4 * * 1'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  fuzz:
+    name: libFuzzer · Clang 18 · x86_64
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Clang 18 + libFuzzer runtime
+      run: |
+        wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 18
+        sudo apt-get install -y libclang-rt-18-dev
+
+    - name: Configure (fuzz targets)
+      run: >
+        cmake -B build-fuzz
+        -DQBUEM_JSON_BUILD_FUZZ=ON
+        -DQBUEM_JSON_BUILD_TESTS=OFF
+        -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
+        -DCMAKE_CXX_COMPILER=clang++-18
+
+    - name: Build fuzz targets
+      run: cmake --build build-fuzz -j3
+
+    - name: Run fuzz targets
+      run: |
+        # PR runs are short; the weekly scheduled run fuzzes each target longer.
+        SECS=45
+        if [ "${{ github.event_name }}" = "schedule" ]; then SECS=300; fi
+        mkdir -p artifacts
+        status=0
+        for t in fuzz_parse fuzz_dom fuzz_nexus fuzz_direct fuzz_pmr \
+                 fuzz_patch fuzz_api_stress fuzz_rfc8259 fuzz_float; do
+          echo "::group::$t (${SECS}s)"
+          if ! ./build-fuzz/fuzz/$t fuzz/corpus -dict=fuzz/json.dict \
+                 -max_len=65536 -rss_limit_mb=4096 -max_total_time=$SECS \
+                 -artifact_prefix="artifacts/$t-"; then
+            echo "::error::$t found a crash"
+            status=1
+          fi
+          echo "::endgroup::"
+        done
+        exit $status
+
+    - name: Upload crash artifacts
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: fuzz-crashes
+        path: artifacts/
+        if-no-files-found: ignore

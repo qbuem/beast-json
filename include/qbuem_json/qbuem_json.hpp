@@ -49,6 +49,19 @@
  * performance.
  *    - `std::to_chars` is the backbone of the "qbuem-json Float/Int" serialization
  * paths.
+ *
+ * 4. Limits & Invariants (enforced at parse time)
+ *    - Max token length: 65535 bytes. A single string or number token longer
+ * than this is REJECTED (the TapeNode length field is 16 bits; accepting it
+ * would silently truncate on dump). Parse returns failure / throws "Invalid
+ * JSON". Whole documents may of course be far larger.
+ *    - Max nesting depth: Parser::kMaxDepth (1088) for the tape engine and 1024
+ * for the rfc8259 validator / Nexus skip path. Deeper input is rejected — this
+ * prevents stack-buffer-overflow / native-stack exhaustion on adversarial
+ * deeply-nested input. All engines reject the same over-deep inputs.
+ *    - `as<std::string>()` / `as<std::string_view>()` return the RAW on-the-wire
+ * slice — escape sequences (\n, \uXXXX, …) are NOT decoded (zero-copy view into
+ * the source). Decode yourself if you need the logical bytes.
  * ============================================================================
  */
 
@@ -91,14 +104,18 @@
 #include <vector>
 
 // ============================================================================
-// Zero-SIMD C++20 Architecture
+// SIMD-Accelerated C++20 Architecture
 // ============================================================================
-// Notice: To achieve universal highest performance, QBUEM-JSON explicitly
-// forbids SIMD intrinsics (<arm_neon.h>, <immintrin.h>) and relies purely
-// on 64-bit SWAR, C++20 branch hints, and consteval arrays.
+// QBUEM-JSON uses architecture-specific SIMD where it wins (AVX-512 / AVX2 /
+// SSE2 on x86-64, NEON on AArch64) for structural indexing and string/number
+// scanning, and falls back to portable 64-bit SWAR + C++20 branch hints +
+// consteval lookup tables on targets without SIMD.  The intrinsic headers
+// (<immintrin.h>, <arm_neon.h>) are included behind the QBUEM_HAS_* guards.
 //
-// No external number parsing libraries (ryu, fast_float) are used. We utilize
-// the proprietary "qbuem-json Float" theory.
+// Number conversion is self-contained (no ryu/fast_float dependency): the
+// serializer uses Schubfach (double->decimal) + yy-itoa (integer->decimal),
+// and the parser uses Eisel-Lemire with a Russ-Cox unrounded-scaling second
+// stage and a std::strtod backstop.  All number code is scalar.
 
 // ============================================================================
 // Platform Detection
@@ -279,7 +296,7 @@ using String = std::pmr::string;
 template <typename T> using Vector = std::pmr::vector<T>;
 using Allocator = std::pmr::polymorphic_allocator<char>;
 #else
-#error "qbuem-json (Zero-SIMD) requires a C++20 compatible compiler."
+#error "qbuem-json requires a C++20 compatible compiler."
 #endif
 
 namespace simd {
@@ -2833,7 +2850,7 @@ public:
     // Hot path: root dump (idx_==0) — original loop, zero extra overhead.
     size_t mutation_extra = 0;
     for (const auto &[k, m] : doc_->mutations_)
-      mutation_extra += m.data.size() + 16;
+      mutation_extra += m.data.size() * 6 + 16; // *6: worst-case escape growth
     // Account for per-token overhead (quotes, colons, commas) + safety margin
     const size_t buf_cap = doc_->source.size() + (ntape * 2) + 64 + mutation_extra;
     std::string out;
@@ -2889,8 +2906,7 @@ public:
             break;
           case TapeNodeType::StringRaw:
             *w++ = '"';
-            std::memcpy(w, m.data.data(), m.data.size());
-            w += m.data.size();
+            w = write_escaped_(w, m.data); // escape user-set string content
             *w++ = '"';
             break;
           default: // Integer, Double
@@ -3116,8 +3132,12 @@ public:
     const size_t ntape = doc_->tape.size();
     size_t mutation_extra2 = 0;
     for (const auto &[k, m] : doc_->mutations_)
-      mutation_extra2 += m.data.size() + 16;
-    const size_t buf_cap = doc_->source.size() + 16 + mutation_extra2;
+      mutation_extra2 += m.data.size() * 6 + 16; // *6: worst-case escape growth
+    // + (ntape * 2): the relaxed parser accepts separator-less tokens, so the
+    // compact dump can insert separators absent from the source and exceed
+    // source.size() (matches the no-arg dump() bound; prevents overflow).
+    const size_t buf_cap =
+        doc_->source.size() + (ntape * 2) + 64 + mutation_extra2;
 
     // last_dump_size_ cache — root-only (avoids cross-contamination
     // with subtree dump sizes which would undersize the buffer and overflow).
@@ -3163,8 +3183,7 @@ public:
             break;
           case TapeNodeType::StringRaw:
             *w++ = '"';
-            std::memcpy(w, m.data.data(), m.data.size());
-            w += m.data.size();
+            w = write_escaped_(w, m.data); // escape user-set string content
             *w++ = '"';
             break;
           default:
@@ -4205,12 +4224,40 @@ private:
     char *p = detail::qj_nc::to_chars(buf, static_cast<double>(v));
     return std::string(buf, p);
   }
+  // Write s as an escaped JSON string body (no surrounding quotes) into w,
+  // returning the new write pointer.  Used by the mutation/insert paths so
+  // user-supplied bytes containing '"', '\\', or control characters produce
+  // valid JSON.  Worst-case expansion is 6x (control char -> \u00XX), which
+  // callers must account for when sizing buffers.
+  static char *write_escaped_(char *w, std::string_view s) {
+    static constexpr char kHex[] = "0123456789abcdef";
+    for (unsigned char c : s) {
+      switch (c) {
+      case '"':  *w++ = '\\'; *w++ = '"';  break;
+      case '\\': *w++ = '\\'; *w++ = '\\'; break;
+      case '\b': *w++ = '\\'; *w++ = 'b';  break;
+      case '\f': *w++ = '\\'; *w++ = 'f';  break;
+      case '\n': *w++ = '\\'; *w++ = 'n';  break;
+      case '\r': *w++ = '\\'; *w++ = 'r';  break;
+      case '\t': *w++ = '\\'; *w++ = 't';  break;
+      default:
+        if (c < 0x20) {
+          *w++ = '\\'; *w++ = 'u'; *w++ = '0'; *w++ = '0';
+          *w++ = kHex[c >> 4]; *w++ = kHex[c & 0xF];
+        } else {
+          *w++ = static_cast<char>(c);
+        }
+      }
+    }
+    return w;
+  }
   static std::string scalar_to_json_(std::string_view s) {
-    std::string r;
-    r.reserve(s.size() + 2);
-    r += '"';
-    r.append(s.data(), s.size());
-    r += '"';
+    std::string r(s.size() * 6 + 2, '\0');
+    char *w = r.data();
+    *w++ = '"';
+    w = write_escaped_(w, s);
+    *w++ = '"';
+    r.resize(static_cast<size_t>(w - r.data()));
     return r;
   }
   static std::string scalar_to_json_(const std::string &s) {
@@ -4231,10 +4278,16 @@ private:
 
     size_t mutation_extra = 0;
     for (const auto &[k, m] : doc_->mutations_)
-      mutation_extra += m.data.size() + 16;
-    // Conservative upper bound: subtree ≤ full source
+      mutation_extra += m.data.size() * 6 + 16; // *6: worst-case escape growth
+    // Upper bound: subtree content ≤ full source, plus up to 2 chars per tape
+    // node for separators/quotes the compact serializer inserts.  The relaxed
+    // parser accepts separator-less tokens (e.g. "[1 2 3]" or "2e-3-4"), so the
+    // dumped form can be LONGER than the source slice — the (end_i - idx_) * 2
+    // term covers those added separators (mirrors the root dump() bound and
+    // fixes a heap-buffer-overflow on such inputs).
     std::string out;
-    out.resize(doc_->source.size() + 16 + mutation_extra);
+    out.resize(doc_->source.size() +
+               static_cast<size_t>(end_i - idx_) * 2 + 64 + mutation_extra);
     char *w = out.data();
     char *w0 = w;
 
@@ -4268,8 +4321,7 @@ private:
             break;
           case TapeNodeType::StringRaw:
             *w++ = '"';
-            std::memcpy(w, m.data.data(), m.data.size());
-            w += m.data.size();
+            w = write_escaped_(w, m.data); // escape user-set string content
             *w++ = '"';
             break;
           default:
@@ -4351,9 +4403,7 @@ private:
       out += "false";
       break;
     case TapeNodeType::StringRaw:
-      out += '"';
-      out.append(m.data);
-      out += '"';
+      out += scalar_to_json_(m.data); // quoted + escaped
       break;
     default: // Integer, Double
       out.append(m.data);
@@ -4616,10 +4666,16 @@ private:
   }
 
   // Pretty-print recursive helper
-  void dump_pretty_(std::string &out, int indent_size, int depth) const {
+  // Returns the tape index just past the value dumped, so callers advance by
+  // the recursion's actual consumption rather than a second skip_value_ walk.
+  // This single linear pass visits each tape node at most once, preventing the
+  // super-linear / exponential output blow-up that skip_value_-per-element
+  // advancement caused on relaxed (separator-/bracket-mismatched) tapes — a
+  // 449-byte input previously expanded to a 413 MB pretty dump.
+  uint32_t dump_pretty_(std::string &out, int indent_size, int depth) const {
     if (!doc_) {
       out += "null";
-      return;
+      return idx_ + 1;
     }
     const TapeNodeType root_type = doc_->tape[idx_].type();
 
@@ -4646,10 +4702,9 @@ private:
         out.append(doc_->source.data() + kn.offset, kn.length());
         out += '"';
         out += ": ";
-        Value val_v(doc_, i + 1);
-        val_v.dump_pretty_(out, indent_size, depth + 1);
+        // Advance by the recursion's own end index (linear, no re-walk).
+        i = Value(doc_, i + 1).dump_pretty_(out, indent_size, depth + 1);
         first = false;
-        i = skip_value_(i + 1);
       }
       // additions
       if (!doc_->additions_.empty()) {
@@ -4673,6 +4728,7 @@ private:
         out += close_pad;
       }
       out += '}';
+      return (i < ntape) ? i + 1 : i; // index past the ObjectEnd node
     } else if (root_type == TapeNodeType::ArrayStart) {
       out += '[';
       bool first = true;
@@ -4689,10 +4745,9 @@ private:
           out += ',';
         out += '\n';
         out += pad;
-        Value elem_v(doc_, i);
-        elem_v.dump_pretty_(out, indent_size, depth + 1);
+        // Advance by the recursion's own end index (linear, no re-walk).
+        i = Value(doc_, i).dump_pretty_(out, indent_size, depth + 1);
         first = false;
-        i = skip_value_(i);
       }
       // additions
       if (!doc_->additions_.empty()) {
@@ -4713,9 +4768,11 @@ private:
         out += close_pad;
       }
       out += ']';
+      return (i < ntape) ? i + 1 : i; // index past the ArrayEnd node
     } else {
       // scalar — just use fast dump()
       out += dump();
+      return idx_ + 1;
     }
   }
 };
@@ -5241,7 +5298,13 @@ class Parser {
   // open/close bracket events (infrequent: ~8% of tokens in twitter.json).
   // Supports up to depth 1087 (same as old bit-stack + overflow).
   uint8_t cur_state_ = 0;
-  uint8_t cstate_stack_[1088] = {};
+  // Maximum structural nesting depth.  Inputs nested deeper than this are
+  // rejected at parse time.  Without this cap, each '{'/'[' writes
+  // cstate_stack_[depth_] with no bound check, so adversarial deeply-nested
+  // input (e.g. "[[[[…") overruns the stack array — a stack-buffer-overflow
+  // on untrusted input.  1088 is far beyond any real-world JSON nesting.
+  static constexpr uint32_t kMaxDepth = 1088;
+  uint8_t cstate_stack_[kMaxDepth] = {};
 
   // Technique 8: local tape_head_ register variable.
   // Kept as a field but initialized from doc_->tape.base in parse().
@@ -6002,6 +6065,11 @@ class Parser {
     if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
       return 0; // malformed
   skn_found:
+    // Reject keys longer than the 16-bit length field (cache-hit path is
+    // already bounded since cached lengths are uint16_t).  Cold: only reached
+    // on the first occurrence of each key / cache misses.
+    if (QBUEM_UNLIKELY(static_cast<size_t>(e - s) > 0xFFFFu))
+      return 0;
     // record key length for future cache hits (first-pass learning).
     if (QBUEM_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
       const uint8_t kidx = kc_.key_idx[kd];
@@ -6128,6 +6196,8 @@ public:
         // Nested objects/arrays are not valid object keys (RFC 8259 §4).
         if (QBUEM_UNLIKELY(cur_state_ & 0b001u))
           goto fail;
+        if (QBUEM_UNLIKELY(depth_ >= kMaxDepth))
+          goto fail;
         push(TapeNodeType::ObjectStart, 0, static_cast<uint32_t>(p_ - data_));
         // save parent state, init new object context.
         // cstate_stack_[depth_] saves cur_state_ for restore on close.
@@ -6149,6 +6219,8 @@ public:
       }
       case kActArrOpen: {
         if (QBUEM_UNLIKELY(cur_state_ & 0b001u))
+          goto fail;
+        if (QBUEM_UNLIKELY(depth_ >= kMaxDepth))
           goto fail;
         push(TapeNodeType::ArrayStart, 0, static_cast<uint32_t>(p_ - data_));
         // save parent state, init new array context.
@@ -6207,8 +6279,9 @@ public:
           }
           // mask==0: bytes [s, s+64) clean → skip_string_from64
           e = skip_string_from64(s);
-          if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
-            goto fail;
+          if (QBUEM_UNLIKELY(e >= end_ || *e != '"' ||
+                             static_cast<size_t>(e - s) > 0xFFFFu))
+            goto fail; // bad close, or token > 16-bit length field
           push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                static_cast<uint32_t>(s - data_));
           p_ = e + 1;
@@ -6243,8 +6316,9 @@ public:
           // scan_string_end's SWAR-8 gate (~11 instructions saved per
           // call).
           e = skip_string_from32(s);
-          if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
-            goto fail;
+          if (QBUEM_UNLIKELY(e >= end_ || *e != '"' ||
+                             static_cast<size_t>(e - s) > 0xFFFFu))
+            goto fail; // bad close, or token > 16-bit length field
           push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                static_cast<uint32_t>(s - data_));
           p_ = e + 1;
@@ -6292,8 +6366,9 @@ public:
           // [s, s+32) clean: long string — skip_string_from32 starts
           // SWAR-8 at s+32, avoiding rescan of the clean first 32B.
           e = skip_string_from32(s);
-          if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
-            goto fail;
+          if (QBUEM_UNLIKELY(e >= end_ || *e != '"' ||
+                             static_cast<size_t>(e - s) > 0xFFFFu))
+            goto fail; // bad close, or token > 16-bit length field
           push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
                static_cast<uint32_t>(s - data_));
           p_ = e + 1;
@@ -6363,8 +6438,9 @@ public:
       str_slow:
         // Strings >24 bytes or containing backslash — full SWAR-16 scanner
         e = skip_string(s);
-        if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
-          goto fail;
+        if (QBUEM_UNLIKELY(e >= end_ || *e != '"' ||
+                           static_cast<size_t>(e - s) > 0xFFFFu))
+          goto fail; // bad close, or token > 16-bit length field
         push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
              static_cast<uint32_t>(s - data_));
         p_ = e + 1;
@@ -6664,6 +6740,8 @@ public:
           }
 #undef QBUEM_SKIP_DIGITS
         }
+        if (QBUEM_UNLIKELY(static_cast<size_t>(p_ - s) > 0xFFFFu))
+          goto fail; // number literal longer than 16-bit length field
         push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
              static_cast<uint16_t>(p_ - s), static_cast<uint32_t>(s - data_));
 
@@ -6812,6 +6890,12 @@ public:
       switch (static_cast<ActionId>(kActionLut[static_cast<uint8_t>(c)])) {
 
       case kActObjOpen: {
+        // A nested object/array is not a valid object key (RFC 8259 §4) —
+        // matches parse() so both engines accept/reject identically.
+        if (QBUEM_UNLIKELY(cur_state_ & 0b001u))
+          goto s2_fail;
+        if (QBUEM_UNLIKELY(depth_ >= kMaxDepth))
+          goto s2_fail;
         push(TapeNodeType::ObjectStart, 0, off);
         // save parent state, init new object context.
         cstate_stack_[depth_] = cur_state_;
@@ -6825,6 +6909,10 @@ public:
       }
 
       case kActArrOpen: {
+        if (QBUEM_UNLIKELY(cur_state_ & 0b001u))
+          goto s2_fail; // not a valid object key (RFC 8259 §4)
+        if (QBUEM_UNLIKELY(depth_ >= kMaxDepth))
+          goto s2_fail;
         push(TapeNodeType::ArrayStart, 0, off);
         // save parent state, init new array context.
         cstate_stack_[depth_] = cur_state_;
@@ -6851,6 +6939,8 @@ public:
         if (QBUEM_UNLIKELY(i >= n))
           goto s2_fail;
         const uint32_t close_off = pos[i++]; // consume closing '"'
+        if (QBUEM_UNLIKELY(close_off - off - 1 > 0xFFFFu))
+          goto s2_fail; // string longer than 16-bit length field
         push(TapeNodeType::StringRaw,
              static_cast<uint16_t>(close_off - off - 1),
              off + 1); // offset = first char inside string
@@ -6863,6 +6953,8 @@ public:
         // alternation internally.
 
       case kActNumber: {
+        if (QBUEM_UNLIKELY(cur_state_ & 0b001u))
+          goto s2_fail; // a number is not a valid object key (RFC 8259 §4)
         // Scan integer/float from data_[off]; push raw token.
         const char *s = data_ + off;
         const char *pn = s;
@@ -6929,6 +7021,8 @@ public:
               ++pn;
           }
         }
+        if (QBUEM_UNLIKELY(static_cast<size_t>(pn - s) > 0xFFFFu))
+          goto s2_fail; // number literal longer than 16-bit length field
         push(flt ? TapeNodeType::NumberRaw : TapeNodeType::Integer,
              static_cast<uint16_t>(pn - s), off);
         last_off = static_cast<uint32_t>(pn - data_);
@@ -6936,15 +7030,17 @@ public:
       }
 
       case kActTrue:
-        if (QBUEM_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
+        if (QBUEM_UNLIKELY((cur_state_ & 0b001u) ||
+                           off + 4 > static_cast<uint32_t>(end_ - data_) ||
                            std::memcmp(data_ + off, "true", 4)))
-          goto s2_fail;
+          goto s2_fail; // (cur_state_&1): not a valid object key
         push(TapeNodeType::BooleanTrue, 4, off);
         last_off = off + 4;
         break;
 
       case kActFalse:
-        if (QBUEM_UNLIKELY(off + 5 > static_cast<uint32_t>(end_ - data_) ||
+        if (QBUEM_UNLIKELY((cur_state_ & 0b001u) ||
+                           off + 5 > static_cast<uint32_t>(end_ - data_) ||
                            std::memcmp(data_ + off, "false", 5)))
           goto s2_fail;
         push(TapeNodeType::BooleanFalse, 5, off);
@@ -6952,7 +7048,8 @@ public:
         break;
 
       case kActNull:
-        if (QBUEM_UNLIKELY(off + 4 > static_cast<uint32_t>(end_ - data_) ||
+        if (QBUEM_UNLIKELY((cur_state_ & 0b001u) ||
+                           off + 4 > static_cast<uint32_t>(end_ - data_) ||
                            std::memcmp(data_ + off, "null", 4)))
           goto s2_fail;
         push(TapeNodeType::Null, 4, off);
@@ -7427,7 +7524,17 @@ DocumentState::get_synthetic(const ::std::string &json_str) const {
     return it->second.get();
 
   DocumentView synth_handle(json_str);
-  parse_reuse(synth_handle, json_str);
+  // parse_reuse throws on unparseable input.  get_synthetic is reached from
+  // noexcept accessors (operator[], dump helpers), so an escape here would
+  // call std::terminate.  An inserted value can be unparseable when its
+  // serialized form exceeds the 64KB token limit (e.g. a short string whose
+  // escaped \uXXXX expansion crosses 65535 bytes) — return nullptr so callers
+  // produce an invalid Value instead of crashing.
+  try {
+    parse_reuse(synth_handle, json_str);
+  } catch (...) {
+    return nullptr;
+  }
 
   DocumentState *s = synth_handle.state();
   // Transfer ownership to shared_ptr. The handle has 1 ref.
@@ -7508,6 +7615,11 @@ struct Validator {
   const char *p;
   const char *end;
   const char *begin;
+  // Recursive-descent nesting depth.  Without a cap, adversarial deeply-nested
+  // input (e.g. "[[[[…") exhausts the native call stack → SIGSEGV.  Mirrors the
+  // tape Parser's kMaxDepth bound so all engines reject the same inputs.
+  uint32_t depth = 0;
+  static constexpr uint32_t kMaxDepth = 1024;
 
   void ws() noexcept {
     while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r'))
@@ -7665,11 +7777,17 @@ struct Validator {
     char c = *p;
     if (c == '"')
       parse_string();
-    else if (c == '{')
+    else if (c == '{') {
+      if (++depth > kMaxDepth)
+        fail("nesting too deep", p, begin);
       parse_object();
-    else if (c == '[')
+      --depth;
+    } else if (c == '[') {
+      if (++depth > kMaxDepth)
+        fail("nesting too deep", p, begin);
       parse_array();
-    else if (c == 't')
+      --depth;
+    } else if (c == 't')
       expect_literal("true", 4);
     else if (c == 'f')
       expect_literal("false", 5);
@@ -7773,15 +7891,6 @@ constexpr uint64_t fnv1a_hash(std::string_view s) {
   uint64_t hash = 0xcbf29ce484222325ULL;
   for (char c : s) {
     hash ^= static_cast<uint64_t>(c);
-    hash *= 0x100000001b3ULL;
-  }
-  return hash;
-}
-
-consteval uint64_t fnv1a_hash_ce(const char *s) {
-  uint64_t hash = 0xcbf29ce484222325ULL;
-  while (*s) {
-    hash ^= static_cast<uint64_t>(*s++);
     hash *= 0x100000001b3ULL;
   }
   return hash;
@@ -8445,24 +8554,10 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   ::qbuem::json::detail::from_json_field(v, #f, obj.f);
 #define QBUEM_JSON_DETAIL_WRITE(f)                                             \
   ::qbuem::json::detail::to_json_field(v, #f, obj.f);
-#define QBUEM_JSON_DETAIL_APPEND(f)                                            \
-  out += "\"" #f "\":";                                                        \
-  ::qbuem::json::detail::append_json(out, obj.f);                              \
-  out += ',';
-
 #define QBUEM_JSON_DETAIL_PULSE(f)                                             \
   case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
     ::qbuem::json::detail::from_json_direct(p, end, obj.f);                    \
     break;
-
-// QBUEM_JSON_DETAIL_APPEND_OPT — legacy path (used if QBUEM_JSON_DETAIL_APPEND_FW not available)
-#define QBUEM_JSON_DETAIL_APPEND_OPT(f)                                        \
-  {                                                                            \
-    static constexpr ::std::string_view kf = "\"" #f "\":";                    \
-    out.append(kf.data(), kf.size());                                          \
-  }                                                                            \
-  ::qbuem::json::detail::append_json(out, obj.f);                              \
-  out += ',';
 
 // QBUEM_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
 #define QBUEM_JSON_DETAIL_APPEND_FW(f)                                         \
@@ -8875,9 +8970,16 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
         out.assign(start, p - start);
         ++p;
       } else {
-        // Slow path: handle escape sequences
+        // Slow path: handle escape sequences.  A trailing backslash (input
+        // ending in '\') must NOT advance past end — "p += 2" there overruns
+        // the buffer and out.assign() then reads out of bounds.
         while (p < end && *p != '"') {
-          if (*p == '\\') p += 2; else ++p;
+          if (*p == '\\') {
+            if (p + 1 < end) p += 2; // escape + escaped char
+            else { p = end; break; } // dangling backslash at end of input
+          } else {
+            ++p;
+          }
         }
         out.assign(start, p - start);
         if (p < end) ++p;
@@ -8893,6 +8995,7 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       ++p;
       detail::ws(p, end);
       while (p < end && *p != '}') {
+        const char *before = p;
         std::string key;
         from_json_direct(p, end, key);
         detail::ws(p, end);
@@ -8907,6 +9010,9 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
           ++p;
           detail::ws(p, end);
         }
+        // Guarantee forward progress on un-consumable input (avoids an
+        // infinite emplace loop → OOM).
+        if (p == before) break;
       }
       if (p < end)
         ++p;
@@ -8937,11 +9043,16 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
     if (p < end && *p == '[') {
       ++p; while (p < end && (unsigned char)*p <= 32) ++p;
       while (p < end && *p != ']') {
+        const char *before = p;
         typename T::value_type item{};
         from_json_direct(p, end, item);
         out.push_back(std::move(item));
         while (p < end && (unsigned char)*p <= 32) ++p;
         if (p < end && *p == ',') { ++p; while (p < end && (unsigned char)*p <= 32) ++p; }
+        // Guarantee forward progress: an un-consumable element (e.g. a '"' where
+        // an int is expected) would otherwise spin forever, push_back-ing until
+        // OOM (small input -> multi-GB vector).
+        if (p == before) break;
       }
       if (p < end) ++p;
     } else {
@@ -8977,11 +9088,6 @@ template <typename T> inline void NexusScanner::fill(T &obj) {
     if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
   }
   if (p < end) ++p;
-}
-
-template <typename T>
-inline void from_json_field_fallback(const Value &v, T &/*obj*/, const char */*fields*/) {
-  if (!v.is_object()) return;
 }
 
 } // namespace json::detail
@@ -9024,6 +9130,12 @@ template <typename T> T fuse_strict(::std::string_view json) {
     T obj{};
     json::detail::NexusScanner scanner{json.data(), json.data() + json.size(), json.data()};
     scanner.fill(obj);
+    // Reject trailing content after the root object (matches parse_strict /
+    // rfc8259::validate), so "{...}garbage" is an error in strict mode.
+    scanner.ws();
+    if (scanner.p != scanner.end)
+      json::detail::nexus_type_error("end-of-input", scanner.p, scanner.end,
+                                     json.data());
     json::detail::nexus_strict_mode() = false;
     return obj;
   } catch (...) {
