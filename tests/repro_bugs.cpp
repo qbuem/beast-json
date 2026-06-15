@@ -30,6 +30,14 @@ QBUEM_JSON_FIELDS(FuseVec, v)
 struct U64Rec { uint64_t x; };
 QBUEM_JSON_FIELDS(U64Rec, x)
 
+// Structs for the Nexus security regression tests.
+struct AdminRec { long is_admin_lvl; std::string owner; };
+QBUEM_JSON_FIELDS(AdminRec, is_admin_lvl, owner)
+struct TreeNode { long v; std::vector<TreeNode> kids; };
+QBUEM_JSON_FIELDS(TreeNode, v, kids)
+struct AbcRec { long a; std::string b; std::string c; };
+QBUEM_JSON_FIELDS(AbcRec, a, b, c)
+
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
   Document doc;
@@ -431,8 +439,9 @@ TEST(DataIntegrity, InsertEscapesStringContent) {
   Value root2 = parse(doc, "{}");
   char ctrl[] = {(char)0x01, (char)0x1f};
   root2.insert("c", std::string_view(ctrl, sizeof(ctrl)));
+  const std::string out2 = root2.dump(); // hold: parse() borrows the buffer
   Document d2;
-  EXPECT_NO_THROW(parse(d2, root2.dump()));
+  EXPECT_NO_THROW(parse(d2, out2));
 }
 
 TEST(DataIntegrity, SetEscapesStringContent) {
@@ -440,8 +449,9 @@ TEST(DataIntegrity, SetEscapesStringContent) {
   Value root = parse(doc, R"({"k":"orig"})");
   root["k"].set(std::string_view("x\"y\\z\n"));
   EXPECT_EQ(root.dump(), R"({"k":"x\"y\\z\n"})");
+  const std::string out = root.dump(); // hold: parse() borrows the buffer
   Document d2;
-  EXPECT_NO_THROW(parse(d2, root.dump()));
+  EXPECT_NO_THROW(parse(d2, out));
 }
 
 // ── INTEGRITY: the relaxed parser accepts separator-less tokens, so the
@@ -650,6 +660,52 @@ TEST(TypeSafety, SerializeUnsigned64RoundTrips) {
   std::string j = qbuem::write(s);
   EXPECT_NE(j.find("18446744073709551615"), std::string::npos);
   EXPECT_EQ(qbuem::read<U64Rec>(j).x, umax);
+}
+
+// ── SECURITY: dump_changes_ used a fixed Frame stk[64] while the parser allows
+// nesting to 1088; a valid deep doc + any mutation + dump() smashed the stack.
+TEST(SecurityHardening, DumpChangesDeepNestNoStackSmash) {
+  std::string j(300, '[');
+  j += "1";
+  j.append(300, ']');
+  Document doc;
+  Value r = parse(doc, j);
+  Value cur = r;
+  for (int i = 0; i < 299; ++i)
+    cur = cur[size_t(0)];
+  cur.push_back(9); // route dump() to dump_changes_
+  EXPECT_NO_THROW(r.dump());
+}
+
+// ── SECURITY: Nexus dispatch is by key hash; the hash is collision-prone, so a
+// colliding untrusted key must NOT be routed into a field it doesn't name.
+TEST(SecurityHardening, NexusHashCollisionNoFieldSpoof) {
+  // "iS_adMin_Lvl" collides with "is_admin_lvl" under fast_key_hash.
+  auto r = qbuem::fuse<AdminRec>(R"({"owner":"bob","iS_adMin_Lvl":99})");
+  EXPECT_EQ(r.is_admin_lvl, 0); // spoof rejected (not 99)
+  auto r2 = qbuem::fuse<AdminRec>(R"({"is_admin_lvl":7,"owner":"x"})");
+  EXPECT_EQ(r2.is_admin_lvl, 7); // legitimate key still works
+}
+
+// ── SECURITY: Nexus typed recursion (recursive struct) must be depth-bounded,
+// not crash the stack on deeply-nested untrusted input.
+TEST(SecurityHardening, NexusDeepRecursionRejected) {
+  const int D = 30000;
+  std::string j;
+  for (int i = 0; i < D; ++i)
+    j += "{\"kids\":[";
+  j += "{\"v\":1}";
+  for (int i = 0; i < D; ++i)
+    j += "]}";
+  EXPECT_THROW(qbuem::fuse<TreeNode>(j), std::runtime_error);
+}
+
+// ── SECURITY/INTEGRITY: a type-mismatched value (string where number expected)
+// must not desync the cursor and silently drop the rest of the object.
+TEST(SecurityHardening, NexusCursorNoFieldDrop) {
+  auto r = qbuem::fuse<AbcRec>(R"({"a":"X","b":"BEE","c":"CEE"})");
+  EXPECT_EQ(r.b, "BEE");
+  EXPECT_EQ(r.c, "CEE");
 }
 
 int main(int argc, char **argv) {
