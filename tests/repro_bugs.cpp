@@ -6,7 +6,23 @@
 #include <set>
 #include <string>
 
+// A minimized (ASCII-sanitized) heterogeneous-sibling-objects document derived
+// from twitter.json, used by the KeyLenCache regression test below.
+#include "keycache_regression.inc"
+
 using namespace qbuem;
+
+// Struct used by the Nexus (fuse) data-integrity tests below.
+struct FuseRec { int a; long b; };
+QBUEM_JSON_FIELDS(FuseRec, a, b)
+
+// Struct with string fields to exercise the Nexus from_json_direct<string> path.
+struct FuseStr { std::string s; std::optional<std::string> o; };
+QBUEM_JSON_FIELDS(FuseStr, s, o)
+
+// Struct with a vector to exercise the Nexus sequence-decoding loop.
+struct FuseVec { std::vector<int> v; };
+QBUEM_JSON_FIELDS(FuseVec, v)
 
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
@@ -335,6 +351,235 @@ TEST(Observations, TryAsArrayNeverThrows) {
     for ([[maybe_unused]] auto maybe : v.try_as_array<int>()) {
     }
   });
+}
+
+// ── SEC: deeply-nested input must be rejected, never overflow the stack ──────
+// Before the fix, the tape Parser wrote cstate_stack_[depth_] with no bound
+// check (stack-buffer-overflow) and the RFC validator recursed unboundedly
+// (SIGSEGV).  These tests must not crash.
+TEST(SecurityHardening, DeepNestedArrayRejectedNoCrash) {
+  std::string json(5000, '[');
+  json.append(5000, ']');
+  Document doc;
+  EXPECT_THROW(parse(doc, json), std::runtime_error);
+}
+
+TEST(SecurityHardening, DeepNestedObjectRejectedNoCrash) {
+  std::string json;
+  for (int i = 0; i < 3000; ++i)
+    json += "{\"a\":";
+  json += "1";
+  json.append(3000, '}');
+  Document doc;
+  EXPECT_THROW(parse(doc, json), std::runtime_error);
+}
+
+TEST(SecurityHardening, ShallowNestingStillParses) {
+  std::string json(500, '[');
+  json.append(500, ']');
+  Document doc;
+  EXPECT_NO_THROW(parse(doc, json));
+}
+
+TEST(SecurityHardening, ValidatorRejectsDeepNesting) {
+  std::string json(50000, '[');
+  json.append(50000, ']');
+  EXPECT_THROW(rfc8259::validate(json), std::runtime_error);
+}
+
+// ── INTEGRITY: tokens larger than the 16-bit length field were silently
+// truncated (round-trip corruption).  They must now be rejected cleanly.
+TEST(DataIntegrity, OversizeStringTokenRejected) {
+  std::string big(70000, 'a');
+  std::string json = "{\"k\":\"" + big + "\"}";
+  Document doc;
+  EXPECT_THROW(parse(doc, json), std::runtime_error);
+}
+
+TEST(DataIntegrity, SubMaxStringTokenRoundTrips) {
+  std::string big(60000, 'a'); // < 65535: must parse and round-trip exactly
+  std::string json = "{\"k\":\"" + big + "\"}";
+  Document doc;
+  Value r = parse(doc, json);
+  EXPECT_EQ(r["k"].as<std::string>().size(), 60000u);
+  EXPECT_EQ(r.dump(), json);
+}
+
+TEST(DataIntegrity, OversizeNumberTokenRejected) {
+  std::string num(70000, '1');
+  std::string json = "[" + num + "]";
+  Document doc;
+  EXPECT_THROW(parse(doc, json), std::runtime_error);
+}
+
+// ── INTEGRITY: insert()/set() must JSON-escape string content so the output
+// is valid JSON.
+TEST(DataIntegrity, InsertEscapesStringContent) {
+  Document doc;
+  Value root = parse(doc, "{}");
+  root.insert("k", std::string_view("a\"b\\c\n\t"));
+  // '"', '\\', '\n', '\t' must be escaped → output is exact valid JSON.
+  EXPECT_EQ(root.dump(), R"({"k":"a\"b\\c\n\t"})");
+
+  // Control characters (< 0x20) escape to \u00XX; output must re-parse cleanly.
+  Value root2 = parse(doc, "{}");
+  char ctrl[] = {(char)0x01, (char)0x1f};
+  root2.insert("c", std::string_view(ctrl, sizeof(ctrl)));
+  Document d2;
+  EXPECT_NO_THROW(parse(d2, root2.dump()));
+}
+
+TEST(DataIntegrity, SetEscapesStringContent) {
+  Document doc;
+  Value root = parse(doc, R"({"k":"orig"})");
+  root["k"].set(std::string_view("x\"y\\z\n"));
+  EXPECT_EQ(root.dump(), R"({"k":"x\"y\\z\n"})");
+  Document d2;
+  EXPECT_NO_THROW(parse(d2, root.dump()));
+}
+
+// ── INTEGRITY: the relaxed parser accepts separator-less tokens, so the
+// compact dump inserts separators and the output is LONGER than the source
+// slice.  This previously overflowed the dump() / dump(buf) / dump_subtree_
+// output buffers (heap-buffer-overflow, found by fuzz_parse under ASan).
+TEST(DataIntegrity, RelaxedSeparatorlessDumpNoOverflow) {
+  std::string inner(200, '-'); // 200 single-'-' number tokens, no separators
+  std::string json = "[[" + inner + "]]";
+  Document doc;
+  Value r = parse(doc, json);
+  // Root dump (no-arg): output must be valid and longer than the source.
+  std::string d0 = r.dump();
+  EXPECT_GT(d0.size(), json.size());
+  // Root buffer-reuse dump(buf) variant must produce the same output.
+  std::string buf;
+  r.dump(buf);
+  EXPECT_EQ(buf, d0);
+  // Subtree dump (idx_ != 0) exercises dump_subtree_.
+  std::string sub = r[0].dump();
+  EXPECT_GT(sub.size(), inner.size());
+  Document d2;
+  EXPECT_NO_THROW(parse(d2, sub)); // dumped subtree is well-formed
+}
+
+// ── INTEGRITY: pretty-printing a relaxed/malformed tape must not blow up.
+// This 449-byte fuzz artifact (found by fuzz_parse) previously expanded to a
+// ~413 MB dump(2) output (≈1.26-million× amplification, ~1s CPU) because
+// dump_pretty_ advanced via skip_value_ per element and re-traversed subtrees
+// on the bracket-mismatched tape.  The linear single-pass rewrite bounds it.
+TEST(DataIntegrity, PrettyPrintNoExponentialBlowup) {
+  static const unsigned char kBytes[] = {
+      91,91,91,49,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+      0,49,44,0,50,125,44,110,117,108,108,91,44,93,44,50,91,52,93,49,
+      44,50,125,44,91,44,0,49,44,110,117,108,108,91,44,93,44,49,91,44,
+      52,50,93,50,125,44,91,44,0,49,125,91,50,44,91,91,91,49,0,48,
+      0,0,0,0,50,91,52,93,49,44,50,125,44,91,44,0,49,125,91,50,
+      44,110,117,108,108,91,44,93,44,50,91,52,93,49,44,50,125,44,91,50,
+      44,52,49,44,1,125,12,91,50,44,52,50,44,0,0,0,0,0,93,91,
+      49,44,0,50,125,44,110,117,108,108,91,44,93,44,50,91,52,93,49,44,
+      50,125,44,91,44,0,49,125,91,50,44,110,117,108,108,91,44,93,44,50,
+      91,52,93,49,44,50,125,44,91,34,34,58,0,0,0,16,25,0,0,0,
+      0,0,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,14,
+      14,14,14,14,14,14,14,14,0,49,44,52,49,44,1,0,50,91,52,93,
+      49,44,50,125,44,91,44,0,49,125,91,50,44,110,117,108,108,91,44,93,
+      44,50,91,52,44,0,49,125,91,50,44,110,117,108,108,91,44,93,44,50,
+      91,52,93,49,44,50,125,44,91,50,44,52,49,44,1,125,12,91,50,44,
+      52,50,44,0,0,0,0,0,93,91,49,44,0,50,125,44,110,117,108,108,
+      91,44,93,44,50,91,52,93,49,44,50,125,44,91,44,0,49,125,91,50,
+      44,110,117,108,108,91,44,93,44,50,91,52,93,49,44,50,125,44,91,110,
+      117,108,108,91,44,93,44,50,52,91,93,49,34,34,58,0,0,0,0,25,
+      0,0,0,0,0,14,14,14,14,14,14,14,14,0,44,50,125,44,91,44,
+      52,93,49,44,52,49,44,1,93,125,12,91,50,44,52,50,44,52,49,44,
+      1,125,12,91,7,44,52,93,93};
+  std::string in(reinterpret_cast<const char *>(kBytes), sizeof(kBytes));
+  Document doc;
+  Value r = parse(doc, in); // relaxed parser accepts this byte soup
+  const std::string compact = r.dump();
+  const std::string pretty = r.dump(2);
+  // Old behaviour: pretty ≈ 1.26e6× compact.  A generous linear bound still
+  // catches any reintroduced super-linear blow-up.
+  EXPECT_LT(pretty.size(), compact.size() * 4096u + 4096u);
+}
+
+// ── INTEGRITY: a JSON input ending in a dangling backslash inside a string
+// value must not over-read.  from_json_direct<string>'s escape slow-path did
+// "p += 2" on a trailing '\', pushing p past end, then out.assign() read out
+// of bounds (found by fuzz_nexus + fuzz_direct under ASan).
+TEST(DataIntegrity, NexusTrailingBackslashNoOverread) {
+  const std::string a = std::string("{\"s\":\"abc") + '\\';      // ...abc\<EOF>
+  const std::string b = std::string("{\"o\":\"x") + "\\\\\\";    // ...x\\\<EOF>
+  EXPECT_NO_THROW({ auto r = qbuem::fuse<FuseStr>(a); (void)r; });
+  EXPECT_NO_THROW({ auto r = qbuem::fuse<FuseStr>(b); (void)r; });
+  // fuse_strict may legitimately throw on malformed input; we only require that
+  // it does not read out of bounds (ASan/UBSan in CI enforce that).
+  try { auto r = qbuem::fuse_strict<FuseStr>(a); (void)r; } catch (...) {}
+  try { auto r = qbuem::fuse_strict<FuseStr>(b); (void)r; } catch (...) {}
+}
+
+// ── INTEGRITY: Nexus sequence decoding must make forward progress.  A
+// non-numeric element where an int is expected previously left the cursor
+// unadvanced, so the decode loop spun forever appending until OOM (a tiny
+// input grew the vector to multiple GB).  Must terminate immediately.
+TEST(DataIntegrity, NexusSequenceForwardProgress) {
+  EXPECT_NO_THROW({ auto r = qbuem::fuse<FuseVec>(R"({"v":["x","y","z"]})"); (void)r; });
+  EXPECT_NO_THROW({ auto r = qbuem::fuse<FuseVec>(R"({"v":[{},{}]})"); (void)r; });
+  EXPECT_NO_THROW({ auto r = qbuem::fuse<FuseVec>(R"({"v":[1,"x",2]})"); (void)r; });
+}
+
+// ── INTEGRITY: inserting a value whose escaped form exceeds the 64KB token
+// limit must not crash.  operator[] (noexcept) re-parses the inserted value
+// via get_synthetic; that parse now rejects the oversize token, and the throw
+// must not escape the noexcept accessor (previously std::terminate).
+TEST(DataIntegrity, InsertOversizeEscapedValueNoTerminate) {
+  Document doc;
+  Value root = parse(doc, "{}");
+  // 13000 control bytes -> each escapes to \u00XX (6 bytes) -> ~78KB token.
+  std::string big(13000, '\x01');
+  root.insert("k", std::string_view(big));
+  Value v;
+  EXPECT_NO_THROW({ v = root["k"]; }); // must not terminate
+  EXPECT_FALSE(v.is_valid());          // unparseable synthetic -> invalid Value
+}
+
+// ── INTEGRITY: the parser must not mis-parse valid heterogeneous JSON.
+// The removed KeyLenCache fast path predicted an object's key lengths from a
+// prior sibling object at the same depth and validated the guess with
+// `s[cl]=='"' && s[cl+1]==':'`.  When a real key was shorter than the cached
+// length, that pattern could match coincidentally inside the value, mis-detect
+// the key boundary, and make qbuem REJECT valid JSON (it could not even
+// re-parse its own compact dump of twitter.json).  This minimized fragment
+// reproduced it; it must now parse, dump, and re-parse cleanly.
+TEST(DataIntegrity, HeterogeneousSiblingObjectsParse) {
+  std::string in = kKeyCacheRegressionJson;
+  Document doc;
+  Value r;
+  ASSERT_NO_THROW({ r = parse(doc, in); });
+  ASSERT_TRUE(r.is_object());
+  std::string s1 = r.dump();
+  Document d2;
+  EXPECT_NO_THROW({ parse(d2, s1); }); // re-parse our own compact dump
+}
+
+// ── INTEGRITY: number literals >= 64 chars must not be truncated.  parse_f64's
+// strtod fallback used a fixed char buf[64], truncating long literals to 63
+// chars and corrupting the magnitude (1e64 parsed as 1e62).
+TEST(DataIntegrity, LongNumberLiteralNotTruncated) {
+  Document doc;
+  std::string j = "[1" + std::string(64, '0') + "]"; // 1e64 as a 65-char literal
+  Value r = parse(doc, j);
+  EXPECT_DOUBLE_EQ(r[0].as<double>(), 1e64);
+  Document d2;
+  std::string j2 = "[9" + std::string(80, '0') + "]"; // 9e80
+  Value r2 = parse(d2, j2);
+  EXPECT_DOUBLE_EQ(r2[0].as<double>(), 9e80);
+}
+
+// ── INTEGRITY: fuse_strict() must reject trailing content after the object,
+// matching parse_strict()/rfc8259::validate().
+TEST(DataIntegrity, FuseStrictRejectsTrailingContent) {
+  EXPECT_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}garbage)"),
+               std::runtime_error);
+  EXPECT_NO_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}   )"));
 }
 
 int main(int argc, char **argv) {
