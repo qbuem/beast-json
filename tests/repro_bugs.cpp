@@ -5,6 +5,8 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <cmath>
+#include <cstdint>
 
 // A minimized (ASCII-sanitized) heterogeneous-sibling-objects document derived
 // from twitter.json, used by the KeyLenCache regression test below.
@@ -23,6 +25,10 @@ QBUEM_JSON_FIELDS(FuseStr, s, o)
 // Struct with a vector to exercise the Nexus sequence-decoding loop.
 struct FuseVec { std::vector<int> v; };
 QBUEM_JSON_FIELDS(FuseVec, v)
+
+// Struct with an unsigned-64 field for serialize round-trip tests.
+struct U64Rec { uint64_t x; };
+QBUEM_JSON_FIELDS(U64Rec, x)
 
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
@@ -580,6 +586,70 @@ TEST(DataIntegrity, FuseStrictRejectsTrailingContent) {
   EXPECT_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}garbage)"),
                std::runtime_error);
   EXPECT_NO_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}   )"));
+}
+
+// ── TYPE SAFETY: as<narrow-integer> must range-check, not silently truncate.
+// Previously as<uint8_t>(256) returned 0 and as<uint8_t>(-1) returned 255
+// (static_cast wrap) — a silent data-corruption hazard.
+TEST(TypeSafety, NarrowIntegerOverflowThrows) {
+  Document doc;
+  Value r = parse(doc, "[256, -1, 1000, 127, 255, 32768, -129]");
+  EXPECT_EQ(r[3].as<int8_t>(), 127);                     // in range
+  EXPECT_EQ(r[4].as<uint8_t>(), 255);                    // in range
+  EXPECT_EQ(r[4].as<uint16_t>(), 255u);                  // widening fine
+  EXPECT_THROW(r[0].as<int8_t>(), std::runtime_error);   // 256 > int8 max
+  EXPECT_THROW(r[0].as<uint8_t>(), std::runtime_error);  // 256 > uint8 max
+  EXPECT_THROW(r[2].as<uint8_t>(), std::runtime_error);  // 1000 > uint8 max
+  EXPECT_THROW(r[1].as<uint8_t>(), std::runtime_error);  // -1 into unsigned
+  EXPECT_THROW(r[1].as<uint32_t>(), std::runtime_error); // -1 into unsigned
+  EXPECT_THROW(r[5].as<int16_t>(), std::runtime_error);  // 32768 > int16 max
+  EXPECT_THROW(r[6].as<int8_t>(), std::runtime_error);   // -129 < int8 min
+}
+
+// ── TYPE SAFETY: the full uint64 range must be readable; cross-sign overflow
+// must throw.  Previously as<uint64_t> parsed via int64_t and could not read
+// values above INT64_MAX (it threw on UINT64_MAX).
+TEST(TypeSafety, FullUint64Range) {
+  Document doc;
+  Value r = parse(doc, "[18446744073709551615, 9223372036854775808, "
+                       "9223372036854775807]");
+  EXPECT_EQ(r[0].as<uint64_t>(), 18446744073709551615ULL); // UINT64_MAX
+  EXPECT_EQ(r[1].as<uint64_t>(), 9223372036854775808ULL);  // INT64_MAX + 1
+  EXPECT_EQ(r[2].as<int64_t>(), 9223372036854775807LL);    // INT64_MAX
+  EXPECT_THROW(r[0].as<int64_t>(), std::runtime_error);    // UINT64_MAX > int64
+  EXPECT_THROW(r[1].as<int64_t>(), std::runtime_error);    // INT64_MAX+1 > int64
+}
+
+// ── TYPE SAFETY: float extremes (overflow -> inf, underflow -> 0, signed zero).
+TEST(TypeSafety, FloatExtremes) {
+  Document doc;
+  Value r = parse(doc, "[1e400, 1e-400, -0, 5e-324, -1e-400]");
+  EXPECT_TRUE(std::isinf(r[0].as<double>()));            // overflow -> +inf
+  EXPECT_EQ(r[1].as<double>(), 0.0);                     // underflow -> 0
+  EXPECT_TRUE(std::signbit(r[2].as<double>()));          // -0 sign preserved
+  EXPECT_GT(r[3].as<double>(), 0.0);                     // smallest subnormal
+  EXPECT_TRUE(std::signbit(r[4].as<double>()));          // -0 from neg underflow
+}
+
+// ── TYPE SAFETY: serializing an unsigned value above INT64_MAX must not emit
+// "-1".  Value::set/insert/scalar_to_json_ cast to int64_t; fixed to dispatch
+// on signedness like the struct writer already did.
+TEST(TypeSafety, SerializeUnsigned64RoundTrips) {
+  const uint64_t umax = 18446744073709551615ULL;
+  Document doc;
+  Value r = parse(doc, "{}");
+  r.insert("u", umax);
+  const std::string dumped = r.dump(); // hold: parse() keeps a view into this
+  EXPECT_NE(dumped.find("18446744073709551615"), std::string::npos);
+  Document d2;
+  Value r2 = parse(d2, dumped);
+  EXPECT_EQ(r2["u"].as<uint64_t>(), umax);
+
+  // struct write path (was already correct — guard against regression)
+  U64Rec s{umax};
+  std::string j = qbuem::write(s);
+  EXPECT_NE(j.find("18446744073709551615"), std::string::npos);
+  EXPECT_EQ(qbuem::read<U64Rec>(j).x, umax);
 }
 
 int main(int argc, char **argv) {

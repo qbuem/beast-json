@@ -83,6 +83,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
@@ -2213,6 +2214,40 @@ inline double parse_f64(const char *orig, const char *end) noexcept {
 }
 
 } // namespace qj_nc
+
+// Parse decimal text [beg,end) into integral type T with FULL-WIDTH range
+// support and range checking.  Unsigned T is parsed via uint64_t so the entire
+// unsigned range is readable (the old int64-only path could not read values
+// above INT64_MAX, e.g. UINT64_MAX), and any value outside T's range throws
+// instead of silently wrapping (the old static_cast<T> turned as<uint8_t>(256)
+// into 0).  This is the safe, production-grade conversion contract.
+template <typename T>
+inline T to_integral_checked(const char *beg, const char *end) {
+  if constexpr (std::is_unsigned_v<T>) {
+    uint64_t v = 0;
+    auto [ptr, ec] = std::from_chars(beg, end, v);
+    if (ec != std::errc{})
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: negative, malformed, or out-of-range "
+          "value for an unsigned target type");
+    if (v > static_cast<uint64_t>(std::numeric_limits<T>::max()))
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: value exceeds target type maximum");
+    return static_cast<T>(v);
+  } else {
+    int64_t v = 0;
+    auto [ptr, ec] = std::from_chars(beg, end, v);
+    if (ec != std::errc{})
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: malformed or out-of-range value");
+    if (v < static_cast<int64_t>(std::numeric_limits<T>::min()) ||
+        v > static_cast<int64_t>(std::numeric_limits<T>::max()))
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: value exceeds target type range");
+    return static_cast<T>(v);
+  }
+}
+
 } // namespace detail (qj_nc)
 
 /// owning `DocumentView` and a 32-bit tape index. It provides zero-copy,
@@ -2369,7 +2404,11 @@ public:
     if (!doc_)
       return;
     char buf[24];
-    char *ptr = detail::qj_nc::to_chars(buf, static_cast<int64_t>(val));
+    // Dispatch on signedness so unsigned values above INT64_MAX serialize
+    // correctly (static_cast<int64_t>(UINT64_MAX) would emit "-1").
+    char *ptr = std::is_unsigned_v<T>
+                    ? detail::qj_nc::to_chars(buf, static_cast<uint64_t>(val))
+                    : detail::qj_nc::to_chars(buf, static_cast<int64_t>(val));
     doc_->mutations_[idx_] = {TapeNodeType::Integer, std::string(buf, ptr)};
     doc_->last_dump_size_ = 0;
   }
@@ -2722,9 +2761,8 @@ public:
           if (m.type != TapeNodeType::Integer)
             throw std::runtime_error(
                 "qbuem::Value::as<integral>: not an integer");
-          int64_t val = 0;
-          std::from_chars(m.data.data(), m.data.data() + m.data.size(), val);
-          return static_cast<T>(val);
+          return detail::to_integral_checked<T>(
+              m.data.data(), m.data.data() + m.data.size());
         } else if constexpr (std::is_floating_point_v<T>) {
           if (m.type != TapeNodeType::Double && m.type != TapeNodeType::Integer)
             throw std::runtime_error("qbuem::Value::as<float>: not a number");
@@ -2758,13 +2796,9 @@ public:
       if (t != TapeNodeType::Integer && t != TapeNodeType::NumberRaw)
         throw std::runtime_error("qbuem::Value::as<integral>: not an integer");
       const TapeNode &nd = doc_->tape[idx_];
-      int64_t val = 0;
       const char *beg = doc_->source.data() + nd.offset;
       const char *end = beg + nd.length();
-      auto [ptr, ec] = std::from_chars(beg, end, val);
-      if (ec != std::errc{})
-        throw std::runtime_error("qbuem::Value::as<integral>: parse error");
-      return static_cast<T>(val);
+      return detail::to_integral_checked<T>(beg, end);
     } else if constexpr (std::is_floating_point_v<T>) {
       const auto t = doc_->tape[idx_].type();
       if (t != TapeNodeType::Double && t != TapeNodeType::NumberRaw &&
@@ -4213,7 +4247,11 @@ private:
   static std::string scalar_to_json_(bool b) { return b ? "true" : "false"; }
   template <JsonInteger T> static std::string scalar_to_json_(T v) {
     char buf[24];
-    char *p = detail::qj_nc::to_chars(buf, static_cast<int64_t>(v));
+    // Dispatch on signedness so unsigned values above INT64_MAX serialize
+    // correctly (static_cast<int64_t>(UINT64_MAX) would emit "-1").
+    char *p = std::is_unsigned_v<T>
+                  ? detail::qj_nc::to_chars(buf, static_cast<uint64_t>(v))
+                  : detail::qj_nc::to_chars(buf, static_cast<int64_t>(v));
     return std::string(buf, p);
   }
   template <JsonFloat T> static std::string scalar_to_json_(T v) {
