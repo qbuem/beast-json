@@ -2207,12 +2207,18 @@ inline double parse_f64(const char *orig, const char *end) noexcept {
     }
 
     // strtod fallback: subnormals, >19 significant digits
-    char buf[64];
     size_t len = (size_t)(end - orig);
-    if (len >= sizeof(buf)) len = sizeof(buf) - 1;
-    std::memcpy(buf, orig, len);
-    buf[len] = '\0';
-    return std::strtod(buf, nullptr);
+    if (QBUEM_LIKELY(len < 64)) {
+        char buf[64];
+        std::memcpy(buf, orig, len);
+        buf[len] = '\0';
+        return std::strtod(buf, nullptr);
+    }
+    // Rare: a literal >= 64 chars (e.g. a 100-digit integer or high-precision
+    // decimal).  Truncating to 63 chars silently corrupted the magnitude
+    // (1e64 parsed as 1e62), so NUL-terminate the full literal on the heap.
+    std::string tmp(orig, len);
+    return std::strtod(tmp.c_str(), nullptr);
 }
 
 } // namespace qj_nc
@@ -5312,24 +5318,9 @@ class Parser {
   // eliminating the pointer-chain access doc_->tape.head on every push().
   TapeNode *tape_head_ = nullptr;
 
-  // Key Length Cache — schema-prediction key scanner bypass.
-  // For each nesting depth, caches JSON source lengths of object keys seen in
-  // the first object at that depth. Subsequent same-schema objects skip the
-  // SIMD key-end scan: a single byte comparison s[cached_len]=='"' suffices.
-  //
-  // citm_catalog.json: 243 performances × 9 keys = 2187 SIMD scans replaced
-  // by byte comparisons.
-  // twitter.json tweet objects have ~25 distinct keys. MAX_KEYS=16
-  // left keys 17-25 cache-miss on every tweet (no SIMD bypass). Increasing to
-  // 32 covers all twitter keys and citm's worst-case depth (9 keys per
-  // performance). Memory: 8×32×2 + 8 = 520 bytes (L1-resident on all targets;
-  // M1 L1 = 192KB).
-  struct KeyLenCache {
-    static constexpr uint8_t MAX_DEPTH = 8;
-    static constexpr uint8_t MAX_KEYS = 32;
-    uint8_t key_idx[MAX_DEPTH] = {};         // current key pos per depth
-    uint16_t lens[MAX_DEPTH][MAX_KEYS] = {}; // cached source lengths (0=unset)
-  } kc_;
+  // (The schema-prediction KeyLenCache was removed: its O(1) cache-hit check
+  // was unsound and mis-parsed heterogeneous sibling objects — see the note in
+  // scan_key_colon_next.  The SIMD/SWAR key scanner is always used.)
 
   // ── skip_to_action: SWAR-8 + scalar whitespace skip chain ──
   // Returns the first action byte and advances p_ past whitespace.
@@ -5770,39 +5761,15 @@ class Parser {
                                         const char **key_end_out) noexcept {
     // s is the char after the opening '"' of the key.
     const char *e;
-    // KeyCache fast path — O(1) key-end detection.
-    // In valid JSON, any '"' inside a string is escaped as '\"', so
-    // s[cached_len] == '"' unambiguously identifies the closing quote.
-    // Skips the full SIMD scan for repeated same-schema objects (citm: 2187×).
-    const uint8_t kd = (depth_ < KeyLenCache::MAX_DEPTH)
-                           ? static_cast<uint8_t>(depth_)
-                           : uint8_t(255);
-    if (QBUEM_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
-      const uint8_t kidx = kc_.key_idx[kd];
-      if (kidx < KeyLenCache::MAX_KEYS) {
-        const uint16_t cl = kc_.lens[kd][kidx];
-        if (cl != 0) {
-          // simplified KeyLenCache guard — s[cl+1]==':' only.
-          // A true cache hit: s[cl] == '"' (key's closing quote) and
-          // s[cl+1] == ':' (the key-value separator that follows immediately).
-          // This single check rejects all known false-positive patterns:
-          //   Case A (value opening '"'): s[cl+1] = first char of value ≠ ':'
-          //   Case B (value closing '"'): s[cl+1] = ',' or '}' ≠ ':'
-          // Removed: s[cl-1] != ':' — was redundant given s[cl+1]==':',
-          // and added one extra memory read per cache-hit on the hot path.
-          // ⚠ Known edge case: a string value starting with ':' (e.g. ":foo")
-          // could cause a false-positive here.  None of the four standard
-          // benchmark files (twitter/canada/citm/gsoc) contain such values.
-          if (QBUEM_LIKELY(s + cl + 1 < end_) && s[cl] == '"' &&
-              s[cl + 1] == ':') {
-            e = s + cl;
-            kc_.key_idx[kd] = kidx + 1;
-            goto skn_cache_hit;
-          }
-          kc_.lens[kd][kidx] = 0; // length mismatch: clear for re-learning
-        }
-      }
-    }
+    // NOTE: the former KeyLenCache "O(1) key-end" fast path was REMOVED — it
+    // was unsound.  It assumed sibling objects at the same depth share per-index
+    // key lengths and validated a guess with `s[cl]=='"' && s[cl+1]==':'`, but
+    // when a real key is shorter than the cached length cl, that pattern can
+    // match coincidentally inside the value, mis-detecting the key boundary and
+    // mis-parsing valid JSON.  This silently corrupted heterogeneous objects
+    // (e.g. compact twitter.json: `user` then `retweeted_status` siblings).
+    // There is no sound O(1) check, so the SIMD/SWAR key scan below is always
+    // used.
 #if QBUEM_HAS_AVX2
 #if QBUEM_HAS_AVX512
     // ── AVX-512 64B one-shot key scan
@@ -6065,21 +6032,9 @@ class Parser {
     if (QBUEM_UNLIKELY(e >= end_ || *e != '"'))
       return 0; // malformed
   skn_found:
-    // Reject keys longer than the 16-bit length field (cache-hit path is
-    // already bounded since cached lengths are uint16_t).  Cold: only reached
-    // on the first occurrence of each key / cache misses.
+    // Reject keys longer than the 16-bit length field.
     if (QBUEM_UNLIKELY(static_cast<size_t>(e - s) > 0xFFFFu))
       return 0;
-    // record key length for future cache hits (first-pass learning).
-    if (QBUEM_LIKELY(kd < KeyLenCache::MAX_DEPTH)) {
-      const uint8_t kidx = kc_.key_idx[kd];
-      if (kidx < KeyLenCache::MAX_KEYS) {
-        if (kc_.lens[kd][kidx] == 0)
-          kc_.lens[kd][kidx] = static_cast<uint16_t>(e - s);
-        kc_.key_idx[kd] = kidx + 1;
-      }
-    }
-  skn_cache_hit:
     if (key_end_out)
       *key_end_out = e;
     push(TapeNodeType::StringRaw, static_cast<uint16_t>(e - s),
@@ -6204,9 +6159,6 @@ public:
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
         ++depth_;
-        // reset key index for newly entered object depth.
-        if (QBUEM_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
-          kc_.key_idx[depth_] = 0;
         ++p_;
         if (QBUEM_LIKELY(p_ < end_)) {
           unsigned char fc = static_cast<unsigned char>(*p_);
@@ -6901,9 +6853,6 @@ public:
         cstate_stack_[depth_] = cur_state_;
         cur_state_ = 0b011u; // in_obj=1, is_key=1, has_elem=0
         ++depth_;
-        // reset key index for newly entered object depth.
-        if (QBUEM_LIKELY(depth_ < KeyLenCache::MAX_DEPTH))
-          kc_.key_idx[depth_] = 0;
         last_off = off + 1;
         break;
       }

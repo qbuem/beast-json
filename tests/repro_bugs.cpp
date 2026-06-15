@@ -6,6 +6,10 @@
 #include <set>
 #include <string>
 
+// A minimized (ASCII-sanitized) heterogeneous-sibling-objects document derived
+// from twitter.json, used by the KeyLenCache regression test below.
+#include "keycache_regression.inc"
+
 using namespace qbuem;
 
 // Struct used by the Nexus (fuse) data-integrity tests below.
@@ -535,6 +539,39 @@ TEST(DataIntegrity, InsertOversizeEscapedValueNoTerminate) {
   Value v;
   EXPECT_NO_THROW({ v = root["k"]; }); // must not terminate
   EXPECT_FALSE(v.is_valid());          // unparseable synthetic -> invalid Value
+}
+
+// ── INTEGRITY: the parser must not mis-parse valid heterogeneous JSON.
+// The removed KeyLenCache fast path predicted an object's key lengths from a
+// prior sibling object at the same depth and validated the guess with
+// `s[cl]=='"' && s[cl+1]==':'`.  When a real key was shorter than the cached
+// length, that pattern could match coincidentally inside the value, mis-detect
+// the key boundary, and make qbuem REJECT valid JSON (it could not even
+// re-parse its own compact dump of twitter.json).  This minimized fragment
+// reproduced it; it must now parse, dump, and re-parse cleanly.
+TEST(DataIntegrity, HeterogeneousSiblingObjectsParse) {
+  std::string in = kKeyCacheRegressionJson;
+  Document doc;
+  Value r;
+  ASSERT_NO_THROW({ r = parse(doc, in); });
+  ASSERT_TRUE(r.is_object());
+  std::string s1 = r.dump();
+  Document d2;
+  EXPECT_NO_THROW({ parse(d2, s1); }); // re-parse our own compact dump
+}
+
+// ── INTEGRITY: number literals >= 64 chars must not be truncated.  parse_f64's
+// strtod fallback used a fixed char buf[64], truncating long literals to 63
+// chars and corrupting the magnitude (1e64 parsed as 1e62).
+TEST(DataIntegrity, LongNumberLiteralNotTruncated) {
+  Document doc;
+  std::string j = "[1" + std::string(64, '0') + "]"; // 1e64 as a 65-char literal
+  Value r = parse(doc, j);
+  EXPECT_DOUBLE_EQ(r[0].as<double>(), 1e64);
+  Document d2;
+  std::string j2 = "[9" + std::string(80, '0') + "]"; // 9e80
+  Value r2 = parse(d2, j2);
+  EXPECT_DOUBLE_EQ(r2[0].as<double>(), 9e80);
 }
 
 // ── INTEGRITY: fuse_strict() must reject trailing content after the object,
