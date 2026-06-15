@@ -708,6 +708,27 @@ TEST(SecurityHardening, NexusCursorNoFieldDrop) {
   EXPECT_EQ(r.c, "CEE");
 }
 
+// ── API: decoded() returns the unescaped logical string; as<string> stays raw.
+TEST(ApiUsability, DecodedUnescapesString) {
+  Document doc;
+  Value r = parse(doc, R"({"s":"a\nb\t\"\\\/Aé"})");
+  // expected: a <nl> b <tab> " \ / A é(0xC3 0xA9)
+  std::string expected = "a";
+  expected += '\n'; expected += 'b'; expected += '\t';
+  expected += '"'; expected += '\\'; expected += '/'; expected += 'A';
+  expected += static_cast<char>(0xC3); expected += static_cast<char>(0xA9);
+  EXPECT_EQ(r["s"].decoded(), expected);
+  // as<string_view> remains the RAW on-the-wire slice
+  EXPECT_EQ(std::string(r["s"].as<std::string_view>()).find("\\n"), 1u);
+
+  // surrogate pair 😀 -> U+1F600 (😀 = F0 9F 98 80)
+  Value r2 = parse(doc, R"({"e":"😀"})");
+  std::string emoji;
+  emoji += static_cast<char>(0xF0); emoji += static_cast<char>(0x9F);
+  emoji += static_cast<char>(0x98); emoji += static_cast<char>(0x80);
+  EXPECT_EQ(r2["e"].decoded(), emoji);
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

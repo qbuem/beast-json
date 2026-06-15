@@ -2248,6 +2248,85 @@ inline T to_integral_checked(const char *beg, const char *end) {
   }
 }
 
+// Decode a JSON string body (the raw bytes between the quotes) into its logical
+// value: processes \" \\ \/ \b \f \n \r \t and \uXXXX (with surrogate pairs ->
+// UTF-8).  Malformed/incomplete escapes are passed through literally (the input
+// may come from the relaxed parser).  Used by Value::decoded().
+inline std::string json_unescape(std::string_view s) {
+  std::string out;
+  out.reserve(s.size());
+  const size_t n = s.size();
+  auto hex4 = [&](size_t pos) -> int {
+    int v = 0;
+    for (int k = 0; k < 4; ++k) {
+      char c = s[pos + k];
+      int d;
+      if (c >= '0' && c <= '9') d = c - '0';
+      else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+      else return -1;
+      v = (v << 4) | d;
+    }
+    return v;
+  };
+  auto put_utf8 = [&](unsigned cp) {
+    if (cp <= 0x7F) {
+      out += static_cast<char>(cp);
+    } else if (cp <= 0x7FF) {
+      out += static_cast<char>(0xC0 | (cp >> 6));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp <= 0xFFFF) {
+      out += static_cast<char>(0xE0 | (cp >> 12));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+      out += static_cast<char>(0xF0 | (cp >> 18));
+      out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+  };
+  size_t i = 0;
+  while (i < n) {
+    char c = s[i];
+    if (c != '\\') { out += c; ++i; continue; }
+    if (i + 1 >= n) { out += c; ++i; break; } // trailing backslash
+    switch (s[i + 1]) {
+      case '"':  out += '"';  i += 2; break;
+      case '\\': out += '\\'; i += 2; break;
+      case '/':  out += '/';  i += 2; break;
+      case 'b':  out += '\b'; i += 2; break;
+      case 'f':  out += '\f'; i += 2; break;
+      case 'n':  out += '\n'; i += 2; break;
+      case 'r':  out += '\r'; i += 2; break;
+      case 't':  out += '\t'; i += 2; break;
+      case 'u': {
+        if (i + 6 > n) { out += c; ++i; break; } // incomplete
+        int cp = hex4(i + 2);
+        if (cp < 0) { out += c; ++i; break; }    // bad hex
+        i += 6;
+        if (cp >= 0xD800 && cp <= 0xDBFF) {       // high surrogate
+          if (i + 6 <= n && s[i] == '\\' && s[i + 1] == 'u') {
+            int lo = hex4(i + 2);
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+              put_utf8(0x10000u + ((static_cast<unsigned>(cp) - 0xD800u) << 10) +
+                       (static_cast<unsigned>(lo) - 0xDC00u));
+              i += 6;
+              break;
+            }
+          }
+          put_utf8(static_cast<unsigned>(cp)); // lone high surrogate
+        } else {
+          put_utf8(static_cast<unsigned>(cp)); // BMP or lone low surrogate
+        }
+        break;
+      }
+      default: out += c; ++i; break; // unknown escape: keep literal
+    }
+  }
+  return out;
+}
+
 } // namespace detail (qj_nc)
 
 /// owning `DocumentView` and a 32-bit tape index. It provides zero-copy,
@@ -2810,15 +2889,30 @@ public:
       double val = detail::qj_nc::parse_f64(beg, end);
       return static_cast<T>(val);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
+      // NOTE: returns the RAW on-the-wire bytes between the quotes — escape
+      // sequences (\n, \", \uXXXX, …) are NOT decoded (this is a zero-copy view
+      // into the source).  Use decoded() if you need the logical string value.
       if (doc_->tape[idx_].type() != TapeNodeType::StringRaw)
         throw std::runtime_error("qbuem::Value::as<string_view>: not a string");
       const TapeNode &nd = doc_->tape[idx_];
       return std::string_view(doc_->source.data() + nd.offset, nd.length());
     } else if constexpr (std::is_same_v<T, std::string>) {
+      // Like as<string_view>, RAW (un-decoded) bytes — just owned.  Use
+      // decoded() for the unescaped logical value.
       return std::string(as<std::string_view>());
     } else {
       static_assert(sizeof(T) == 0, "qbuem::Value::as<T>: unsupported type");
     }
+  }
+
+  // decoded(): the logical string value with JSON escape sequences DECODED
+  // (\" \\ \/ \b \f \n \r \t and \uXXXX, including surrogate pairs → UTF-8).
+  // Unlike as<std::string>() (which returns the raw on-the-wire slice), this
+  // returns what the JSON string actually denotes.  Throws if the value is not
+  // a string.  O(n), allocates.
+  [[nodiscard]] std::string decoded() const {
+    std::string_view raw = as<std::string_view>();
+    return detail::json_unescape(raw);
   }
 
   // try_as<T>(): non-throwing variant — returns std::nullopt on any error.
@@ -9176,7 +9270,7 @@ template <typename T> inline void NexusScanner::fill(T &obj) {
 } // namespace json::detail
 
 // read / write / fuse helpers
-template <typename T> T read(::std::string_view json) {
+template <typename T> [[nodiscard]] T read(::std::string_view json) {
   Document doc;
   Value root = json::parse_reuse(doc, json);
   T obj{};
@@ -9184,7 +9278,7 @@ template <typename T> T read(::std::string_view json) {
   return obj;
 }
 
-template <typename T> T fuse(::std::string_view json) {
+template <typename T> [[nodiscard]] T fuse(::std::string_view json) {
   T obj{};
   json::detail::NexusScanner scanner{json.data(), json.data() + json.size(), json.data()};
   scanner.fill(obj);
@@ -9207,7 +9301,7 @@ template <typename T> T fuse(::std::string_view json) {
 /// Typical usage: use fuse_strict() during development / unit tests, then
 /// switch to fuse() once the schema is validated.
 /// See docs/guide/nexus-diagnostics.md for a full guide.
-template <typename T> T fuse_strict(::std::string_view json) {
+template <typename T> [[nodiscard]] T fuse_strict(::std::string_view json) {
   json::detail::nexus_strict_mode() = true;
   try {
     T obj{};
@@ -9227,7 +9321,7 @@ template <typename T> T fuse_strict(::std::string_view json) {
   }
 }
 
-template <typename T>::std::string write(const T &obj) {
+template <typename T> [[nodiscard]] ::std::string write(const T &obj) {
   ::std::string out;
   out.reserve(512);
   ::qbuem::json::detail::append_json(out, obj);
@@ -9237,7 +9331,7 @@ template <typename T>::std::string write(const T &obj) {
 // write(obj, indent) — pretty-printed variant.
 // Serializes obj to compact JSON, then re-parses and formats with indent spaces
 // per level. Use write(obj) for hot paths; this variant is for human-readable output.
-template <typename T>::std::string write(const T &obj, int indent) {
+template <typename T> [[nodiscard]] ::std::string write(const T &obj, int indent) {
   ::std::string compact = write(obj);
   Document tmp;
   Value root = parse(tmp, compact);
