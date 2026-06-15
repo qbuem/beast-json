@@ -1774,22 +1774,16 @@ using std::int32_t; using std::int64_t;
          uint32_t ee = ddee - dd * 100; /* (ddee % 100) */
          uint32_t ffgg = uint32_t((uint64_t(ffgghhii) * 109951163) >> 40); /* (val / 10000) */
          uint32_t hhii = ffgghhii - ffgg * 10000; /* (val % 10000) */
-         uint32_t ff = (ffgg * 5243) >> 19; /* (aabb / 100) */
-         uint32_t gg = ffgg - ff * 100; /* (aabb % 100) */
-         //((uint16_t *)buf)[2] = ((const uint16_t *)char_table)[dd];
+         uint32_t ff = (ffgg * 5243) >> 19; /* (ffgg / 100) */
+         uint32_t gg = ffgg - ff * 100; /* (ffgg % 100) */
          std::memcpy(buf + 4, char_table + 2 * dd, 2);
-         //((uint16_t *)buf)[3] = ((const uint16_t *)char_table)[ee];
          std::memcpy(buf + 6, char_table + 2 * ee, 2);
-         //((uint16_t *)buf)[4] = ((const uint16_t *)char_table)[ff];
          std::memcpy(buf + 8, char_table + 2 * ff, 2);
-         //((uint16_t *)buf)[5] = ((const uint16_t *)char_table)[gg];
          std::memcpy(buf + 10, char_table + 2 * gg, 2);
          if (hhii) {
-            uint32_t hh = (hhii * 5243) >> 19; /* (ccdd / 100) */
-            uint32_t ii = hhii - hh * 100; /* (ccdd % 100) */
-            //((uint16_t *)buf)[6] = ((const uint16_t *)char_table)[hh];
+            uint32_t hh = (hhii * 5243) >> 19; /* (hhii / 100) */
+            uint32_t ii = hhii - hh * 100; /* (hhii % 100) */
             std::memcpy(buf + 12, char_table + 2 * hh, 2);
-            //((uint16_t *)buf)[7] = ((const uint16_t *)char_table)[ii];
             std::memcpy(buf + 14, char_table + 2 * ii, 2);
             tz1 = dec_trailing_zero_table[hh];
             tz2 = dec_trailing_zero_table[ii];
@@ -1809,9 +1803,7 @@ using std::int32_t; using std::int64_t;
          if (ddee) {
             uint32_t dd = (ddee * 5243) >> 19; /* (ddee / 100) */
             uint32_t ee = ddee - dd * 100; /* (ddee % 100) */
-            //((uint16_t *)buf)[2] = ((const uint16_t *)char_table)[dd];
             std::memcpy(buf + 4, char_table + 2 * dd, 2);
-            //((uint16_t *)buf)[3] = ((const uint16_t *)char_table)[ee];
             std::memcpy(buf + 6, char_table + 2 * ee, 2);
             tz1 = dec_trailing_zero_table[dd];
             tz2 = dec_trailing_zero_table[ee];
@@ -1930,7 +1922,6 @@ using std::int32_t; using std::int64_t;
             exp_dec = std::abs(exp_dec);
             if (exp_dec < 100) {
                uint32_t lz = exp_dec < 10;
-               //*(uint16_t *)buffer = *(const uint16_t *)(char_table + (exp_dec * 2 + lz));
                std::memcpy(buffer, char_table + (exp_dec * 2 + lz), 2);
                return buffer + 2 - lz;
             }
@@ -6420,7 +6411,8 @@ public:
             // After a value: consume ',' and find next token.
             ++p_;
             // ── fused val→sep→key scanner ───────────────────
-            // If inside an object (depth ≤ 64), the next token is a key.
+            // If inside an object (cur_state_ in_obj bit set), the next token
+            // is a key.
             // Fuse: skip WS + scan key + consume ':' + skip WS in one shot,
             // eliminating one switch dispatch and one extra
             // skip_to_action().
@@ -8245,13 +8237,11 @@ struct FastWriter {
 // Writer-agnostic adapter helpers
 QBUEM_INLINE void json_put(std::string &s, char c)              noexcept { s += c; }
 QBUEM_INLINE void json_write(std::string &s, const char *p, size_t n) noexcept { s.append(p, n); }
-QBUEM_INLINE void json_set_last(std::string &s, char c)         noexcept { s.back() = c; }
 
 QBUEM_INLINE void json_put(FastWriter &w, char c)               noexcept { w.put(c); }
 QBUEM_INLINE void json_write(FastWriter &w, const char *p, size_t n) noexcept { w.write(p, n); }
-QBUEM_INLINE void json_set_last(FastWriter &w, char c)          noexcept { w.set_last(c); }
 
-// Concept: anything with json_put/json_write/json_set_last adapters
+// Concept: anything with json_put/json_write adapters
 template <typename W>
 concept JsonWriter = requires(W &w, char c, const char *p, size_t n) {
   json_put(w, c);
