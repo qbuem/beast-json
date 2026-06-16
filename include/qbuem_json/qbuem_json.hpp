@@ -291,6 +291,35 @@ class Value;
 inline Value parse_reuse(DocumentView &doc, ::std::string_view json);
 class SafeValue;
 
+// Thrown by parse / parse_reuse / parse_strict (and read<T> / fuse<T>) when the
+// input is not valid JSON.  Derives from std::runtime_error, so existing
+// `catch (const std::exception&)` / `catch (const std::runtime_error&)` blocks
+// keep working unchanged; offset() additionally reports the 0-based byte
+// position in the input where parsing failed (== input size when the input ends
+// prematurely).  what() embeds the same offset for log-only callers.
+class parse_error : public ::std::runtime_error {
+public:
+  parse_error(const ::std::string &msg, ::std::size_t offset)
+      : ::std::runtime_error(msg), offset_(offset) {}
+  ::std::size_t offset() const noexcept { return offset_; }
+
+private:
+  ::std::size_t offset_;
+};
+
+// Build "<msg> at offset N" and throw parse_error.  failpos is clamped into the
+// input; a null failpos (no position available) reports the end of input.
+[[noreturn]] inline void throw_parse_error(const char *msg, const char *failpos,
+                                           ::std::string_view json) {
+  ::std::size_t off = json.size();
+  if (failpos && failpos >= json.data() &&
+      failpos <= json.data() + json.size())
+    off = static_cast<::std::size_t>(failpos - json.data());
+  char buf[96];
+  ::std::snprintf(buf, sizeof(buf), "%s at offset %zu", msg, off);
+  throw parse_error(buf, off);
+}
+
 // Require C++20 for optimal constexpr, bit_cast, and concepts
 #if __cplusplus >= 202002L
 using String = std::pmr::string;
@@ -2634,6 +2663,14 @@ public:
   // the key or index is missing instead of throwing.  This enables safe chains:
   //   auto v = root["a"]["b"]["c"];   // never throws; check with if(v)
   //   int x  = root["a"]["b"].value_or(0); // via SafeValue chain
+  //
+  // Duplicate keys: RFC 8259 §4 permits them ("names SHOULD be unique").  When
+  // an object contains the same key twice, this DOM lookup returns the FIRST
+  // occurrence (first-wins).  Note that the Nexus engine (fuse<T>) is LAST-wins
+  // — it overwrites the field on each occurrence — so the two engines resolve a
+  // duplicate differently.  Both are deterministic.  If duplicate keys carry
+  // security meaning in untrusted input, reject or canonicalize upstream; do not
+  // rely on cross-engine agreement.
   Value operator[](std::string_view key) const noexcept {
     if (!is_object())
       return {};
@@ -7166,6 +7203,10 @@ public:
 
   s2_fail:
     doc_->tape.head = tape_head_;
+    // Record an approximate failure position for diagnostics (offset just past
+    // the last successfully consumed atom).  Failure path only — no hot-loop
+    // cost.  get_p() is otherwise unused on the staged path.
+    p_ = data_ + last_off;
     return false;
   }
 #endif // QBUEM_HAS_AVX512
@@ -7231,18 +7272,18 @@ inline Value parse_reuse(DocumentView &handle, std::string_view json) {
   static constexpr size_t kStage12MaxSize = 2 * 1024 * 1024; // 2 MB
   if (QBUEM_LIKELY(json.size() <= kStage12MaxSize)) {
     stage1_scan_avx512(json.data(), json.size(), doc->idx);
-    if (!Parser(doc).parse_staged(doc->idx)) {
-      throw std::runtime_error("Invalid JSON");
-    }
+    Parser parser(doc);
+    if (!parser.parse_staged(doc->idx))
+      throw_parse_error("Invalid JSON", parser.get_p(), json);
   } else {
-    if (!Parser(doc).parse()) {
-      throw std::runtime_error("Invalid JSON");
-    }
+    Parser parser(doc);
+    if (!parser.parse())
+      throw_parse_error("Invalid JSON", parser.get_p(), json);
   }
 #else
-  if (!Parser(doc).parse()) {
-    throw std::runtime_error("Invalid JSON");
-  }
+  Parser parser(doc);
+  if (!parser.parse())
+    throw_parse_error("Invalid JSON", parser.get_p(), json);
 #endif
   return Value(doc, 0);
 }
@@ -7722,10 +7763,14 @@ namespace detail_ {
 
 [[noreturn]] inline void fail(const char *msg, const char *pos,
                               const char *begin) {
+  const size_t off = static_cast<size_t>(pos - begin);
   char buf[128];
-  std::snprintf(buf, sizeof(buf), "RFC 8259 violation at offset %zu: %s",
-                static_cast<size_t>(pos - begin), msg);
-  throw std::runtime_error(buf);
+  std::snprintf(buf, sizeof(buf), "RFC 8259 violation at offset %zu: %s", off,
+                msg);
+  // parse_error (derived from std::runtime_error) so strict-mode failures carry
+  // the same typed offset() as the relaxed parser; existing catch blocks for
+  // std::runtime_error / std::exception are unaffected.
+  throw ::qbuem::json::parse_error(buf, off);
 }
 
 struct Validator {
@@ -7775,6 +7820,38 @@ struct Validator {
         }
       } else if (c < 0x20) {
         fail("unescaped control character in string", p - 1, begin);
+      } else if (c >= 0x80) {
+        // RFC 8259 §8.1: JSON text MUST be valid UTF-8.  Validate the multibyte
+        // sequence against the Unicode "well-formed UTF-8" table (Table 3-7),
+        // which rejects overlong encodings, UTF-8-encoded surrogates (U+D800..
+        // U+DFFF), code points > U+10FFFF, lone continuation bytes, and
+        // truncated sequences.  c is the lead byte; p points at the first
+        // continuation.  (Only strict mode validates this — the relaxed parser
+        // stays byte-transparent for zero-copy.)
+        int extra;          // number of continuation bytes after the lead
+        unsigned char lo, hi; // allowed range for the FIRST continuation byte
+        if (c >= 0xC2 && c <= 0xDF) {        extra = 1; lo = 0x80; hi = 0xBF; }
+        else if (c == 0xE0) {                extra = 2; lo = 0xA0; hi = 0xBF; }
+        else if (c >= 0xE1 && c <= 0xEC) {   extra = 2; lo = 0x80; hi = 0xBF; }
+        else if (c == 0xED) {                extra = 2; lo = 0x80; hi = 0x9F; }
+        else if (c >= 0xEE && c <= 0xEF) {   extra = 2; lo = 0x80; hi = 0xBF; }
+        else if (c == 0xF0) {                extra = 3; lo = 0x90; hi = 0xBF; }
+        else if (c >= 0xF1 && c <= 0xF3) {   extra = 3; lo = 0x80; hi = 0xBF; }
+        else if (c == 0xF4) {                extra = 3; lo = 0x80; hi = 0x8F; }
+        else fail("invalid UTF-8 lead byte in string", p - 1, begin); // 80-C1,F5-FF
+        // First continuation is range-restricted (this is what rejects overlong
+        // encodings, surrogates, and > U+10FFFF).
+        if (p >= end || static_cast<unsigned char>(*p) < lo ||
+            static_cast<unsigned char>(*p) > hi)
+          fail("invalid UTF-8 continuation byte in string", p, begin);
+        ++p;
+        // Remaining continuation bytes must each be 0x80..0xBF.
+        for (int i = 1; i < extra; ++i) {
+          if (p >= end || static_cast<unsigned char>(*p) < 0x80 ||
+              static_cast<unsigned char>(*p) > 0xBF)
+            fail("invalid UTF-8 continuation byte in string", p, begin);
+          ++p;
+        }
       }
     }
     fail("unterminated string", p, begin);
@@ -7884,6 +7961,11 @@ struct Validator {
     }
     if (p >= end || *p != '}')
       fail("expected '}'", p, begin);
+    // RFC 8259 §4 says object names SHOULD (not MUST) be unique, so duplicates
+    // are valid JSON and are accepted here — rejecting them would make this
+    // validator non-conformant (JSONTestSuite y_object_duplicated_key).  The
+    // resolution is predictable and documented per engine: relaxed DOM is
+    // first-wins, Nexus fuse<T> is last-wins.  See the note on Value::operator[].
     ++p;
   }
 
@@ -8772,6 +8854,7 @@ using Parser = json::Parser;
 using Document = json::DocumentView;
 using Value = json::Value;
 using SafeValue = json::SafeValue;
+using parse_error = json::parse_error; // thrown by parse*/read/fuse; has offset()
 
 namespace rfc8259 = json::rfc8259;
 
