@@ -227,6 +227,29 @@ TEST(DuplicateKeys, StrictAcceptsThemAsValidJson) {
   EXPECT_NO_THROW((void)qbuem::json::rfc8259::parse_strict(d, j));
 }
 
+// ── decoded() must always emit valid UTF-8 ──────────────────────────────────
+// Lone/unpaired \uXXXX surrogates have no Unicode scalar value; decoded() now
+// substitutes U+FFFD instead of emitting invalid WTF-8 bytes (ED A0 80 …).
+TEST(DecodedUtf8, LoneSurrogatesBecomeReplacementChar) {
+  auto decode = [](const std::string &inner) {
+    qbuem::Document d;
+    std::string j = "\"" + inner + "\"";
+    return qbuem::parse(d, j).decoded();
+  };
+  const std::string repl = "\xEF\xBF\xBD"; // U+FFFD
+  EXPECT_EQ(decode("\\uD800"), repl);                 // lone high
+  EXPECT_EQ(decode("\\uDC00"), repl);                 // lone low
+  EXPECT_EQ(decode("\\uD800\\u0041"), repl + "A");    // high + non-low
+  EXPECT_EQ(decode("\\uD83D\\uDE00"), "\xF0\x9F\x98\x80"); // valid pair U+1F600
+  EXPECT_EQ(decode("\\u00E9"), "\xC3\xA9");           // BMP U+00E9
+  // Every decoded output must itself be valid UTF-8 (re-validates under strict).
+  for (const char *s : {"\\uD800", "\\uDC00", "\\uD800x", "\\uDFFF\\uD800"}) {
+    qbuem::json::DocumentView dv;
+    std::string round = "\"" + decode(s) + "\"";
+    EXPECT_NO_THROW((void)qbuem::json::rfc8259::parse_strict(dv, round)) << s;
+  }
+}
+
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
   Document doc;

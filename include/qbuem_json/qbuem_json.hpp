@@ -2334,6 +2334,11 @@ inline std::string json_unescape(std::string_view s) {
         int cp = hex4(i + 2);
         if (cp < 0) { out += c; ++i; break; }    // bad hex
         i += 6;
+        // U+FFFD substitution keeps decoded() output ALWAYS valid UTF-8: a
+        // lone/unpaired surrogate has no Unicode scalar value, so encoding it
+        // directly would emit invalid UTF-8 (the WTF-8 bytes ED A0 80 …).  This
+        // matches WHATWG/JS TextDecoder and Python errors='replace'.
+        constexpr unsigned kReplacement = 0xFFFDu;
         if (cp >= 0xD800 && cp <= 0xDBFF) {       // high surrogate
           if (i + 6 <= n && s[i] == '\\' && s[i + 1] == 'u') {
             int lo = hex4(i + 2);
@@ -2344,9 +2349,11 @@ inline std::string json_unescape(std::string_view s) {
               break;
             }
           }
-          put_utf8(static_cast<unsigned>(cp)); // lone high surrogate
+          put_utf8(kReplacement); // lone high surrogate → U+FFFD
+        } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+          put_utf8(kReplacement); // lone low surrogate → U+FFFD
         } else {
-          put_utf8(static_cast<unsigned>(cp)); // BMP or lone low surrogate
+          put_utf8(static_cast<unsigned>(cp)); // BMP scalar value
         }
         break;
       }
