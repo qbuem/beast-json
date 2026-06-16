@@ -91,6 +91,9 @@ struct TreeNode { long v; std::vector<TreeNode> kids; };
 QBUEM_JSON_FIELDS(TreeNode, v, kids)
 struct AbcRec { long a; std::string b; std::string c; };
 QBUEM_JSON_FIELDS(AbcRec, a, b, c)
+// For the duplicate-key determinism test.
+struct DupRec { long role; long x; };
+QBUEM_JSON_FIELDS(DupRec, role, x)
 
 // Performance regression guard: NexusScanner::fill() has a fast path that
 // computes the key hash *during* the key scan (read_key_h) and dispatches via
@@ -103,6 +106,149 @@ QBUEM_JSON_FIELDS(AbcRec, a, b, c)
 static_assert(qbuem::json::detail::HasNexusPulseH<AbcRec>,
               "Nexus fast hash-dispatch path is disabled — HasNexusPulseH must "
               "track nexus_pulse_h's signature (else ~15% fuse<T> regression)");
+
+// ── RFC 8259 §8.1 strict UTF-8 well-formedness ──────────────────────────────
+// parse_strict() must reject malformed UTF-8 byte sequences in string content
+// (overlong encodings, UTF-8-encoded surrogates, > U+10FFFF, lone continuation
+// bytes, truncated sequences).  The relaxed parser stays byte-transparent.
+namespace {
+bool strict_accepts(const std::string &j) {
+  qbuem::json::DocumentView d;
+  try { (void)qbuem::json::rfc8259::parse_strict(d, j); return true; }
+  catch (...) { return false; }
+}
+bool relaxed_accepts(const std::string &j) {
+  qbuem::Document d;
+  try { auto v = qbuem::parse(d, j); return v.is_string() || v.is_array(); }
+  catch (...) { return false; }
+}
+} // namespace
+
+TEST(Rfc8259Utf8, AcceptsValidMultibyte) {
+  EXPECT_TRUE(strict_accepts("\"\xC3\xA9\""));          // U+00E9 é (2-byte)
+  EXPECT_TRUE(strict_accepts("\"\xE2\x9C\x93\""));      // U+2713 ✓ (3-byte)
+  EXPECT_TRUE(strict_accepts("\"\xF0\x9F\x98\x80\""));  // U+1F600 😀 (4-byte)
+  EXPECT_TRUE(strict_accepts("\"\xF4\x8F\xBF\xBF\""));  // U+10FFFF (max)
+  EXPECT_TRUE(strict_accepts("\"plain ascii\""));
+}
+
+TEST(Rfc8259Utf8, RejectsMalformedBytes) {
+  EXPECT_FALSE(strict_accepts("\"\xC3\""));             // truncated 2-byte lead
+  EXPECT_FALSE(strict_accepts("\"\x80\""));             // lone continuation
+  EXPECT_FALSE(strict_accepts("\"\xC0\xAF\""));         // overlong '/' (security)
+  EXPECT_FALSE(strict_accepts("\"\xE0\x80\xAF\""));     // overlong 3-byte
+  EXPECT_FALSE(strict_accepts("\"\xED\xA0\x80\""));     // U+D800 surrogate
+  EXPECT_FALSE(strict_accepts("\"\xED\xBF\xBF\""));     // U+DFFF surrogate
+  EXPECT_FALSE(strict_accepts("\"\xF4\x90\x80\x80\"")); // > U+10FFFF
+  EXPECT_FALSE(strict_accepts("\"\xF5\x80\x80\x80\"")); // invalid lead 0xF5
+  EXPECT_FALSE(strict_accepts("\"\xE2\x9C\""));         // truncated 3-byte
+  EXPECT_FALSE(strict_accepts("\"\xC3\x28\""));         // bad continuation
+}
+
+TEST(Rfc8259Utf8, RelaxedStaysByteTransparent) {
+  // The relaxed (zero-copy) parser does NOT validate UTF-8 — it accepts the raw
+  // bytes so as<string>() can return a non-owning slice.  Documented behavior.
+  EXPECT_TRUE(relaxed_accepts("\"\xC0\xAF\""));
+  EXPECT_TRUE(relaxed_accepts("\"\xED\xA0\x80\""));
+}
+
+// ── Typed parse errors with byte offset (F3) ────────────────────────────────
+TEST(ParseError, CarriesByteOffset) {
+  qbuem::Document d;
+  std::string bad = "[1,2,";        // truncated — fails at end of input
+  try {
+    auto v = qbuem::parse(d, bad);
+    (void)v;
+    FAIL() << "expected parse_error";
+  } catch (const qbuem::parse_error &e) {
+    EXPECT_EQ(e.offset(), bad.size()); // ran out of input at offset 5
+    EXPECT_NE(std::string(e.what()).find("offset"), std::string::npos);
+  }
+}
+
+TEST(ParseError, OffsetPointsAtTrailingGarbage) {
+  qbuem::Document d;
+  std::string g = "[1,2]xx";
+  try { auto v = qbuem::parse(d, g); (void)v; FAIL() << "expected throw"; }
+  catch (const qbuem::parse_error &e) { EXPECT_EQ(e.offset(), 5u); }
+}
+
+TEST(ParseError, BackwardCompatibleCatch) {
+  // parse_error derives from std::runtime_error: existing catch blocks still work.
+  qbuem::Document d;
+  std::string bad = "nul";
+  bool caught_runtime = false, caught_exception = false;
+  try { auto v = qbuem::parse(d, bad); (void)v; } catch (const std::runtime_error &) {
+    caught_runtime = true;
+  }
+  try { auto v = qbuem::parse(d, bad); (void)v; } catch (const std::exception &) {
+    caught_exception = true;
+  }
+  EXPECT_TRUE(caught_runtime);
+  EXPECT_TRUE(caught_exception);
+}
+
+TEST(ParseError, StrictCarriesOffsetAndReason) {
+  qbuem::json::DocumentView d;
+  std::string lz = "{\"a\":01}"; // leading zero — strict violation
+  try {
+    (void)qbuem::json::rfc8259::parse_strict(d, lz);
+    FAIL() << "expected parse_error";
+  } catch (const qbuem::parse_error &e) {
+    EXPECT_EQ(e.offset(), 5u);
+    EXPECT_NE(std::string(e.what()).find("leading zero"), std::string::npos);
+  }
+}
+
+// ── Duplicate-key determinism (RFC 8259 §4: SHOULD, not MUST, be unique) ─────
+// Duplicates are valid JSON, so both parsers accept them; the documented,
+// locked-in resolution is DOM first-wins / Nexus last-wins.  This test guards
+// against an accidental change to either (a silent parser-differential).
+TEST(DuplicateKeys, DomIsFirstWins) {
+  qbuem::Document d;
+  std::string j = "{\"role\":1,\"x\":9,\"role\":2}";
+  auto v = qbuem::parse(d, j);
+  EXPECT_EQ(v["role"].as<int64_t>(), 1); // first-wins
+  EXPECT_EQ(v["x"].as<int64_t>(), 9);
+}
+
+TEST(DuplicateKeys, NexusIsLastWins) {
+  std::string j = "{\"role\":1,\"x\":9,\"role\":2}";
+  auto r = qbuem::fuse<DupRec>(j);
+  EXPECT_EQ(r.role, 2); // last-wins (matches JS/Python/Go ecosystem)
+  EXPECT_EQ(r.x, 9);
+}
+
+TEST(DuplicateKeys, StrictAcceptsThemAsValidJson) {
+  // RFC 8259 conformance: duplicates are valid JSON, so the strict validator
+  // (rfc8259::validate) must NOT reject them — JSONTestSuite y_object_duplicated_key.
+  qbuem::json::DocumentView d;
+  std::string j = "{\"a\":1,\"a\":2}";
+  EXPECT_NO_THROW((void)qbuem::json::rfc8259::parse_strict(d, j));
+}
+
+// ── decoded() must always emit valid UTF-8 ──────────────────────────────────
+// Lone/unpaired \uXXXX surrogates have no Unicode scalar value; decoded() now
+// substitutes U+FFFD instead of emitting invalid WTF-8 bytes (ED A0 80 …).
+TEST(DecodedUtf8, LoneSurrogatesBecomeReplacementChar) {
+  auto decode = [](const std::string &inner) {
+    qbuem::Document d;
+    std::string j = "\"" + inner + "\"";
+    return qbuem::parse(d, j).decoded();
+  };
+  const std::string repl = "\xEF\xBF\xBD"; // U+FFFD
+  EXPECT_EQ(decode("\\uD800"), repl);                 // lone high
+  EXPECT_EQ(decode("\\uDC00"), repl);                 // lone low
+  EXPECT_EQ(decode("\\uD800\\u0041"), repl + "A");    // high + non-low
+  EXPECT_EQ(decode("\\uD83D\\uDE00"), "\xF0\x9F\x98\x80"); // valid pair U+1F600
+  EXPECT_EQ(decode("\\u00E9"), "\xC3\xA9");           // BMP U+00E9
+  // Every decoded output must itself be valid UTF-8 (re-validates under strict).
+  for (const char *s : {"\\uD800", "\\uDC00", "\\uD800x", "\\uDFFF\\uD800"}) {
+    qbuem::json::DocumentView dv;
+    std::string round = "\"" + decode(s) + "\"";
+    EXPECT_NO_THROW((void)qbuem::json::rfc8259::parse_strict(dv, round)) << s;
+  }
+}
 
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
