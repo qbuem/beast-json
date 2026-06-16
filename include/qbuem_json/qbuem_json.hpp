@@ -83,6 +83,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
@@ -2213,6 +2214,119 @@ inline double parse_f64(const char *orig, const char *end) noexcept {
 }
 
 } // namespace qj_nc
+
+// Parse decimal text [beg,end) into integral type T with FULL-WIDTH range
+// support and range checking.  Unsigned T is parsed via uint64_t so the entire
+// unsigned range is readable (the old int64-only path could not read values
+// above INT64_MAX, e.g. UINT64_MAX), and any value outside T's range throws
+// instead of silently wrapping (the old static_cast<T> turned as<uint8_t>(256)
+// into 0).  This is the safe, production-grade conversion contract.
+template <typename T>
+inline T to_integral_checked(const char *beg, const char *end) {
+  if constexpr (std::is_unsigned_v<T>) {
+    uint64_t v = 0;
+    auto [ptr, ec] = std::from_chars(beg, end, v);
+    if (ec != std::errc{})
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: negative, malformed, or out-of-range "
+          "value for an unsigned target type");
+    if (v > static_cast<uint64_t>(std::numeric_limits<T>::max()))
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: value exceeds target type maximum");
+    return static_cast<T>(v);
+  } else {
+    int64_t v = 0;
+    auto [ptr, ec] = std::from_chars(beg, end, v);
+    if (ec != std::errc{})
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: malformed or out-of-range value");
+    if (v < static_cast<int64_t>(std::numeric_limits<T>::min()) ||
+        v > static_cast<int64_t>(std::numeric_limits<T>::max()))
+      throw std::runtime_error(
+          "qbuem::Value::as<integral>: value exceeds target type range");
+    return static_cast<T>(v);
+  }
+}
+
+// Decode a JSON string body (the raw bytes between the quotes) into its logical
+// value: processes \" \\ \/ \b \f \n \r \t and \uXXXX (with surrogate pairs ->
+// UTF-8).  Malformed/incomplete escapes are passed through literally (the input
+// may come from the relaxed parser).  Used by Value::decoded().
+inline std::string json_unescape(std::string_view s) {
+  std::string out;
+  out.reserve(s.size());
+  const size_t n = s.size();
+  auto hex4 = [&](size_t pos) -> int {
+    int v = 0;
+    for (int k = 0; k < 4; ++k) {
+      char c = s[pos + k];
+      int d;
+      if (c >= '0' && c <= '9') d = c - '0';
+      else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
+      else return -1;
+      v = (v << 4) | d;
+    }
+    return v;
+  };
+  auto put_utf8 = [&](unsigned cp) {
+    if (cp <= 0x7F) {
+      out += static_cast<char>(cp);
+    } else if (cp <= 0x7FF) {
+      out += static_cast<char>(0xC0 | (cp >> 6));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else if (cp <= 0xFFFF) {
+      out += static_cast<char>(0xE0 | (cp >> 12));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    } else {
+      out += static_cast<char>(0xF0 | (cp >> 18));
+      out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+      out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+      out += static_cast<char>(0x80 | (cp & 0x3F));
+    }
+  };
+  size_t i = 0;
+  while (i < n) {
+    char c = s[i];
+    if (c != '\\') { out += c; ++i; continue; }
+    if (i + 1 >= n) { out += c; ++i; break; } // trailing backslash
+    switch (s[i + 1]) {
+      case '"':  out += '"';  i += 2; break;
+      case '\\': out += '\\'; i += 2; break;
+      case '/':  out += '/';  i += 2; break;
+      case 'b':  out += '\b'; i += 2; break;
+      case 'f':  out += '\f'; i += 2; break;
+      case 'n':  out += '\n'; i += 2; break;
+      case 'r':  out += '\r'; i += 2; break;
+      case 't':  out += '\t'; i += 2; break;
+      case 'u': {
+        if (i + 6 > n) { out += c; ++i; break; } // incomplete
+        int cp = hex4(i + 2);
+        if (cp < 0) { out += c; ++i; break; }    // bad hex
+        i += 6;
+        if (cp >= 0xD800 && cp <= 0xDBFF) {       // high surrogate
+          if (i + 6 <= n && s[i] == '\\' && s[i + 1] == 'u') {
+            int lo = hex4(i + 2);
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+              put_utf8(0x10000u + ((static_cast<unsigned>(cp) - 0xD800u) << 10) +
+                       (static_cast<unsigned>(lo) - 0xDC00u));
+              i += 6;
+              break;
+            }
+          }
+          put_utf8(static_cast<unsigned>(cp)); // lone high surrogate
+        } else {
+          put_utf8(static_cast<unsigned>(cp)); // BMP or lone low surrogate
+        }
+        break;
+      }
+      default: out += c; ++i; break; // unknown escape: keep literal
+    }
+  }
+  return out;
+}
+
 } // namespace detail (qj_nc)
 
 /// owning `DocumentView` and a 32-bit tape index. It provides zero-copy,
@@ -2369,7 +2483,11 @@ public:
     if (!doc_)
       return;
     char buf[24];
-    char *ptr = detail::qj_nc::to_chars(buf, static_cast<int64_t>(val));
+    // Dispatch on signedness so unsigned values above INT64_MAX serialize
+    // correctly (static_cast<int64_t>(UINT64_MAX) would emit "-1").
+    char *ptr = std::is_unsigned_v<T>
+                    ? detail::qj_nc::to_chars(buf, static_cast<uint64_t>(val))
+                    : detail::qj_nc::to_chars(buf, static_cast<int64_t>(val));
     doc_->mutations_[idx_] = {TapeNodeType::Integer, std::string(buf, ptr)};
     doc_->last_dump_size_ = 0;
   }
@@ -2722,9 +2840,8 @@ public:
           if (m.type != TapeNodeType::Integer)
             throw std::runtime_error(
                 "qbuem::Value::as<integral>: not an integer");
-          int64_t val = 0;
-          std::from_chars(m.data.data(), m.data.data() + m.data.size(), val);
-          return static_cast<T>(val);
+          return detail::to_integral_checked<T>(
+              m.data.data(), m.data.data() + m.data.size());
         } else if constexpr (std::is_floating_point_v<T>) {
           if (m.type != TapeNodeType::Double && m.type != TapeNodeType::Integer)
             throw std::runtime_error("qbuem::Value::as<float>: not a number");
@@ -2758,13 +2875,9 @@ public:
       if (t != TapeNodeType::Integer && t != TapeNodeType::NumberRaw)
         throw std::runtime_error("qbuem::Value::as<integral>: not an integer");
       const TapeNode &nd = doc_->tape[idx_];
-      int64_t val = 0;
       const char *beg = doc_->source.data() + nd.offset;
       const char *end = beg + nd.length();
-      auto [ptr, ec] = std::from_chars(beg, end, val);
-      if (ec != std::errc{})
-        throw std::runtime_error("qbuem::Value::as<integral>: parse error");
-      return static_cast<T>(val);
+      return detail::to_integral_checked<T>(beg, end);
     } else if constexpr (std::is_floating_point_v<T>) {
       const auto t = doc_->tape[idx_].type();
       if (t != TapeNodeType::Double && t != TapeNodeType::NumberRaw &&
@@ -2776,15 +2889,30 @@ public:
       double val = detail::qj_nc::parse_f64(beg, end);
       return static_cast<T>(val);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
+      // NOTE: returns the RAW on-the-wire bytes between the quotes — escape
+      // sequences (\n, \", \uXXXX, …) are NOT decoded (this is a zero-copy view
+      // into the source).  Use decoded() if you need the logical string value.
       if (doc_->tape[idx_].type() != TapeNodeType::StringRaw)
         throw std::runtime_error("qbuem::Value::as<string_view>: not a string");
       const TapeNode &nd = doc_->tape[idx_];
       return std::string_view(doc_->source.data() + nd.offset, nd.length());
     } else if constexpr (std::is_same_v<T, std::string>) {
+      // Like as<string_view>, RAW (un-decoded) bytes — just owned.  Use
+      // decoded() for the unescaped logical value.
       return std::string(as<std::string_view>());
     } else {
       static_assert(sizeof(T) == 0, "qbuem::Value::as<T>: unsupported type");
     }
+  }
+
+  // decoded(): the logical string value with JSON escape sequences DECODED
+  // (\" \\ \/ \b \f \n \r \t and \uXXXX, including surrogate pairs → UTF-8).
+  // Unlike as<std::string>() (which returns the raw on-the-wire slice), this
+  // returns what the JSON string actually denotes.  Throws if the value is not
+  // a string.  O(n), allocates.
+  [[nodiscard]] std::string decoded() const {
+    std::string_view raw = as<std::string_view>();
+    return detail::json_unescape(raw);
   }
 
   // try_as<T>(): non-throwing variant — returns std::nullopt on any error.
@@ -4213,7 +4341,11 @@ private:
   static std::string scalar_to_json_(bool b) { return b ? "true" : "false"; }
   template <JsonInteger T> static std::string scalar_to_json_(T v) {
     char buf[24];
-    char *p = detail::qj_nc::to_chars(buf, static_cast<int64_t>(v));
+    // Dispatch on signedness so unsigned values above INT64_MAX serialize
+    // correctly (static_cast<int64_t>(UINT64_MAX) would emit "-1").
+    char *p = std::is_unsigned_v<T>
+                  ? detail::qj_nc::to_chars(buf, static_cast<uint64_t>(v))
+                  : detail::qj_nc::to_chars(buf, static_cast<int64_t>(v));
     return std::string(buf, p);
   }
   template <JsonFloat T> static std::string scalar_to_json_(T v) {
@@ -4423,7 +4555,11 @@ private:
     std::string out;
     out.reserve(doc_->source.size() + doc_->additions_.size() * 64 + 64);
 
-    // Stack-based separator state (max 64 nesting levels)
+    // Per-depth separator state.  Sized to the tape Parser's maximum nesting
+    // depth (1088): the tape can never be deeper, since parse() rejects past
+    // that.  Previously a fixed `Frame stk[64]`, which a document nested deeper
+    // than 64 overran (stack-buffer-overflow) once a mutation routed dump()
+    // here.  Heap-backed so the deep case adds no stack pressure.
     struct Frame {
       bool is_obj;
       bool has_prev;
@@ -4431,7 +4567,7 @@ private:
       uint32_t start_idx;
       size_t arr_idx;
     };
-    Frame stk[64];
+    std::vector<Frame> stk(1088);
     int top = -1;
 
     uint32_t i = start_c;
@@ -4673,6 +4809,14 @@ private:
     if (!doc_) {
       out += "null";
       return idx_ + 1;
+    }
+    // Bound recursion: each level adds a C++ stack frame, and the parser permits
+    // nesting up to ~1088, which can exhaust a small (worker/embedded) thread
+    // stack.  Beyond a generous cap, fall back to the iterative compact dump of
+    // this subtree (still valid JSON, just not indented past this point).
+    if (QBUEM_UNLIKELY(depth > 500)) {
+      out += dump();
+      return skip_value_(idx_);
     }
     const TapeNodeType root_type = doc_->tape[idx_].type();
 
@@ -5339,7 +5483,11 @@ class Parser {
     //
     // SWAR-8 pre-gate: twitter.json has 2-8 WS bytes between tokens; absorb
     // them here before paying any 512-bit register setup cost (    // lesson).
-    {
+    // Guard `p_ + 8 <= end_`: load64() reads 8 bytes, and the input is an
+    // unpadded caller-supplied string_view, so without this an input ending
+    // within 7 bytes of a page boundary reads out of bounds.  When too close
+    // to the end, fall through to the scalar tail below.
+    if (QBUEM_LIKELY(p_ + 8 <= end_)) {
       uint64_t am = swar_action_mask(load64(p_));
       if (QBUEM_LIKELY(am != 0)) {
         p_ += QBUEM_CTZ(am) >> 3;
@@ -7025,9 +7173,15 @@ public:
 
 // Public API
 
+// Tape node offsets are 32-bit, so the source must fit in a uint32_t index
+// space.  Inputs >= 4 GiB would wrap the offset and produce wrong/out-of-bounds
+// slices; reject them up front.
+inline constexpr size_t kMaxInputSize = 0xFFFFFFFFu;
+
 inline Value parse_partial(DocumentView &handle, std::string_view json, size_t* consumed = nullptr) {
   DocumentState *doc = handle.state();
   if (!doc) return {};
+  if (QBUEM_UNLIKELY(json.size() > kMaxInputSize)) return {};
   doc->source = json;
   doc->mutations_.clear(); doc->deleted_.clear(); doc->additions_.clear(); doc->array_insertions_.clear();
   const size_t needed = json.size() + 64;
@@ -7037,11 +7191,18 @@ inline Value parse_partial(DocumentView &handle, std::string_view json, size_t* 
   if (consumed) *consumed = p.get_p() - json.data();
   return Value(doc, 0);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string
+// at compile time so a temporary buffer cannot become a use-after-free (mirrors
+// the Document& overloads).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_partial(DocumentView &, const ::std::string &&,
+                    size_t * = nullptr) = delete;
 
 inline Value parse_reuse(DocumentView &handle, std::string_view json) {
   DocumentState *doc = handle.state();
   if (!doc)
     return {};
+  if (QBUEM_UNLIKELY(json.size() > kMaxInputSize))
+    throw std::runtime_error("qbuem: input exceeds 4 GiB (32-bit offset limit)");
   doc->source = json;
   // Clear mutation / deletion / addition overlays from any prior parse.
   // These maps reference tape indices that are invalidated when the tape is
@@ -7085,6 +7246,10 @@ inline Value parse_reuse(DocumentView &handle, std::string_view json) {
 #endif
   return Value(doc, 0);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string at
+// compile time so a temporary buffer cannot become a use-after-free (mirrors the
+// Document& overload).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_reuse(DocumentView &, const ::std::string &&) = delete;
 
 // ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
 inline void Value::merge_patch(std::string_view patch_json) {
@@ -7464,16 +7629,27 @@ DocumentState::get_synthetic(const ::std::string &json_str) const {
   if (it != synthetic_docs_.end())
     return it->second.get();
 
-  DocumentView synth_handle(json_str);
+  // Reserve the cache slot first so the map owns a STABLE copy of the key, and
+  // point the synthetic document's `source` view at that stable key — NOT at
+  // the `json_str` argument.  The argument is typically a reference to a string
+  // stored in additions_/array_insertions_, which erase_from_additions_/merge()
+  // can free; since synthetic_docs_ is never invalidated, a source view into
+  // the freed argument would dangle (use-after-free).  unordered_map key
+  // references are stable across other insert/erase operations.
+  auto [slot, inserted] = synthetic_docs_.try_emplace(json_str);
+  const std::string &stable_key = slot->first;
+
+  DocumentView synth_handle(std::string_view{stable_key});
   // parse_reuse throws on unparseable input.  get_synthetic is reached from
   // noexcept accessors (operator[], dump helpers), so an escape here would
   // call std::terminate.  An inserted value can be unparseable when its
   // serialized form exceeds the 64KB token limit (e.g. a short string whose
-  // escaped \uXXXX expansion crosses 65535 bytes) — return nullptr so callers
-  // produce an invalid Value instead of crashing.
+  // escaped \uXXXX expansion crosses 65535 bytes) — erase the reserved slot
+  // and return nullptr so callers produce an invalid Value instead of crashing.
   try {
-    parse_reuse(synth_handle, json_str);
+    parse_reuse(synth_handle, std::string_view{stable_key});
   } catch (...) {
+    synthetic_docs_.erase(slot);
     return nullptr;
   }
 
@@ -7485,7 +7661,7 @@ DocumentState::get_synthetic(const ::std::string &json_str) const {
   // Increment ref for the shared_ptr so it doesn't delete when handle goes away
   s->ref();
 
-  synthetic_docs_[json_str] = std::move(shared);
+  slot->second = std::move(shared);
   return s;
 }
 
@@ -7765,6 +7941,10 @@ inline Value parse_strict(DocumentView &doc, ::std::string_view json) {
   rfc8259::validate(json);
   return qbuem::json::parse_reuse(doc, json);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string at
+// compile time so a temporary buffer cannot become a use-after-free (mirrors the
+// Document& overload).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_strict(DocumentView &, const ::std::string &&) = delete;
 
 } // namespace rfc8259
 
@@ -7945,11 +8125,17 @@ concept HasNexusPulse =
     requires(std::string_view key, const char *&p, const char *end, T &t) {
   nexus_pulse(key, p, end, t);
 };
-// Fast variant: dispatch on a pre-computed uint64 key hash (skips runtime hash)
+// Fast variant: dispatch on a pre-computed uint64 key hash (skips runtime hash).
+// NOTE: the signature here MUST track nexus_pulse_h's real arity — it gained a
+// string_view `key` parameter (used to byte-verify the hash match against the
+// field name, defeating hash-collision field spoofing).  If this requires-clause
+// lags behind, the concept silently evaluates false and NexusScanner::fill()
+// falls back to the slow read_key()+separate-hash path (a ~15% fuse<T> regression
+// that is functionally correct, so no test catches it).
 template <typename T>
-concept HasNexusPulseH =
-    requires(uint64_t h, const char *&p, const char *end, T &t) {
-  nexus_pulse_h(h, p, end, t);
+concept HasNexusPulseH = requires(uint64_t h, ::std::string_view key,
+                                  const char *&p, const char *end, T &t) {
+  nexus_pulse_h(h, key, p, end, t);
 };
 
 // ── Forward declarations
@@ -8495,7 +8681,13 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   ::qbuem::json::detail::to_json_field(v, #f, obj.f);
 #define QBUEM_JSON_DETAIL_PULSE(f)                                             \
   case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
-    ::qbuem::json::detail::from_json_direct(p, end, obj.f);                    \
+    /* Verify the actual key bytes — the hash is collision-prone, so without  \
+       this an untrusted key could be routed into the wrong field (spoofing / \
+       type confusion).  One short compare per object key. */                 \
+    if (_key == ::std::string_view(#f, sizeof(#f) - 1))                        \
+      ::qbuem::json::detail::from_json_direct(p, end, obj.f);                  \
+    else                                                                       \
+      ::qbuem::json::detail::skip_direct(p, end);                              \
     break;
 
 // QBUEM_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
@@ -8509,8 +8701,8 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 
 #define QBUEM_JSON_FIELDS(Type, ...)                                           \
   /* Fast dispatch on pre-computed key hash — primary hot path */              \
-  inline void nexus_pulse_h(uint64_t _h, const char *&p,                      \
-                            const char *end, Type &obj) {                      \
+  inline void nexus_pulse_h(uint64_t _h, ::std::string_view _key,             \
+                            const char *&p, const char *end, Type &obj) {      \
     switch (_h) {                                                              \
       QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
     default:                                                                   \
@@ -8521,7 +8713,8 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   /* Backward-compat wrapper: hashes the key then dispatches via nexus_pulse_h */\
   inline void nexus_pulse(::std::string_view key, const char *&p,              \
                           const char *end, Type &obj) {                        \
-    nexus_pulse_h(::qbuem::json::detail::fast_key_hash(key), p, end, obj);    \
+    nexus_pulse_h(::qbuem::json::detail::fast_key_hash(key), key, p, end,     \
+                  obj);                                                        \
   }                                                                            \
   inline void from_qbuem_json(const ::qbuem::json::Value &v, Type &obj) {      \
     QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_READ, __VA_ARGS__)                        \
@@ -8582,18 +8775,51 @@ using SafeValue = json::SafeValue;
 
 namespace rfc8259 = json::rfc8259;
 
+// ── parse* lifetime contract ────────────────────────────────────────────────
+// parse/parse_reuse/parse_strict are ZERO-COPY: the returned Value (and the
+// Document) holds a non-owning view of `json`.  The input buffer MUST outlive
+// the Document and every Value derived from it — nothing is copied.  To make
+// the most common misuse a COMPILE error instead of a silent use-after-free,
+// the rvalue-`std::string` overloads are deleted, so e.g.
+//   auto v = qbuem::parse(doc, get_config_json());   // ERROR: deleted overload
+// will not compile.  Pass an lvalue you keep alive (or a string literal), e.g.
+//   std::string text = get_config_json();  auto v = qbuem::parse(doc, text);
+// If you need an owning value, use read<T>()/fuse<T>() (they copy into T).
+//
+// Thread-safety / aliasing:
+//   • A Document owns mutable parse state; one Document is single-threaded.  Do
+//     NOT parse into, mutate, or destroy the same Document from two threads.
+//   • Every Value/SafeValue from a Document ALIASES that Document's tape and the
+//     input buffer — they are lightweight handles, not copies.  After a read-only
+//     parse you MAY hand those handles to multiple threads that only READ
+//     concurrently (no data race: the tape is immutable once parsed).  As soon as
+//     ANY thread mutates (insert/erase/operator[]=/merge_patch) or re-parses the
+//     Document, all concurrent access must stop — mutation rewrites shared state.
+//   • Distinct Documents share nothing and are fully independent across threads.
 inline Value parse(Document &doc, ::std::string_view json) {
   return json::parse_reuse(doc, json);
 }
+inline Value parse(Document &doc, const char *json) {
+  return json::parse_reuse(doc, ::std::string_view(json));
+}
+Value parse(Document &, const ::std::string &&) = delete;
 
 inline Value parse_reuse(Document &doc, ::std::string_view json) {
   return json::parse_reuse(doc, json);
 }
+inline Value parse_reuse(Document &doc, const char *json) {
+  return json::parse_reuse(doc, ::std::string_view(json));
+}
+Value parse_reuse(Document &, const ::std::string &&) = delete;
 
 inline Value parse_strict(Document &doc, ::std::string_view json) {
   json::rfc8259::validate(json);
   return json::parse_reuse(doc, json);
 }
+inline Value parse_strict(Document &doc, const char *json) {
+  return parse_strict(doc, ::std::string_view(json));
+}
+Value parse_strict(Document &, const ::std::string &&) = delete;
 
 namespace json::detail {
 
@@ -8607,6 +8833,11 @@ struct NexusScanner {
   const char *p;
   const char *end;
   const char *begin = nullptr; // optional: set by fuse()/fuse_strict() for offset reporting
+  // Raw bytes of the most recent key scanned by read_key_h(); used to verify
+  // the hash-dispatch match against the actual field name (the hash alone is
+  // collision-prone, which would let an attacker route an untrusted key into
+  // the wrong struct field — field spoofing / type confusion).
+  std::string_view last_key_{};
 
   QBUEM_INLINE void ws() noexcept { detail::ws(p, end); }
 
@@ -8687,6 +8918,7 @@ struct NexusScanner {
           if (p < end && *p == ':') [[likely]] ++p;
           // Hash = raw bytes [0..bp-1], zero-padded — identical to fast_key_hash_ce
           const uint64_t mask = bp ? ((uint64_t(1) << (bp * 8)) - 1) : uint64_t(0);
+          last_key_ = std::string_view(start, static_cast<size_t>(bp));
           return w & mask;
         }
       }
@@ -8735,6 +8967,7 @@ struct NexusScanner {
     if (p < end) ++p;
     if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
     if (p < end && *p == ':') [[likely]] ++p;
+    last_key_ = std::string_view{start, n};
     return detail::fast_key_hash(std::string_view{start, n});
   }
 
@@ -8769,6 +9002,27 @@ inline bool &nexus_strict_mode() noexcept {
   return flag;
 #endif
 }
+
+// Nexus recursion-depth bound.  The typed from_json_direct path recurses through
+// nested structs / Optional / Map / Tuple / Seq with no cap; a recursive-typed
+// schema (e.g. a tree node) fed deeply-nested untrusted JSON would exhaust the
+// native stack (SIGSEGV).  skip_direct is already bounded via the Validator;
+// this RAII guard bounds the typed path to the same depth.  Only the recursive
+// branches construct it, so scalar fields pay nothing.
+inline int &nexus_depth() noexcept {
+  thread_local int d = 0;
+  return d;
+}
+struct NexusDepthGuard {
+  static constexpr int kMax = 1024;
+  NexusDepthGuard() {
+    if (++nexus_depth() > kMax) {
+      --nexus_depth();
+      throw std::runtime_error("Nexus: input nesting too deep");
+    }
+  }
+  ~NexusDepthGuard() { --nexus_depth(); }
+};
 
 // peek_json_type: returns a human-readable label for the JSON token at *p.
 // Used in Nexus error messages so callers see "expected number, got string"
@@ -8813,6 +9067,7 @@ QBUEM_COLD inline const char *peek_json_type(const char *p, const char *end) noe
 template <typename T> void from_json_direct(const char *&p, const char *end, T &out) {
   if (p >= end) return;
   if constexpr (HasNexusPulse<T>) {
+    NexusDepthGuard _g; // bound recursion (nested struct)
     NexusScanner scanner{p, end};
     scanner.fill(out);
     p = scanner.p;
@@ -8835,6 +9090,15 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
     }
     const char *start = p;
     while (p < end && ((*p >= '0' && *p <= '9') || *p == '-' || *p == '.' || *p == 'e' || *p == 'E' || *p == '+')) ++p;
+    if (p == start) {
+      // The value is not a number (type mismatch).  Strict mode already threw
+      // above; in relaxed mode the charset loop matched nothing, so p did not
+      // advance — consume the actual token via skip_direct so the cursor stays
+      // in sync.  Without this the value's bytes are mis-read as the next key
+      // and the rest of the object is silently dropped.
+      skip_direct(p, end);
+      return;
+    }
     if constexpr (std::is_floating_point_v<T>) {
       out = static_cast<T>(json::detail::qj_nc::parse_f64(start, p));
     } else {
@@ -8844,6 +9108,7 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       }
     }
   } else if constexpr (JsonDetailOptional<T>) {
+    NexusDepthGuard _g; // bound recursion
     detail::ws(p, end);
     if (p + 4 <= end && !std::memcmp(p, "null", 4)) {
       out = std::nullopt;
@@ -8928,6 +9193,7 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       else skip_direct(p, end);
     }
   } else if constexpr (JsonDetailMap<T>) {
+    NexusDepthGuard _g; // bound recursion
     out.clear();
     detail::ws(p, end);
     if (p < end && *p == '{') {
@@ -8960,6 +9226,7 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       else skip_direct(p, end);
     }
   } else if constexpr (JsonDetailTuple<T>) {
+    NexusDepthGuard _g; // bound recursion
     detail::ws(p, end);
     if (p < end && *p == '[') {
       ++p;
@@ -8977,6 +9244,7 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       else skip_direct(p, end);
     }
   } else if constexpr (JsonDetailSeq<T>) {
+    NexusDepthGuard _g; // bound recursion
     out.clear();
     while (p < end && (unsigned char)*p <= 32) ++p;
     if (p < end && *p == '[') {
@@ -9018,7 +9286,7 @@ template <typename T> inline void NexusScanner::fill(T &obj) {
     if constexpr (HasNexusPulseH<T>) {
       // Fast path: hash computed during key scan — zero extra traversal
       const uint64_t h = read_key_h();
-      nexus_pulse_h(h, p, end, obj);
+      nexus_pulse_h(h, last_key_, p, end, obj);
     } else {
       nexus_pulse(read_key(), p, end, obj);
     }
@@ -9032,7 +9300,7 @@ template <typename T> inline void NexusScanner::fill(T &obj) {
 } // namespace json::detail
 
 // read / write / fuse helpers
-template <typename T> T read(::std::string_view json) {
+template <typename T> [[nodiscard]] T read(::std::string_view json) {
   Document doc;
   Value root = json::parse_reuse(doc, json);
   T obj{};
@@ -9040,7 +9308,7 @@ template <typename T> T read(::std::string_view json) {
   return obj;
 }
 
-template <typename T> T fuse(::std::string_view json) {
+template <typename T> [[nodiscard]] T fuse(::std::string_view json) {
   T obj{};
   json::detail::NexusScanner scanner{json.data(), json.data() + json.size(), json.data()};
   scanner.fill(obj);
@@ -9063,7 +9331,7 @@ template <typename T> T fuse(::std::string_view json) {
 /// Typical usage: use fuse_strict() during development / unit tests, then
 /// switch to fuse() once the schema is validated.
 /// See docs/guide/nexus-diagnostics.md for a full guide.
-template <typename T> T fuse_strict(::std::string_view json) {
+template <typename T> [[nodiscard]] T fuse_strict(::std::string_view json) {
   json::detail::nexus_strict_mode() = true;
   try {
     T obj{};
@@ -9083,7 +9351,7 @@ template <typename T> T fuse_strict(::std::string_view json) {
   }
 }
 
-template <typename T>::std::string write(const T &obj) {
+template <typename T> [[nodiscard]] ::std::string write(const T &obj) {
   ::std::string out;
   out.reserve(512);
   ::qbuem::json::detail::append_json(out, obj);
@@ -9093,7 +9361,7 @@ template <typename T>::std::string write(const T &obj) {
 // write(obj, indent) — pretty-printed variant.
 // Serializes obj to compact JSON, then re-parses and formats with indent spaces
 // per level. Use write(obj) for hot paths; this variant is for human-readable output.
-template <typename T>::std::string write(const T &obj, int indent) {
+template <typename T> [[nodiscard]] ::std::string write(const T &obj, int indent) {
   ::std::string compact = write(obj);
   Document tmp;
   Value root = parse(tmp, compact);

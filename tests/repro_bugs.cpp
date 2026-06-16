@@ -5,12 +5,68 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <cmath>
+#include <cstdint>
 
 // A minimized (ASCII-sanitized) heterogeneous-sibling-objects document derived
 // from twitter.json, used by the KeyLenCache regression test below.
 #include "keycache_regression.inc"
 
 using namespace qbuem;
+
+// ── Compile-time UAF-guard regression ───────────────────────────────────────
+// Every zero-copy parse entry point returns a Value that views into its input
+// buffer.  Passing a *temporary* std::string would dangle, so each overload has
+// a deleted `const std::string&&` companion that turns the misuse into a compile
+// error.  These static_asserts lock that contract in: an lvalue (kept alive) is
+// invocable, but a prvalue std::string is NOT.  A requires-expression that would
+// select a deleted overload is ill-formed, hence unsatisfied — so the negative
+// asserts succeed exactly when the guards are present.  If anyone drops a guard,
+// this file stops compiling.
+// NOTE: every detector is parameterized on the document type `Doc` so the call
+// lives in a *dependent* context.  There, selecting a deleted overload is a soft
+// (SFINAE) failure that makes the requires-expression evaluate to false; written
+// inline with a concrete type it would instead be a hard "call to deleted
+// function" error.  So the templates below are load-bearing, not stylistic.
+namespace {
+template <class Doc>
+inline constexpr bool lvalue_ok =
+    requires(Doc &d, std::string &s) { qbuem::json::parse_reuse(d, s); };
+template <class Doc>
+inline constexpr bool reuse_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::parse_reuse(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool partial_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::parse_partial(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool strict_dv_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::rfc8259::parse_strict(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool parse_rvalue_rejected =
+    !requires(Doc &d) { qbuem::parse(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool parse_strict_rvalue_rejected =
+    !requires(Doc &d) { qbuem::parse_strict(d, std::string{"{}"}); };
+
+// Positive: an lvalue (kept alive) is invocable on both document handles.
+static_assert(lvalue_ok<qbuem::Document>, "Document& lvalue parse must compile");
+static_assert(lvalue_ok<qbuem::json::DocumentView>,
+              "DocumentView& lvalue parse must compile");
+// Negative: a prvalue std::string selects the deleted UAF guard on every
+// zero-copy entry point (Document& family + DocumentView& family).
+static_assert(reuse_rvalue_rejected<qbuem::Document>,
+              "parse_reuse(Document&, std::string&&) must be deleted (UAF)");
+static_assert(reuse_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_reuse(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(partial_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_partial(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(strict_dv_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_strict(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(parse_rvalue_rejected<qbuem::Document>,
+              "parse(Document&, std::string&&) must be deleted (UAF)");
+static_assert(parse_strict_rvalue_rejected<qbuem::Document>,
+              "parse_strict(Document&, std::string&&) must be deleted (UAF)");
+} // namespace
 
 // Struct used by the Nexus (fuse) data-integrity tests below.
 struct FuseRec { int a; long b; };
@@ -23,6 +79,30 @@ QBUEM_JSON_FIELDS(FuseStr, s, o)
 // Struct with a vector to exercise the Nexus sequence-decoding loop.
 struct FuseVec { std::vector<int> v; };
 QBUEM_JSON_FIELDS(FuseVec, v)
+
+// Struct with an unsigned-64 field for serialize round-trip tests.
+struct U64Rec { uint64_t x; };
+QBUEM_JSON_FIELDS(U64Rec, x)
+
+// Structs for the Nexus security regression tests.
+struct AdminRec { long is_admin_lvl; std::string owner; };
+QBUEM_JSON_FIELDS(AdminRec, is_admin_lvl, owner)
+struct TreeNode { long v; std::vector<TreeNode> kids; };
+QBUEM_JSON_FIELDS(TreeNode, v, kids)
+struct AbcRec { long a; std::string b; std::string c; };
+QBUEM_JSON_FIELDS(AbcRec, a, b, c)
+
+// Performance regression guard: NexusScanner::fill() has a fast path that
+// computes the key hash *during* the key scan (read_key_h) and dispatches via
+// nexus_pulse_h — gated on the HasNexusPulseH concept.  If that concept's
+// requires-clause ever drifts out of sync with nexus_pulse_h's real arity, it
+// silently evaluates false and every struct decode falls back to a slow
+// double-scan (read_key + a separate fast_key_hash) — a ~15% fuse<T> regression
+// that is functionally correct, so no runtime test catches it.  Assert the fast
+// path stays enabled for a normal QBUEM_JSON_FIELDS struct.
+static_assert(qbuem::json::detail::HasNexusPulseH<AbcRec>,
+              "Nexus fast hash-dispatch path is disabled — HasNexusPulseH must "
+              "track nexus_pulse_h's signature (else ~15% fuse<T> regression)");
 
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
@@ -425,8 +505,9 @@ TEST(DataIntegrity, InsertEscapesStringContent) {
   Value root2 = parse(doc, "{}");
   char ctrl[] = {(char)0x01, (char)0x1f};
   root2.insert("c", std::string_view(ctrl, sizeof(ctrl)));
+  const std::string out2 = root2.dump(); // hold: parse() borrows the buffer
   Document d2;
-  EXPECT_NO_THROW(parse(d2, root2.dump()));
+  EXPECT_NO_THROW(parse(d2, out2));
 }
 
 TEST(DataIntegrity, SetEscapesStringContent) {
@@ -434,8 +515,9 @@ TEST(DataIntegrity, SetEscapesStringContent) {
   Value root = parse(doc, R"({"k":"orig"})");
   root["k"].set(std::string_view("x\"y\\z\n"));
   EXPECT_EQ(root.dump(), R"({"k":"x\"y\\z\n"})");
+  const std::string out = root.dump(); // hold: parse() borrows the buffer
   Document d2;
-  EXPECT_NO_THROW(parse(d2, root.dump()));
+  EXPECT_NO_THROW(parse(d2, out));
 }
 
 // ── INTEGRITY: the relaxed parser accepts separator-less tokens, so the
@@ -580,6 +662,137 @@ TEST(DataIntegrity, FuseStrictRejectsTrailingContent) {
   EXPECT_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}garbage)"),
                std::runtime_error);
   EXPECT_NO_THROW(fuse_strict<FuseRec>(R"({"a":1,"b":2}   )"));
+}
+
+// ── TYPE SAFETY: as<narrow-integer> must range-check, not silently truncate.
+// Previously as<uint8_t>(256) returned 0 and as<uint8_t>(-1) returned 255
+// (static_cast wrap) — a silent data-corruption hazard.
+TEST(TypeSafety, NarrowIntegerOverflowThrows) {
+  Document doc;
+  Value r = parse(doc, "[256, -1, 1000, 127, 255, 32768, -129]");
+  EXPECT_EQ(r[3].as<int8_t>(), 127);                     // in range
+  EXPECT_EQ(r[4].as<uint8_t>(), 255);                    // in range
+  EXPECT_EQ(r[4].as<uint16_t>(), 255u);                  // widening fine
+  EXPECT_THROW(r[0].as<int8_t>(), std::runtime_error);   // 256 > int8 max
+  EXPECT_THROW(r[0].as<uint8_t>(), std::runtime_error);  // 256 > uint8 max
+  EXPECT_THROW(r[2].as<uint8_t>(), std::runtime_error);  // 1000 > uint8 max
+  EXPECT_THROW(r[1].as<uint8_t>(), std::runtime_error);  // -1 into unsigned
+  EXPECT_THROW(r[1].as<uint32_t>(), std::runtime_error); // -1 into unsigned
+  EXPECT_THROW(r[5].as<int16_t>(), std::runtime_error);  // 32768 > int16 max
+  EXPECT_THROW(r[6].as<int8_t>(), std::runtime_error);   // -129 < int8 min
+}
+
+// ── TYPE SAFETY: the full uint64 range must be readable; cross-sign overflow
+// must throw.  Previously as<uint64_t> parsed via int64_t and could not read
+// values above INT64_MAX (it threw on UINT64_MAX).
+TEST(TypeSafety, FullUint64Range) {
+  Document doc;
+  Value r = parse(doc, "[18446744073709551615, 9223372036854775808, "
+                       "9223372036854775807]");
+  EXPECT_EQ(r[0].as<uint64_t>(), 18446744073709551615ULL); // UINT64_MAX
+  EXPECT_EQ(r[1].as<uint64_t>(), 9223372036854775808ULL);  // INT64_MAX + 1
+  EXPECT_EQ(r[2].as<int64_t>(), 9223372036854775807LL);    // INT64_MAX
+  EXPECT_THROW(r[0].as<int64_t>(), std::runtime_error);    // UINT64_MAX > int64
+  EXPECT_THROW(r[1].as<int64_t>(), std::runtime_error);    // INT64_MAX+1 > int64
+}
+
+// ── TYPE SAFETY: float extremes (overflow -> inf, underflow -> 0, signed zero).
+TEST(TypeSafety, FloatExtremes) {
+  Document doc;
+  Value r = parse(doc, "[1e400, 1e-400, -0, 5e-324, -1e-400]");
+  EXPECT_TRUE(std::isinf(r[0].as<double>()));            // overflow -> +inf
+  EXPECT_EQ(r[1].as<double>(), 0.0);                     // underflow -> 0
+  EXPECT_TRUE(std::signbit(r[2].as<double>()));          // -0 sign preserved
+  EXPECT_GT(r[3].as<double>(), 0.0);                     // smallest subnormal
+  EXPECT_TRUE(std::signbit(r[4].as<double>()));          // -0 from neg underflow
+}
+
+// ── TYPE SAFETY: serializing an unsigned value above INT64_MAX must not emit
+// "-1".  Value::set/insert/scalar_to_json_ cast to int64_t; fixed to dispatch
+// on signedness like the struct writer already did.
+TEST(TypeSafety, SerializeUnsigned64RoundTrips) {
+  const uint64_t umax = 18446744073709551615ULL;
+  Document doc;
+  Value r = parse(doc, "{}");
+  r.insert("u", umax);
+  const std::string dumped = r.dump(); // hold: parse() keeps a view into this
+  EXPECT_NE(dumped.find("18446744073709551615"), std::string::npos);
+  Document d2;
+  Value r2 = parse(d2, dumped);
+  EXPECT_EQ(r2["u"].as<uint64_t>(), umax);
+
+  // struct write path (was already correct — guard against regression)
+  U64Rec s{umax};
+  std::string j = qbuem::write(s);
+  EXPECT_NE(j.find("18446744073709551615"), std::string::npos);
+  EXPECT_EQ(qbuem::read<U64Rec>(j).x, umax);
+}
+
+// ── SECURITY: dump_changes_ used a fixed Frame stk[64] while the parser allows
+// nesting to 1088; a valid deep doc + any mutation + dump() smashed the stack.
+TEST(SecurityHardening, DumpChangesDeepNestNoStackSmash) {
+  std::string j(300, '[');
+  j += "1";
+  j.append(300, ']');
+  Document doc;
+  Value r = parse(doc, j);
+  Value cur = r;
+  for (int i = 0; i < 299; ++i)
+    cur = cur[size_t(0)];
+  cur.push_back(9); // route dump() to dump_changes_
+  EXPECT_NO_THROW(r.dump());
+}
+
+// ── SECURITY: Nexus dispatch is by key hash; the hash is collision-prone, so a
+// colliding untrusted key must NOT be routed into a field it doesn't name.
+TEST(SecurityHardening, NexusHashCollisionNoFieldSpoof) {
+  // "iS_adMin_Lvl" collides with "is_admin_lvl" under fast_key_hash.
+  auto r = qbuem::fuse<AdminRec>(R"({"owner":"bob","iS_adMin_Lvl":99})");
+  EXPECT_EQ(r.is_admin_lvl, 0); // spoof rejected (not 99)
+  auto r2 = qbuem::fuse<AdminRec>(R"({"is_admin_lvl":7,"owner":"x"})");
+  EXPECT_EQ(r2.is_admin_lvl, 7); // legitimate key still works
+}
+
+// ── SECURITY: Nexus typed recursion (recursive struct) must be depth-bounded,
+// not crash the stack on deeply-nested untrusted input.
+TEST(SecurityHardening, NexusDeepRecursionRejected) {
+  const int D = 30000;
+  std::string j;
+  for (int i = 0; i < D; ++i)
+    j += "{\"kids\":[";
+  j += "{\"v\":1}";
+  for (int i = 0; i < D; ++i)
+    j += "]}";
+  EXPECT_THROW(qbuem::fuse<TreeNode>(j), std::runtime_error);
+}
+
+// ── SECURITY/INTEGRITY: a type-mismatched value (string where number expected)
+// must not desync the cursor and silently drop the rest of the object.
+TEST(SecurityHardening, NexusCursorNoFieldDrop) {
+  auto r = qbuem::fuse<AbcRec>(R"({"a":"X","b":"BEE","c":"CEE"})");
+  EXPECT_EQ(r.b, "BEE");
+  EXPECT_EQ(r.c, "CEE");
+}
+
+// ── API: decoded() returns the unescaped logical string; as<string> stays raw.
+TEST(ApiUsability, DecodedUnescapesString) {
+  Document doc;
+  Value r = parse(doc, R"({"s":"a\nb\t\"\\\/Aé"})");
+  // expected: a <nl> b <tab> " \ / A é(0xC3 0xA9)
+  std::string expected = "a";
+  expected += '\n'; expected += 'b'; expected += '\t';
+  expected += '"'; expected += '\\'; expected += '/'; expected += 'A';
+  expected += static_cast<char>(0xC3); expected += static_cast<char>(0xA9);
+  EXPECT_EQ(r["s"].decoded(), expected);
+  // as<string_view> remains the RAW on-the-wire slice
+  EXPECT_EQ(std::string(r["s"].as<std::string_view>()).find("\\n"), 1u);
+
+  // surrogate pair 😀 -> U+1F600 (😀 = F0 9F 98 80)
+  Value r2 = parse(doc, R"({"e":"😀"})");
+  std::string emoji;
+  emoji += static_cast<char>(0xF0); emoji += static_cast<char>(0x9F);
+  emoji += static_cast<char>(0x98); emoji += static_cast<char>(0x80);
+  EXPECT_EQ(r2["e"].decoded(), emoji);
 }
 
 int main(int argc, char **argv) {
