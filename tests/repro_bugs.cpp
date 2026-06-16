@@ -14,6 +14,60 @@
 
 using namespace qbuem;
 
+// ── Compile-time UAF-guard regression ───────────────────────────────────────
+// Every zero-copy parse entry point returns a Value that views into its input
+// buffer.  Passing a *temporary* std::string would dangle, so each overload has
+// a deleted `const std::string&&` companion that turns the misuse into a compile
+// error.  These static_asserts lock that contract in: an lvalue (kept alive) is
+// invocable, but a prvalue std::string is NOT.  A requires-expression that would
+// select a deleted overload is ill-formed, hence unsatisfied — so the negative
+// asserts succeed exactly when the guards are present.  If anyone drops a guard,
+// this file stops compiling.
+// NOTE: every detector is parameterized on the document type `Doc` so the call
+// lives in a *dependent* context.  There, selecting a deleted overload is a soft
+// (SFINAE) failure that makes the requires-expression evaluate to false; written
+// inline with a concrete type it would instead be a hard "call to deleted
+// function" error.  So the templates below are load-bearing, not stylistic.
+namespace {
+template <class Doc>
+inline constexpr bool lvalue_ok =
+    requires(Doc &d, std::string &s) { qbuem::json::parse_reuse(d, s); };
+template <class Doc>
+inline constexpr bool reuse_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::parse_reuse(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool partial_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::parse_partial(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool strict_dv_rvalue_rejected =
+    !requires(Doc &d) { qbuem::json::rfc8259::parse_strict(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool parse_rvalue_rejected =
+    !requires(Doc &d) { qbuem::parse(d, std::string{"{}"}); };
+template <class Doc>
+inline constexpr bool parse_strict_rvalue_rejected =
+    !requires(Doc &d) { qbuem::parse_strict(d, std::string{"{}"}); };
+
+// Positive: an lvalue (kept alive) is invocable on both document handles.
+static_assert(lvalue_ok<qbuem::Document>, "Document& lvalue parse must compile");
+static_assert(lvalue_ok<qbuem::json::DocumentView>,
+              "DocumentView& lvalue parse must compile");
+// Negative: a prvalue std::string selects the deleted UAF guard on every
+// zero-copy entry point (Document& family + DocumentView& family).
+static_assert(reuse_rvalue_rejected<qbuem::Document>,
+              "parse_reuse(Document&, std::string&&) must be deleted (UAF)");
+static_assert(reuse_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_reuse(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(partial_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_partial(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(strict_dv_rvalue_rejected<qbuem::json::DocumentView>,
+              "parse_strict(DocumentView&, std::string&&) must be deleted (UAF)");
+static_assert(parse_rvalue_rejected<qbuem::Document>,
+              "parse(Document&, std::string&&) must be deleted (UAF)");
+static_assert(parse_strict_rvalue_rejected<qbuem::Document>,
+              "parse_strict(Document&, std::string&&) must be deleted (UAF)");
+} // namespace
+
 // Struct used by the Nexus (fuse) data-integrity tests below.
 struct FuseRec { int a; long b; };
 QBUEM_JSON_FIELDS(FuseRec, a, b)

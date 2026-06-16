@@ -7191,6 +7191,11 @@ inline Value parse_partial(DocumentView &handle, std::string_view json, size_t* 
   if (consumed) *consumed = p.get_p() - json.data();
   return Value(doc, 0);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string
+// at compile time so a temporary buffer cannot become a use-after-free (mirrors
+// the Document& overloads).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_partial(DocumentView &, const ::std::string &&,
+                    size_t * = nullptr) = delete;
 
 inline Value parse_reuse(DocumentView &handle, std::string_view json) {
   DocumentState *doc = handle.state();
@@ -7241,6 +7246,10 @@ inline Value parse_reuse(DocumentView &handle, std::string_view json) {
 #endif
   return Value(doc, 0);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string at
+// compile time so a temporary buffer cannot become a use-after-free (mirrors the
+// Document& overload).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_reuse(DocumentView &, const ::std::string &&) = delete;
 
 // ── Value::merge_patch() out-of-line (needs parse_reuse) ────────────────────
 inline void Value::merge_patch(std::string_view patch_json) {
@@ -7932,6 +7941,10 @@ inline Value parse_strict(DocumentView &doc, ::std::string_view json) {
   rfc8259::validate(json);
   return qbuem::json::parse_reuse(doc, json);
 }
+// Zero-copy: the returned Value views into `json`.  Reject rvalue std::string at
+// compile time so a temporary buffer cannot become a use-after-free (mirrors the
+// Document& overload).  Keep an lvalue alive, or use read<T>()/fuse<T>().
+Value parse_strict(DocumentView &, const ::std::string &&) = delete;
 
 } // namespace rfc8259
 
@@ -8766,6 +8779,17 @@ namespace rfc8259 = json::rfc8259;
 // will not compile.  Pass an lvalue you keep alive (or a string literal), e.g.
 //   std::string text = get_config_json();  auto v = qbuem::parse(doc, text);
 // If you need an owning value, use read<T>()/fuse<T>() (they copy into T).
+//
+// Thread-safety / aliasing:
+//   • A Document owns mutable parse state; one Document is single-threaded.  Do
+//     NOT parse into, mutate, or destroy the same Document from two threads.
+//   • Every Value/SafeValue from a Document ALIASES that Document's tape and the
+//     input buffer — they are lightweight handles, not copies.  After a read-only
+//     parse you MAY hand those handles to multiple threads that only READ
+//     concurrently (no data race: the tape is immutable once parsed).  As soon as
+//     ANY thread mutates (insert/erase/operator[]=/merge_patch) or re-parses the
+//     Document, all concurrent access must stop — mutation rewrites shared state.
+//   • Distinct Documents share nothing and are fully independent across threads.
 inline Value parse(Document &doc, ::std::string_view json) {
   return json::parse_reuse(doc, json);
 }
