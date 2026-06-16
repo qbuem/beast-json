@@ -15,7 +15,7 @@ Existing Korean comments in legacy files should be translated to English when to
 
 ## Project Overview
 
-**qbuem-json v1.0.7** — Single-header C++20 JSON library.
+**qbuem-json v1.0.8** — Single-header C++20 JSON library.
 RFC 8259 compliant, IEEE 754 round-trip, zero external dependencies.
 
 - **Single header**: `include/qbuem_json/qbuem_json.hpp` — ALL logic lives here

@@ -179,10 +179,10 @@ export default withMermaid(
                         applicationCategory: 'DeveloperApplication',
                         applicationSubCategory: 'C++ Library',
                         operatingSystem: 'Linux, macOS',
-                        version: '1.0.7',
-                        softwareVersion: '1.0.7',
-                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.7',
-                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.7',
+                        version: '1.0.8',
+                        softwareVersion: '1.0.8',
+                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8',
+                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8',
                         installUrl: 'https://qbuem.com/qbuem-json/guide/getting-started',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, nlohmann alternative, simdjson alternative, RapidJSON alternative',
@@ -230,7 +230,7 @@ export default withMermaid(
                         },
                         runtimePlatform: 'C++20',
                         targetProduct: { '@id': 'https://qbuem.com/qbuem-json/#application' },
-                        version: '1.0.7',
+                        version: '1.0.8',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer, zero-allocation',
                         author: { '@id': 'https://qbuem.com/#organization' }
@@ -377,9 +377,9 @@ export default withMermaid(
                     ]
                 },
                 {
-                    text: 'v1.0.7',
+                    text: 'v1.0.8',
                     items: [
-                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.7' },
+                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8' },
                         { text: 'All Releases', link: 'https://github.com/qbuem/qbuem-json/releases' }
                     ]
                 }
