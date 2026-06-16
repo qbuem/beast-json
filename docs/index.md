@@ -76,7 +76,7 @@ features:
   <!-- Row 4: Package -->
   <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
     <span style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #999; min-width: 5.5rem; flex-shrink: 0;">Package</span>
-    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.0.7"><img src="https://img.shields.io/badge/version-v1.0.7-blue" alt="v1.0.7" /></a>
+    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8"><img src="https://img.shields.io/badge/version-v1.0.8-blue" alt="v1.0.8" /></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0" /></a>
     <a href="https://github.com/qbuem/qbuem-json/blob/main/include/qbuem_json/qbuem_json.hpp"><img src="https://img.shields.io/badge/header--only-single%20file-lightgrey" alt="header-only" /></a>
     <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="zero dependencies" />
@@ -183,7 +183,7 @@ Choose the DOM engine when key names are dynamic or unknown at compile time. Swi
 include(FetchContent)
 FetchContent_Declare(qbuem_json
     GIT_REPOSITORY https://github.com/qbuem/qbuem-json.git
-    GIT_TAG        v1.0.7
+    GIT_TAG        v1.0.8
 )
 FetchContent_MakeAvailable(qbuem_json)
 target_link_libraries(my_target PRIVATE qbuem_json::qbuem_json)

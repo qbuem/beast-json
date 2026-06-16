@@ -3,7 +3,7 @@
 > qbuem-json is a high-performance, header-only C++20 JSON library with dual-engine architecture.
 > GitHub: https://github.com/qbuem/qbuem-json
 > Docs: https://qbuem.com/qbuem-json/
-> Version: 1.0.7 · License: Apache 2.0
+> Version: 1.0.8 · License: Apache 2.0
 
 ---
 
@@ -44,7 +44,7 @@ include(FetchContent)
 FetchContent_Declare(
     qbuem_json
     GIT_REPOSITORY https://github.com/qbuem/qbuem-json
-    GIT_TAG        v1.0.7
+    GIT_TAG        v1.0.8
 )
 FetchContent_MakeAvailable(qbuem_json)
 target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)

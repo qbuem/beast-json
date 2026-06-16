@@ -29,7 +29,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     try {
         // qbuem-json uses std::pmr::string and std::pmr::vector internally if configured
-        // In the v1.0.7 header, we need to ensure we use the PMR versions of Document/Value if available.
+        // In the v1.0.8 header, we need to ensure we use the PMR versions of Document/Value if available.
         // For this fuzzer, we primarily stress the parser's allocation with the chosen resource.
         
         static DocumentView doc; // Note: Current DocumentView might not support custom PMR easily without header changes.
