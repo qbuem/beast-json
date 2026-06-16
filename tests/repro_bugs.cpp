@@ -92,6 +92,18 @@ QBUEM_JSON_FIELDS(TreeNode, v, kids)
 struct AbcRec { long a; std::string b; std::string c; };
 QBUEM_JSON_FIELDS(AbcRec, a, b, c)
 
+// Performance regression guard: NexusScanner::fill() has a fast path that
+// computes the key hash *during* the key scan (read_key_h) and dispatches via
+// nexus_pulse_h — gated on the HasNexusPulseH concept.  If that concept's
+// requires-clause ever drifts out of sync with nexus_pulse_h's real arity, it
+// silently evaluates false and every struct decode falls back to a slow
+// double-scan (read_key + a separate fast_key_hash) — a ~15% fuse<T> regression
+// that is functionally correct, so no runtime test catches it.  Assert the fast
+// path stays enabled for a normal QBUEM_JSON_FIELDS struct.
+static_assert(qbuem::json::detail::HasNexusPulseH<AbcRec>,
+              "Nexus fast hash-dispatch path is disabled — HasNexusPulseH must "
+              "track nexus_pulse_h's signature (else ~15% fuse<T> regression)");
+
 // Bug 1: Segfault after moving Document
 TEST(ReproBugs, MoveDocumentSegfault) {
   Document doc;

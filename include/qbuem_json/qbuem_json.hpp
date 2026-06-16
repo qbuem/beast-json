@@ -8125,11 +8125,17 @@ concept HasNexusPulse =
     requires(std::string_view key, const char *&p, const char *end, T &t) {
   nexus_pulse(key, p, end, t);
 };
-// Fast variant: dispatch on a pre-computed uint64 key hash (skips runtime hash)
+// Fast variant: dispatch on a pre-computed uint64 key hash (skips runtime hash).
+// NOTE: the signature here MUST track nexus_pulse_h's real arity — it gained a
+// string_view `key` parameter (used to byte-verify the hash match against the
+// field name, defeating hash-collision field spoofing).  If this requires-clause
+// lags behind, the concept silently evaluates false and NexusScanner::fill()
+// falls back to the slow read_key()+separate-hash path (a ~15% fuse<T> regression
+// that is functionally correct, so no test catches it).
 template <typename T>
-concept HasNexusPulseH =
-    requires(uint64_t h, const char *&p, const char *end, T &t) {
-  nexus_pulse_h(h, p, end, t);
+concept HasNexusPulseH = requires(uint64_t h, ::std::string_view key,
+                                  const char *&p, const char *end, T &t) {
+  nexus_pulse_h(h, key, p, end, t);
 };
 
 // ── Forward declarations
