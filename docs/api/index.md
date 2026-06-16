@@ -1,6 +1,6 @@
 # API Reference
 
-A complete reference for all public APIs in qbuem-json v1.0.5.
+A complete reference for all public APIs in qbuem-json v1.0.7.
 
 > [!TIP]
 > Looking for auto-generated class/struct documentation? The **[Doxygen Reference](/qbuem-json/api/reference/index.html)** is rebuilt automatically whenever `qbuem_json.hpp` changes and deployed to Pages alongside this guide.
@@ -83,15 +83,16 @@ while (running) {
 
 ### `qbuem::parse_strict(doc, json)` — RFC 8259 Strict Parse
 
-Performs strict RFC 8259 validation before parsing. Rejects trailing commas, leading zeros, lone surrogates, and more.
+Performs strict RFC 8259 validation before parsing. Rejects trailing commas, leading zeros, single-quoted strings, trailing garbage, **and malformed UTF-8** (overlong encodings, UTF-8-encoded surrogates, code points > U+10FFFF, lone continuation bytes). Throws `qbuem::parse_error`.
 
 ```cpp
 qbuem::Document doc;
 try {
     auto root = qbuem::parse_strict(doc, R"({"key": "value"})"); // OK
     auto bad  = qbuem::parse_strict(doc, "[1, 2,]");             // throws!
-} catch (const std::runtime_error& e) {
-    std::cerr << e.what() << "\n"; // RFC 8259 violation at offset 7
+} catch (const qbuem::parse_error& e) {
+    std::cerr << e.what()        // "RFC 8259 violation at offset 6: trailing comma in array"
+              << " @ " << e.offset() << "\n"; // 6
 }
 ```
 
@@ -99,14 +100,34 @@ try {
 
 ### `qbuem::rfc8259::validate(json)` — Validate Only (No Parse)
 
-Validates JSON text without building a DOM. Throws `std::runtime_error` on violation.
+Validates JSON text (syntax + UTF-8 well-formedness) without building a DOM. Throws `qbuem::parse_error` on violation.
 
 ```cpp
 try {
     qbuem::rfc8259::validate(R"({"valid": true})");  // OK — no throw
     qbuem::rfc8259::validate("[1, 2,]");              // throws
-} catch (const std::runtime_error& e) {
-    std::cerr << e.what() << "\n";
+} catch (const qbuem::parse_error& e) {
+    std::cerr << e.what() << " @ " << e.offset() << "\n";
+}
+```
+
+---
+
+### `qbuem::parse_error` — Exception Type
+
+Thrown by `parse`, `parse_reuse`, `parse_strict`, `read<T>`, `fuse<T>`, and `rfc8259::validate` on invalid input. Derives from `std::runtime_error`, so existing `catch (const std::runtime_error&)` / `catch (const std::exception&)` blocks keep working. Adds:
+
+| Member | Returns | Meaning |
+| :--- | :--- | :--- |
+| `offset()` | `std::size_t` | 0-based byte position of the failure (== input size on premature end) |
+| `what()` | `const char*` | Human-readable message, including the offset |
+
+```cpp
+try {
+    qbuem::Document doc;
+    qbuem::parse(doc, "[1, 2,"); // truncated
+} catch (const qbuem::parse_error& e) {
+    log("parse failed at byte %zu: %s", e.offset(), e.what());
 }
 ```
 
@@ -231,6 +252,21 @@ bool         flag  = root["flag"].as<bool>();
 std::string_view sv = root["tag"].as<std::string_view>();
 
 // Throws std::runtime_error on type mismatch or missing key
+```
+
+### `.decoded()` — Unescaped Logical String
+
+`as<std::string>()` / `as<std::string_view>()` return the **raw** on-the-wire
+bytes (escapes **not** decoded — the `string_view` form is zero-copy). `decoded()`
+returns the logical value with `\" \\ \/ \b \f \n \r \t` and `\uXXXX` resolved
+(surrogate pairs → UTF-8; lone surrogates → U+FFFD, so the result is **always
+valid UTF-8**).
+
+```cpp
+auto v = qbuem::parse(doc, R"({"p":"C:\\tmp","e":"😀"})");
+std::string_view raw = v["p"].as<std::string_view>(); // C:\\tmp  (raw, zero-copy)
+std::string      log = v["p"].decoded();              // C:\tmp   (unescaped)
+std::string      em  = v["e"].decoded();              // 😀
 ```
 
 ### Implicit Conversion — `operator T()`

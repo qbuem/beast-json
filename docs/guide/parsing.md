@@ -55,17 +55,22 @@ while (std::getline(socket_stream, line)) {
 
 ### `qbuem::parse_strict(doc, json)` — RFC 8259 Strict Mode
 
-Throws `std::runtime_error` on any RFC 8259 violation: trailing commas, leading zeros, lone surrogates, etc.
+Throws `qbuem::parse_error` on any RFC 8259 violation — trailing commas, leading zeros, single-quoted strings, trailing garbage — **and** on malformed UTF-8 (overlong encodings, UTF-8-encoded surrogates, code points > U+10FFFF, lone continuation bytes; see [Error Handling](/guide/errors#strict-utf-8-validation)). The relaxed `parse` / `parse_reuse` stay byte-transparent and do not UTF-8-validate.
 
 ```cpp
 try {
     qbuem::Document doc;
     auto root = qbuem::parse_strict(doc, "[1, 2,]"); // throws!
-} catch (const std::runtime_error& e) {
-    // "RFC 8259 violation at offset 6: trailing comma"
-    std::cerr << e.what() << "\n";
+} catch (const qbuem::parse_error& e) {
+    // "RFC 8259 violation at offset 6: trailing comma in array"
+    std::cerr << e.what() << " (byte " << e.offset() << ")\n";
 }
 ```
+
+> [!NOTE]
+> `parse_error` derives from `std::runtime_error` (so old catch blocks still work)
+> and adds `offset()` — the byte position of the failure. It is thrown by every
+> parsing entry point: `parse`, `parse_reuse`, `parse_strict`, `read<T>`, `fuse<T>`.
 
 ### `qbuem::read<T>(json)` — Deserialize via Tape-DOM
 
@@ -104,6 +109,30 @@ bool    active = root["active"].as<bool>();
 // Zero-copy string view (valid as long as doc is alive)
 std::string_view sv = root["tag"].as<std::string_view>();
 ```
+
+### `decoded()` vs raw strings
+
+`as<std::string>()` and `as<std::string_view>()` return the **raw on-the-wire
+bytes** of the string — escape sequences are **not** decoded. This is deliberate:
+the `string_view` form is a zero-copy slice into the document. When you need the
+**logical** value with escapes resolved, call **`decoded()`**:
+
+```cpp
+auto root = qbuem::parse(doc, R"({"path": "C:\\tmp\\a.txt", "emoji": "😀"})");
+
+std::string_view raw = root["path"].as<std::string_view>(); // C:\\tmp\\a.txt  (raw, zero-copy)
+std::string      log = root["path"].decoded();              // C:\tmp\a.txt   (unescaped)
+std::string      em  = root["emoji"].decoded();             // 😀  (surrogate pair → UTF-8)
+```
+
+`decoded()` processes `\" \\ \/ \b \f \n \r \t` and `\uXXXX` (combining surrogate
+pairs into astral code points). A lone/unpaired surrogate becomes **U+FFFD**, so
+`decoded()` output is **always valid UTF-8**.
+
+> [!TIP]
+> Use the raw `as<std::string_view>()` for zero-copy comparisons and forwarding;
+> use `decoded()` whenever the bytes are shown to a user, written to a non-JSON
+> sink, or compared against a decoded value.
 
 ### Implicit Conversion (Ergonomic Shorthand)
 
@@ -216,6 +245,20 @@ int    timeout = root.value("timeout", 5000);
 double ratio   = root.value("ratio", 1.0);
 std::string mode = root.value("mode", std::string{"default"});
 ```
+
+### Duplicate keys
+
+RFC 8259 says object names *should* (not *must*) be unique, so duplicates are
+valid JSON and both engines accept them. The resolution is **deterministic but
+differs by engine**:
+
+| Engine | API | Duplicate resolution |
+| :--- | :--- | :--- |
+| DOM | `root["k"]`, `read<T>` | **first**-wins (returns the first occurrence) |
+| Nexus | `fuse<T>` | **last**-wins (overwrites the field, matching JS/Python/Go) |
+
+If duplicate keys carry security meaning in untrusted input, reject or
+canonicalize upstream — do not rely on cross-engine agreement.
 
 ---
 

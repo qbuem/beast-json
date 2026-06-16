@@ -19,7 +19,7 @@
 
   <!-- Testing -->
   <p>
-    <a href="https://qbuem.com/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-521%20passing-brightgreen" alt="521 tests passing"></a>
+    <a href="https://qbuem.com/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-558%20passing-brightgreen" alt="558 tests passing"></a>
     <a href="https://qbuem.com/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-11%20libFuzzer%20targets-orange" alt="11 libFuzzer targets"></a>
   </p>
 
@@ -88,6 +88,7 @@ std::string json = qbuem::write(player);
 * **Single Header** — Drop `qbuem_json.hpp` into your project and you're ready. Zero external dependencies.
 * **STL Support** — `std::vector`, `std::map`, `std::optional`, `std::tuple`, `std::variant` and more work out of the box.
 * **Three-stage float parsing** — Eisel-Lemire (~98.8 %) → Russ Cox Unrounded Scaling (~1.2 %) → `std::strtod` (subnormals only). `parse(serialize(x)) == x` for all finite doubles.
+* **Hardened for untrusted input** — strict mode validates UTF-8 well-formedness (rejects overlong / surrogate / truncated sequences, RFC 8259 §8.1); parse failures throw a typed `qbuem::parse_error` with `offset()`; zero-copy use-after-free misuse is a **compile error**. Continuously fuzzed (11 libFuzzer targets) and sanitized (ASan/UBSan/TSan across x86_64 / aarch64 / Apple Silicon).
 
 ---
 

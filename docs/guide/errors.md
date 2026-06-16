@@ -35,16 +35,26 @@ try {
 
 ### Parse Errors
 
-A parse failure also throws `std::runtime_error`:
+A parse failure throws **`qbuem::parse_error`**. It derives from
+`std::runtime_error` — so existing `catch (const std::runtime_error&)` /
+`catch (const std::exception&)` blocks keep working — and adds an **`offset()`**
+method giving the 0-based byte position in the input where parsing failed (equal
+to the input size when the input ends prematurely):
 
 ```cpp
 try {
     qbuem::Document doc;
-    auto root = qbuem::parse(doc, "{malformed json!}"); // throws
-} catch (const std::runtime_error& e) {
-    std::cerr << "Parse failed: " << e.what() << "\n";
+    auto root = qbuem::parse(doc, "[1, 2,"); // truncated → throws
+} catch (const qbuem::parse_error& e) {
+    std::cerr << "Parse failed: " << e.what()      // "Invalid JSON at offset 6"
+              << " (byte " << e.offset() << ")\n";  // byte 6
 }
 ```
+
+`parse_error` is thrown by every parsing entry point — `parse`, `parse_reuse`,
+`parse_strict`, and the owning `read<T>()` / `fuse<T>()`. On the relaxed scalar
+path `offset()` is the exact failure cursor; on the AVX-512 staged path it is the
+offset just past the last fully consumed value.
 
 ---
 
@@ -138,7 +148,7 @@ v.type_name();   // "null", "bool", "int", "double", "string", "array", "object"
 
 ## 🔐 Strategy 4: RFC 8259 Strict Validation
 
-Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enforce strict JSON compliance (e.g., for security-sensitive input processing).
+Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enforce strict JSON compliance (e.g., for security-sensitive input processing). Strict failures also throw `qbuem::parse_error`, and `what()` includes both the offset and a human-readable reason.
 
 ```cpp
 #include <qbuem_json/qbuem_json.hpp>
@@ -146,8 +156,9 @@ Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enf
 // Validate without parsing (just check validity)
 try {
     qbuem::rfc8259::validate("[1, 2,]");  // trailing comma → throws
-} catch (const std::runtime_error& e) {
-    std::cerr << e.what(); // "RFC 8259 violation at offset 7: trailing comma"
+} catch (const qbuem::parse_error& e) {
+    std::cerr << e.what()        // "RFC 8259 violation at offset 6: trailing comma in array"
+              << " @ " << e.offset(); // 6
 }
 
 // Validate and parse in one step
@@ -155,10 +166,21 @@ try {
     qbuem::Document doc;
     auto root = qbuem::parse_strict(doc, R"({"key": "value"})"); // OK
     auto bad  = qbuem::parse_strict(doc, R"({"a": 01})");        // leading zero → throws
-} catch (const std::runtime_error& e) {
+} catch (const qbuem::parse_error& e) {
     std::cerr << "Strict parse failed: " << e.what() << "\n";
 }
 ```
+
+### Strict UTF-8 validation
+
+Beyond JSON *syntax*, strict mode also enforces RFC 8259 §8.1: the input must be
+**well-formed UTF-8**. It rejects malformed byte sequences in string content —
+overlong encodings (e.g. `C0 AF`, a classic filter-bypass form of `/`), UTF-8
+-encoded surrogates (`ED A0 80`), code points beyond U+10FFFF, lone continuation
+bytes, and truncated sequences. The **relaxed** parser (`parse` / `parse_reuse`)
+stays byte-transparent so `as<std::string_view>()` can return a zero-copy slice;
+use strict mode, or [`decoded()`](/guide/parsing#decoded-vs-raw-strings), when
+you need a UTF-8 guarantee.
 
 **Inputs rejected by strict mode:**
 
@@ -167,9 +189,16 @@ try {
 | `[1, 2,]` | Trailing comma |
 | `{"a": 01}` | Leading zero |
 | `{"key": 'val'}` | Single-quoted string |
-| `{"\\uD800": "x"}` | Lone surrogate |
+| `"…\xC0\xAF…"` | Overlong UTF-8 encoding |
+| `"…\xED\xA0\x80…"` | UTF-8-encoded surrogate |
+| `"…\x80…"` | Lone UTF-8 continuation byte |
 | `[1, 2} garbage` | Trailing garbage |
 | `` (empty) | Empty input |
+
+> A lone surrogate written as a `\uXXXX` **escape** (e.g. `"\uD800"`) is *accepted*
+> — RFC 8259 leaves this implementation-defined. If you then call `decoded()`,
+> the lone surrogate is replaced with U+FFFD so the decoded result is always valid
+> UTF-8.
 
 ---
 

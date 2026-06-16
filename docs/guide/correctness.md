@@ -104,6 +104,33 @@ The library ships two parsers:
 All `n_` tests use `parse_strict()`.  The lenient parser's extensions are
 explicitly documented so you can opt in intentionally.
 
+### UTF-8 well-formedness (RFC 8259 §8.1)
+
+`parse_strict()` / `rfc8259::validate()` validate that string content is
+**well-formed UTF-8**, not just syntactically valid JSON. Malformed byte
+sequences are rejected against the Unicode "well-formed UTF-8" table (Table 3-7):
+
+| Rejected | Example bytes |
+|:---|:---|
+| Overlong encodings | `C0 AF` (a non-shortest form of `/` — a filter-bypass vector) |
+| UTF-8-encoded surrogates | `ED A0 80` (U+D800) |
+| Code points > U+10FFFF | `F4 90 80 80` |
+| Lone continuation bytes | `80` |
+| Truncated sequences | `E2 9C` (3-byte lead, one byte short) |
+
+The **lenient** `parse()` is byte-transparent (it does not UTF-8-validate) so
+`as<std::string_view>()` can stay zero-copy. A lone surrogate written as a
+`\uXXXX` *escape* is accepted (RFC implementation-defined); `decoded()` then
+replaces it with U+FFFD so decoded output is always valid UTF-8.
+
+### Duplicate object keys
+
+RFC 8259 §4 says names *should* (not *must*) be unique, so duplicates are valid
+JSON and are accepted. Resolution is deterministic but engine-specific: the DOM
+(`operator[]`, `read<T>`) is **first-wins**; Nexus (`fuse<T>`) is **last-wins**
+(matching JavaScript / Python / Go). Reject or canonicalize upstream if duplicate
+keys are security-relevant.
+
 ---
 
 ## Memory safety — sanitizers
