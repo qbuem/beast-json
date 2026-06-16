@@ -51,6 +51,11 @@ Best for **latency-critical micro-DTOs**. It bypasses the Tape entirely, using *
 User u = qbuem::fuse<User>(json_str);
 ```
 
+> [!NOTE]
+> On invalid input `read<T>` / `fuse<T>` throw [`qbuem::parse_error`](/guide/errors#parse-errors)
+> (a `std::runtime_error` with `offset()`). For [duplicate object keys](/guide/parsing#duplicate-keys),
+> `fuse<T>` is **last-wins** (it overwrites the field) while the DOM `read<T>` is first-wins.
+
 ---
 
 ## 🏗️ Direct Struct Mapping with `QBUEM_JSON_FIELDS`

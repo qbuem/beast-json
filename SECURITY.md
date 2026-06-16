@@ -54,22 +54,45 @@ Out of scope:
 
 ## Security Hardening
 
-qbuem-json is continuously tested for memory safety:
+All parser/serializer entry points are designed to treat their input as
+**untrusted**. The hardening posture includes:
+
+- **Memory safety** — depth caps on every recursive path (parser, validator,
+  Nexus typed decode, pretty-printer) prevent stack exhaustion; inputs larger
+  than 4 GiB are rejected up front (32-bit tape offsets); the zero-copy
+  lifetime contract is enforced at **compile time** — passing a temporary
+  `std::string` to a borrowing `parse*` overload is a compile error, not a
+  silent use-after-free.
+- **Denial of service** — recursion and output-size blow-ups are bounded;
+  pathological inputs cannot drive unbounded memory growth.
+- **Type confusion** — the Nexus engine verifies actual key bytes after its
+  hash dispatch, so a hash-colliding untrusted key cannot be routed into the
+  wrong struct field (field spoofing).
+- **Encoding** — strict mode (`parse_strict` / `rfc8259::validate`) rejects
+  malformed UTF-8 (overlong encodings, UTF-8-encoded surrogates, code points
+  beyond U+10FFFF, lone continuation/truncated sequences) per RFC 8259 §8.1;
+  `decoded()` substitutes U+FFFD for lone surrogates so its output is always
+  valid UTF-8.
+- **Diagnostics** — invalid input throws a typed `qbuem::parse_error`
+  (a `std::runtime_error` with an `offset()` byte position).
+
+These are continuously verified:
 
 - **AddressSanitizer (ASan)** — heap/stack overflow, use-after-free, memory leaks
 - **UndefinedBehaviorSanitizer (UBSan)** — integer overflow, null deref, misaligned
   access, invalid enum
 - **ThreadSanitizer (TSan)** — data races, lock-order inversions
 
-These run on every pull request and push to `main` via the
+ASan/UBSan and TSan run on every pull request and push to `main` across
+**x86_64, aarch64, and Apple Silicon** via the
 [Sanitizers CI workflow](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml).
 
-Three [libFuzzer](https://llvm.org/docs/LibFuzzer.html) targets fuzz the parser
-continuously:
-
-- `fuzz_dom` — DOM parser with arbitrary input
-- `fuzz_parse` — Nexus / struct-mapping path
-- `fuzz_rfc8259` — strict RFC 8259 parser
+Eleven [libFuzzer](https://llvm.org/docs/LibFuzzer.html) targets fuzz the parser,
+serializer, and struct-mapping paths; nine run as a blocking
+[Fuzz CI gate](https://github.com/qbuem/qbuem-json/actions/workflows/fuzz.yml) on
+every change (with a deeper weekly run), including `fuzz_parse`, `fuzz_dom`,
+`fuzz_nexus`, `fuzz_direct`, `fuzz_pmr`, `fuzz_patch`, `fuzz_api_stress`,
+`fuzz_rfc8259`, and `fuzz_float`.
 
 ## Attribution
 

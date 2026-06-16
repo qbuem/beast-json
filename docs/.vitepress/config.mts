@@ -194,7 +194,7 @@ export default withMermaid(
                             'C++20 concepts-based API',
                             'RFC 8259, RFC 6901, RFC 6902 compliant',
                             'IEEE 754 round-trip float correctness',
-                            '521 passing tests, 11 libFuzzer targets',
+                            '558 passing tests, 11 libFuzzer targets',
                             'STL container support (vector, map, optional, tuple, variant)',
                             'Up to 2.9 GB/s parsing, 7.2 GB/s serialization',
                             'Apache 2.0 license — free for commercial use',
