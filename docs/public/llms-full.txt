@@ -317,6 +317,37 @@ root.dump(buf);  // dump also accepts a buffer ref
 
 ---
 
+## CBOR Binary Serialization (RFC 8949)
+
+The same `QBUEM_JSON_FIELDS` registration also drives a CBOR binary codec. CBOR is
+self-describing, so the bytes decode in any language (e.g. JavaScript `cbor-x`)
+with no shared schema — about 40% smaller than JSON and several times faster to
+decode. The decoder is fully bounds-checked and fuzzed for untrusted network input.
+
+```cpp
+struct Child { int64_t id; std::string name; std::string birth_date; };
+QBUEM_JSON_FIELDS(Child, id, name, birth_date)   // same list as JSON
+
+Child c{42, "Mina", "2018-04-01"};
+
+// Encode → compact CBOR bytes (std::string used as a byte buffer)
+std::string bytes = qbuem::cbor::encode(c);
+qbuem::cbor::encode_to(buf, c);                  // append into a reused buffer
+
+// Decode → struct (throws qbuem::parse_error on bad/truncated/mismatched input)
+Child back = qbuem::cbor::decode<Child>(bytes);              // string_view
+Child b2   = qbuem::cbor::decode<Child>(data_ptr, n);        // (ptr, len) overload
+qbuem::cbor::decode_into(bytes, existing);                   // fill existing object
+```
+
+- API lives in `namespace qbuem::cbor`: `encode`, `encode_to`, `decode<T>`, `decode_into<T>`.
+- Supports the same type set as the JSON engine: scalars, `std::string`, `std::optional`, `vector`/`list`/`deque`/sets, `map`, `std::array`/`tuple`/`pair`, and nested `QBUEM_JSON_FIELDS` structs. `uint64_t` round-trips exactly (no int64 narrowing).
+- Structs serialize to a definite-length CBOR map keyed by field name; trailing bytes after the top-level item are ignored (length-framed-message friendly).
+- Decode uses a positional fast path: when keys arrive in declaration order (the common case), each field is confirmed with one direct byte compare and decoded with no hash/switch; out-of-order/foreign maps fall back to hash dispatch. All advances are bounds-checked; recursion is capped at 1024.
+- Use JSON for config/logs/REST; use CBOR for hot-path machine-to-machine traffic (WebSocket frames, game deltas, bandwidth-constrained links, on-device binary persistence).
+
+---
+
 ## Mutations (Non-Destructive Overlay)
 
 The original tape is immutable. Mutations are stored in a fast overlay map.
@@ -447,16 +478,18 @@ Nexus Fusion: 50–230 ns for direct struct mapping (zero tape).
 
 Competitors (same benchmark): simdjson ~2.5 GB/s parse, yyjson ~2.3 GB/s, RapidJSON ~0.8 GB/s, nlohmann ~0.3 GB/s.
 
+CBOR codec (Apple Silicon, 16-entity × 7-int message, reused buffer): encode ~515 ns, decode ~570 ns, wire 590 B — vs the same data as JSON (encode ~550 ns, decode ~4300 ns, 1018 B). Against nlohmann's DOM-based CBOR (`to_cbor`/`from_cbor`), qbuem-json is ~20× faster to encode and ~28× faster to decode.
+
 ---
 
 ## Correctness & Safety
 
-- RFC 8259 (JSON), RFC 6901 (JSON Pointer), RFC 6902 (JSON Patch) compliant
+- RFC 8259 (JSON), RFC 6901 (JSON Pointer), RFC 6902 (JSON Patch), RFC 8949 (CBOR) compliant
 - IEEE 754 round-trip: `parse(serialize(x)) == x` for all finite doubles
 - Three-stage float parsing: Eisel-Lemire (~98.8%) → Russ Cox Unrounded Scaling (~1.2%) → strtod (subnormals <0.01%)
 - Float serialization: Schubfach (Giulietti 2020) — shortest decimal, no trailing zeros
-- 521 passing tests across 20 files (5,556 lines of test code)
-- 11 libFuzzer targets
+- 572 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
+- 12 libFuzzer targets (including a dedicated CBOR fuzzer)
 - ASan, UBSan, TSan on every commit
 
 ---
@@ -494,6 +527,8 @@ Build flags for maximum performance:
 - Parsing Guide: https://qbuem.com/qbuem-json/guide/parsing
 - Type Mapping: https://qbuem.com/qbuem-json/guide/mapping
 - Serialization: https://qbuem.com/qbuem-json/guide/serialization
+- CBOR (Binary): https://qbuem.com/qbuem-json/guide/cbor
+- CBOR Theory: https://qbuem.com/qbuem-json/theory/cbor
 - Error Handling: https://qbuem.com/qbuem-json/guide/errors
 - Benchmarks: https://qbuem.com/qbuem-json/guide/benchmarks
 - Correctness: https://qbuem.com/qbuem-json/guide/correctness

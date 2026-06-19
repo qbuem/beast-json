@@ -97,7 +97,7 @@ export default withMermaid(
             ['meta', { name: 'theme-color', content: '#1a2744' }],
 
             // SEO - Core
-            ['meta', { name: 'keywords', content: 'C++ JSON, C++20 JSON library, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, qbuem-json, nlohmann alternative, simdjson alternative, RapidJSON alternative' }],
+            ['meta', { name: 'keywords', content: 'C++ JSON, C++20 JSON library, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, qbuem-json, CBOR C++, RFC 8949, binary serialization C++, C++ CBOR library, cbor-x interop, nlohmann alternative, simdjson alternative, RapidJSON alternative' }],
             ['meta', { name: 'author', content: 'qbuem-json Authors' }],
             ['meta', { name: 'robots', content: 'index, follow, max-image-preview:large' }],
 
@@ -179,22 +179,23 @@ export default withMermaid(
                         applicationCategory: 'DeveloperApplication',
                         applicationSubCategory: 'C++ Library',
                         operatingSystem: 'Linux, macOS',
-                        version: '1.0.8',
-                        softwareVersion: '1.0.8',
-                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8',
-                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8',
+                        version: '1.1.4',
+                        softwareVersion: '1.1.4',
+                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.1.4',
+                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.1.4',
                         installUrl: 'https://qbuem.com/qbuem-json/guide/getting-started',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
-                        keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, nlohmann alternative, simdjson alternative, RapidJSON alternative',
+                        keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, CBOR C++, RFC 8949 CBOR, binary serialization C++, nlohmann alternative, simdjson alternative, RapidJSON alternative',
                         featureList: [
                             'AVX-512 and ARM NEON SIMD acceleration',
                             'Zero-allocation flat tape DOM',
                             'Nexus Fusion: direct JSON-to-struct mapping (zero tape)',
+                            'CBOR (RFC 8949) binary codec — same field list, cross-language (e.g. JS cbor-x)',
                             'Single header file, zero external dependencies',
                             'C++20 concepts-based API',
-                            'RFC 8259, RFC 6901, RFC 6902 compliant',
+                            'RFC 8259, RFC 6901, RFC 6902, RFC 8949 compliant',
                             'IEEE 754 round-trip float correctness',
-                            '558 passing tests, 11 libFuzzer targets',
+                            '572 passing tests, 12 libFuzzer targets',
                             'STL container support (vector, map, optional, tuple, variant)',
                             'Up to 2.9 GB/s parsing, 7.2 GB/s serialization',
                             'Apache 2.0 license — free for commercial use',
@@ -230,7 +231,7 @@ export default withMermaid(
                         },
                         runtimePlatform: 'C++20',
                         targetProduct: { '@id': 'https://qbuem.com/qbuem-json/#application' },
-                        version: '1.0.8',
+                        version: '1.1.4',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer, zero-allocation',
                         author: { '@id': 'https://qbuem.com/#organization' }
@@ -343,6 +344,14 @@ export default withMermaid(
                             },
                             {
                                 '@type': 'Question',
+                                name: 'Can qbuem-json serialize to binary (CBOR)?',
+                                acceptedAnswer: {
+                                    '@type': 'Answer',
+                                    text: 'Yes. The same QBUEM_JSON_FIELDS registration also drives a CBOR (RFC 8949) binary codec: qbuem::cbor::encode<T>() and qbuem::cbor::decode<T>(). CBOR is self-describing, so the bytes decode in any language (for example the JavaScript cbor-x library) with no shared schema. Payloads are about 40% smaller than JSON and decode several times faster; the decoder is fully bounds-checked and fuzzed for untrusted network input.'
+                                }
+                            },
+                            {
+                                '@type': 'Question',
                                 name: 'Does qbuem-json support Windows?',
                                 acceptedAnswer: {
                                     '@type': 'Answer',
@@ -367,6 +376,7 @@ export default withMermaid(
             nav: [
                 { text: 'Guide', link: '/guide/introduction' },
                 { text: 'Architecture', link: '/theory/architecture' },
+                { text: 'CBOR', link: '/guide/cbor' },
                 { text: 'Benchmarks', link: '/guide/benchmarks' },
                 { text: 'Correctness', link: '/guide/correctness' },
                 {
@@ -377,9 +387,9 @@ export default withMermaid(
                     ]
                 },
                 {
-                    text: 'v1.0.8',
+                    text: 'v1.1.4',
                     items: [
-                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.0.8' },
+                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.1.4' },
                         { text: 'All Releases', link: 'https://github.com/qbuem/qbuem-json/releases' }
                     ]
                 }
@@ -402,6 +412,7 @@ export default withMermaid(
                         items: [
                             { text: 'Parsing & Access', link: '/guide/parsing' },
                             { text: 'Serialization', link: '/guide/serialization' },
+                            { text: 'CBOR (Binary)', link: '/guide/cbor' },
                             { text: 'Object Mapping (Macros)', link: '/guide/mapping' },
                             { text: 'Error Handling', link: '/guide/errors' }
                         ]
@@ -425,7 +436,8 @@ export default withMermaid(
                             { text: 'Numeric Serialization (Schubfach + yy-itoa)', link: '/theory/numeric-serialization' },
                             { text: 'The Russ Cox Algorithm', link: '/theory/russ-cox' },
                             { text: 'Zero-Allocation Principle', link: '/theory/zero-allocation' },
-                            { text: 'Nexus Fusion (Zero-Tape)', link: '/theory/nexus-fusion' }
+                            { text: 'Nexus Fusion (Zero-Tape)', link: '/theory/nexus-fusion' },
+                            { text: 'CBOR Binary Codec', link: '/theory/cbor' }
                         ]
                     }
                 ]
