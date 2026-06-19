@@ -265,6 +265,18 @@ QBUEM_JSON_FIELDS(User, id)  // ✅
 
 Supports up to 32 fields. For more, use manual ADL hooks (`nexus_pulse`, `from_qbuem_json`, `to_qbuem_json`).
 
+Generic (template) types: register a class template once for ALL instantiations with `QBUEM_JSON_FIELDS_TPL`. Wrap the template-parameter list and the dependent type in parentheses, then list fields. Emits the same ADL surface (DOM read/write, fuse, FastWriter, CBOR) as function templates.
+
+```cpp
+template <typename T> struct Box { T v; int tag; };
+QBUEM_JSON_FIELDS_TPL((typename T), (Box<T>), v, tag)              // any Box<T>
+
+template <typename A, typename B> struct Pair { A a; B b; };
+QBUEM_JSON_FIELDS_TPL((typename A, typename B), (Pair<A, B>), a, b) // any Pair<A,B>
+```
+
+QBUEM_JSON_FIELDS_TPL has zero runtime overhead: the compiler instantiates the templates to the same machine code as a concrete QBUEM_JSON_FIELDS registration. Measured on a structurally-identical 7-field type, encode/decode/fuse latency matched within noise (<=0.5%) and the emitted JSON and CBOR bytes were byte-for-byte identical. It is a pure compile-time convenience.
+
 ---
 
 ## STL Type Mapping
@@ -488,7 +500,7 @@ CBOR codec (Apple Silicon, 16-entity × 7-int message, reused buffer): encode ~5
 - IEEE 754 round-trip: `parse(serialize(x)) == x` for all finite doubles
 - Three-stage float parsing: Eisel-Lemire (~98.8%) → Russ Cox Unrounded Scaling (~1.2%) → strtod (subnormals <0.01%)
 - Float serialization: Schubfach (Giulietti 2020) — shortest decimal, no trailing zeros
-- 572 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
+- 576 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
 - 12 libFuzzer targets (including a dedicated CBOR fuzzer)
 - ASan, UBSan, TSan on every commit
 

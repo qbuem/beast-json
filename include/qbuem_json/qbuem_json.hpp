@@ -1,7 +1,13 @@
 /**
- * @brief qbuem-json v1.1.4 - High-Performance C++20 JSON Parser
- * @version 1.1.4
+ * @brief qbuem-json v1.2.0 - High-Performance C++20 JSON Parser
+ * @version 1.2.0
  *
+ * v1.2.0: QBUEM_JSON_FIELDS_TPL — register a CLASS TEMPLATE once and every
+ *         instantiation gets the full ADL surface (DOM read/write, Nexus fuse,
+ *         FastWriter, CBOR encode/decode) as function templates. Pass the
+ *         template-parameter list and dependent type parenthesized:
+ *         QBUEM_JSON_FIELDS_TPL((typename T), (Box<T>), v, tag). Single- and
+ *         multi-parameter templates supported; no per-instantiation registration.
  * v1.1.4: CBOR DECODE positional fast path (same wire format). A struct map whose
  *         keys arrive in declaration order (our own encoder, and most others,
  *         preserve order) is decoded with one direct byte compare per field — no
@@ -9207,6 +9213,10 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 #define QBUEM_DETAIL_EXPAND(x) x
 #define QBUEM_DETAIL_CONCAT(a, b) a##b
 #define QBUEM_DETAIL_CONCAT2(a, b) QBUEM_DETAIL_CONCAT(a, b)
+// Strip one layer of parentheses: `QBUEM_DETAIL_UNPAREN (a, b)` → `a, b`. Lets a
+// parenthesized macro argument carry internal commas (template parameter lists,
+// multi-arg template-ids) through as a single argument.
+#define QBUEM_DETAIL_UNPAREN(...) __VA_ARGS__
 
 #define QBUEM_DETAIL_COUNT(...)                                                \
   QBUEM_DETAIL_EXPAND(QBUEM_DETAIL_COUNT_I(                                    \
@@ -9385,6 +9395,102 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
     QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_CBOR_FAST, __VA_ARGS__)                    \
     (void)_bfast;                                                              \
     /* General path: remaining entries (reordered / unknown / foreign maps). */\
+    for (; _bindef ? !_cr.peek_break() : (_bi < _bn); ++_bi) {                  \
+      const ::std::string_view _key = _cr.read_text();                         \
+      switch (::qbuem::json::detail::fast_key_hash(_key)) {                     \
+        QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_CBOR_READ, __VA_ARGS__)                \
+      default:                                                                  \
+        ::qbuem::json::detail::cbor_skip(_cr);                                  \
+        break;                                                                  \
+      }                                                                         \
+    }                                                                          \
+    if (_bindef) _cr.consume_break();                                          \
+  }
+
+// ============================================================================
+// QBUEM_JSON_FIELDS_TPL — register a CLASS TEMPLATE once for ALL instantiations
+// ============================================================================
+//
+// Same ADL surface as QBUEM_JSON_FIELDS (DOM read/write, Nexus fuse, FastWriter,
+// CBOR encode/decode), but emitted as function TEMPLATES so ADL resolves them
+// for any instantiation — no need to register each concrete type. Pass the
+// template-parameter list and the dependent type each WRAPPED IN PARENTHESES (so
+// their internal commas survive as one macro argument), then the field names:
+//
+//   template <typename T> struct Box { T v; int tag; };
+//   QBUEM_JSON_FIELDS_TPL((typename T), (Box<T>), v, tag)
+//
+//   template <typename A, typename B> struct Pair { A a; B b; };
+//   QBUEM_JSON_FIELDS_TPL((typename A, typename B), (Pair<A, B>), a, b)
+//
+// Must be invoked at namespace scope in the same namespace as the template (ADL).
+// Do NOT also register a concrete instantiation of the same template with
+// QBUEM_JSON_FIELDS — the two would be an ambiguous overload set.
+//
+// NB: this mirrors QBUEM_JSON_FIELDS function-for-function (only the template
+// heads and the type spelling differ — every per-field detail macro is shared).
+// Keep the two in sync if the generated function set changes.
+#define QBUEM_JSON_FIELDS_TPL(TParams, Type, ...)                              \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void nexus_pulse_h(uint64_t _h, ::std::string_view _key,             \
+                            const char *&p, const char *end,                  \
+                            QBUEM_DETAIL_UNPAREN Type &obj) {                  \
+    switch (_h) {                                                              \
+      QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_PULSE, __VA_ARGS__)                     \
+    default:                                                                   \
+      ::qbuem::json::detail::skip_direct(p, end);                              \
+      break;                                                                   \
+    }                                                                          \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void nexus_pulse(::std::string_view key, const char *&p,              \
+                          const char *end, QBUEM_DETAIL_UNPAREN Type &obj) {   \
+    nexus_pulse_h(::qbuem::json::detail::fast_key_hash(key), key, p, end,      \
+                  obj);                                                        \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void from_qbuem_json(const ::qbuem::json::Value &v,                   \
+                              QBUEM_DETAIL_UNPAREN Type &obj) {                \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_READ, __VA_ARGS__)                        \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void to_qbuem_json(::qbuem::json::Value &v,                           \
+                            const QBUEM_DETAIL_UNPAREN Type &obj) {            \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_WRITE, __VA_ARGS__)                       \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void qbuem_json_append_fw(::qbuem::json::detail::FastWriter &_bj_fw,  \
+                                   const QBUEM_DETAIL_UNPAREN Type &obj) {     \
+    _bj_fw.put('{');                                                           \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_APPEND_FW, __VA_ARGS__)                   \
+    _bj_fw.set_last('}');                                                      \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void qbuem_json_append_fw(std::string &_bj_s,                        \
+                                   const QBUEM_DETAIL_UNPAREN Type &obj) {     \
+    ::qbuem::json::detail::FastWriter _bj_fw(_bj_s);                           \
+    qbuem_json_append_fw(_bj_fw, obj);                                         \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams>                                      \
+  inline void append_qbuem_json(std::string &out,                             \
+                                const QBUEM_DETAIL_UNPAREN Type &obj) {        \
+    qbuem_json_append_fw(out, obj);                                            \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams, typename _W>                         \
+  inline void qbuem_json_append_cbor(_W &_bj_w,                               \
+                                     const QBUEM_DETAIL_UNPAREN Type &obj) {   \
+    ::qbuem::json::detail::cbor_head(                                          \
+        _bj_w, 5, QBUEM_DETAIL_COUNT(__VA_ARGS__)); /* map(N) */              \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_APPEND_CBOR, __VA_ARGS__)                  \
+  }                                                                            \
+  template <QBUEM_DETAIL_UNPAREN TParams, typename _R>                         \
+  inline void qbuem_json_read_cbor(_R &_cr, QBUEM_DETAIL_UNPAREN Type &obj) {  \
+    const ::std::size_t _bn = _cr.read_map_header();                           \
+    const bool _bindef = (_bn == ::qbuem::json::detail::kCborIndef);           \
+    ::std::size_t _bi = 0;                                                      \
+    bool _bfast = true;                                                        \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_CBOR_FAST, __VA_ARGS__)                    \
+    (void)_bfast;                                                              \
     for (; _bindef ? !_cr.peek_break() : (_bi < _bn); ++_bi) {                  \
       const ::std::string_view _key = _cr.read_text();                         \
       switch (::qbuem::json::detail::fast_key_hash(_key)) {                     \
