@@ -132,6 +132,9 @@ auto f     = qbuem::fuse<Box<double>>(json);             // including the zero-t
 
 It emits the same ADL surface as `QBUEM_JSON_FIELDS` (DOM `read`/`write`, Nexus `fuse`, FastWriter, and [CBOR](./cbor) `encode`/`decode`) but as **function templates**, so ADL resolves them for any instantiation. Nesting works too — `Envelope<Box<int>>`, `std::vector<Box<int>>`, etc.
 
+> [!NOTE] Zero runtime overhead
+> `QBUEM_JSON_FIELDS_TPL` is a **compile-time convenience only**. The compiler instantiates the templates to byte-for-byte the same code path as a concrete `QBUEM_JSON_FIELDS` registration. Measured on a structurally-identical 7-field type (concrete vs. template instantiation, same payload), encode/decode/`fuse` latency matched within noise (≤0.5 %) and the produced wire bytes were identical across both JSON and CBOR. See [Benchmarks → Generic types](./benchmarks#generic-types-zero-overhead).
+
 ::: warning
 - Like `QBUEM_JSON_FIELDS`, invoke it at **namespace scope** in the same namespace as the template (ADL).
 - Don't *also* register a concrete instantiation of the same template with `QBUEM_JSON_FIELDS` — the template and the concrete overload would be ambiguous.

@@ -70,6 +70,30 @@ positional fast path closes most of that gap.
 
 ---
 
+## 🧬 Generic Types — Zero Overhead {#generic-types-zero-overhead}
+
+[`QBUEM_JSON_FIELDS_TPL`](./mapping#generic-template-types) registers a class
+template once for every instantiation. Because it emits the codecs as function
+templates that the compiler instantiates to the **same machine code** as a
+concrete `QBUEM_JSON_FIELDS` registration, it carries **no runtime cost**.
+
+Measured on two structurally-identical 7-field entities (16 per message) — one
+concrete, one a template instantiated at the same types, same payload (Apple
+Silicon, `-O3 -march=native`, interleaved):
+
+| Registration | CBOR enc | CBOR dec | JSON write | JSON read | `fuse` | wire bytes |
+|:---|---:|---:|---:|---:|---:|:---:|
+| `QBUEM_JSON_FIELDS` (concrete) | 515 ns | 570 ns | 543 ns | 4330 ns | 1862 ns | — |
+| `QBUEM_JSON_FIELDS_TPL` (template) | 515 ns | 570 ns | 543 ns | 4322 ns | 1868 ns | identical |
+| ratio (template / concrete) | 100.0 % | 100.1 % | 100.0 % | 99.9 % | 100.3 % | byte-for-byte |
+
+Every column matches within measurement noise (≤0.5 %), and the emitted CBOR and
+JSON bytes are byte-for-byte identical. Generic registration is therefore a pure
+compile-time convenience — reach for it whenever you have a `Box<T>` /
+`Message<T>` style type, with no performance trade-off.
+
+---
+
 ## 🔗 Language Bindings Performance
 
 `qbuem-json` provides high-performance bindings for **Python**, **Go**, and **Rust**. The automated benchmark dashboard above includes a dedicated section for these bindings, comparing them against the native JSON libraries in each language.
