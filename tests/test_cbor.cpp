@@ -35,6 +35,7 @@ struct Rd {
   bool at_break() const { return *p == 0xff; }
   void skip_break() { ++p; }
   bool open_indef_map() { if (*p == 0xbf) { ++p; return true; } return false; }
+  uint64_t open_map() { return head(); }   // definite-length map → entry count
   uint64_t open_array() { return head(); }
 };
 
@@ -91,10 +92,10 @@ TEST(Cbor, EncodeStructFullRoundTrip) {
   Msg m{ 42, "hero", 3.5, true, std::optional<int64_t>{7}, {10, 20, 30}, Inner{ -1, "z" } };
   std::string bytes = qbuem::cbor::encode(m);
   ASSERT_FALSE(bytes.empty());
-  ASSERT_EQ((uint8_t)bytes[0], 0xbf); // indefinite-length map
+  ASSERT_EQ((uint8_t)bytes[0], 0xa7); // definite-length map of 7 fields (v1.1.1)
 
   Rd r{ (const uint8_t *)bytes.data(), (const uint8_t *)bytes.data() + bytes.size() };
-  ASSERT_TRUE(r.open_indef_map());
+  EXPECT_EQ(r.open_map(), 7u);
   EXPECT_EQ(r.rd_text(), "id");     EXPECT_EQ(r.rd_int(), 42);
   EXPECT_EQ(r.rd_text(), "name");   EXPECT_EQ(r.rd_text(), "hero");
   EXPECT_EQ(r.rd_text(), "score");  EXPECT_DOUBLE_EQ(r.rd_double(), 3.5);
@@ -104,19 +105,17 @@ TEST(Cbor, EncodeStructFullRoundTrip) {
   EXPECT_EQ(r.open_array(), 3u);
   EXPECT_EQ(r.rd_int(), 10); EXPECT_EQ(r.rd_int(), 20); EXPECT_EQ(r.rd_int(), 30);
   EXPECT_EQ(r.rd_text(), "inner");
-  ASSERT_TRUE(r.open_indef_map());
+  EXPECT_EQ(r.open_map(), 2u);
   EXPECT_EQ(r.rd_text(), "a"); EXPECT_EQ(r.rd_int(), -1); // negative int
   EXPECT_EQ(r.rd_text(), "b"); EXPECT_EQ(r.rd_text(), "z");
-  ASSERT_TRUE(r.at_break()); r.skip_break();              // inner map break
-  ASSERT_TRUE(r.at_break()); r.skip_break();              // outer map break
-  EXPECT_EQ(r.p, r.e);                                    // consumed exactly
+  EXPECT_EQ(r.p, r.e);                                    // consumed exactly (no break bytes)
 }
 
 TEST(Cbor, EncodeOptionalEmptyIsNull) {
   Msg m{ 1, "x", 1.0, false, std::nullopt, {}, Inner{ 0, "" } };
   std::string b = qbuem::cbor::encode(m);
   Rd r{ (const uint8_t *)b.data(), (const uint8_t *)b.data() + b.size() };
-  r.open_indef_map();
+  r.open_map();
   r.rd_text(); r.rd_int();    // id
   r.rd_text(); r.rd_text();   // name
   r.rd_text(); r.rd_double(); // score

@@ -1,6 +1,10 @@
 /**
- * @brief qbuem-json v1.1.0 - High-Performance C++20 JSON Parser
- * @version 1.1.0
+ * @brief qbuem-json v1.1.1 - High-Performance C++20 JSON Parser
+ * @version 1.1.1
+ *
+ * v1.1.1: CBOR struct maps are now DEFINITE-length (0xA0|N, no trailing break) —
+ *         smaller payloads + counted-loop decode. Wire-compatible (decoders read
+ *         both definite and indefinite maps).
  *
  * 🏆 Ultimate C++20 JSON Library - 100% Complete!
  *
@@ -9220,12 +9224,16 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   inline void append_qbuem_json(std::string &out, const Type &obj) {           \
     qbuem_json_append_fw(out, obj);                                            \
   }                                                                            \
-  /* CBOR serialization — indefinite-length map of the registered fields */    \
+  /* CBOR serialization — DEFINITE-length map of the registered fields. The   \
+     field count is known at compile time, so a definite header (0xA0|N for    \
+     N<24, one byte) beats an indefinite map (0xBF … 0xFF): it drops the        \
+     trailing break byte and lets the decoder run a counted loop instead of a   \
+     per-entry break check. Decoders still accept either form. */              \
   template <typename _W>                                                       \
   inline void qbuem_json_append_cbor(_W &_bj_w, const Type &obj) {             \
-    ::qbuem::json::detail::json_put(_bj_w, static_cast<char>(0xbf)); /*map(*)*/ \
+    ::qbuem::json::detail::cbor_head(                                          \
+        _bj_w, 5, QBUEM_DETAIL_COUNT(__VA_ARGS__)); /* map(N) */              \
     QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_APPEND_CBOR, __VA_ARGS__)                  \
-    ::qbuem::json::detail::json_put(_bj_w, static_cast<char>(0xff)); /*break*/  \
   }                                                                            \
   /* CBOR deserialization — reads a map (definite or indefinite), dispatching  \
      each text key to its field; unknown keys are skipped.  Templated on the    \

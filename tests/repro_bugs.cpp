@@ -941,6 +941,32 @@ TEST(ApiUsability, DecodedUnescapesString) {
   EXPECT_EQ(r2["e"].decoded(), emoji);
 }
 
+// ── CBOR (v1.1.1): structs encode as DEFINITE-length maps (0xA0|N) — smaller
+//    and counted-loop decodable. Decoders still accept the old indefinite form.
+struct CborDefRec { int a; std::string b; };
+QBUEM_JSON_FIELDS(CborDefRec, a, b)
+TEST(CborCodec, StructEncodesAsDefiniteMap) {
+  const std::string bytes = qbuem::cbor::encode(CborDefRec{7, "hi"});
+  // 2 fields → definite map header 0xA2 (NOT 0xBF indefinite); no 0xFF break tail.
+  EXPECT_EQ(static_cast<unsigned char>(bytes.front()), 0xA2u);
+  EXPECT_NE(static_cast<unsigned char>(bytes.back()), 0xFFu);
+  const CborDefRec back = qbuem::cbor::decode<CborDefRec>(bytes);
+  EXPECT_EQ(back.a, 7);
+  EXPECT_EQ(back.b, "hi");
+}
+TEST(CborCodec, DecoderStillReadsIndefiniteMap) {
+  // Hand-built old-style indefinite map {"a":7,"b":"hi"} must still decode.
+  std::string indef;
+  indef += static_cast<char>(0xBF);
+  indef += static_cast<char>(0x61); indef += 'a'; indef += static_cast<char>(0x07);
+  indef += static_cast<char>(0x61); indef += 'b';
+  indef += static_cast<char>(0x62); indef += "hi";
+  indef += static_cast<char>(0xFF);
+  const CborDefRec back = qbuem::cbor::decode<CborDefRec>(indef);
+  EXPECT_EQ(back.a, 7);
+  EXPECT_EQ(back.b, "hi");
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
