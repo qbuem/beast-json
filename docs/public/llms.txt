@@ -6,6 +6,8 @@ qbuem-json ships two complementary engines in one header (`qbuem_json.hpp`):
 - **DOM engine** — flat tape architecture for flexible parsing; single arena allocation; up to 2.9 GB/s parsing, 7.2 GB/s serialization
 - **Nexus Fusion engine** — zero-tape, compile-time FNV-1a dispatch for direct JSON-to-struct mapping with micro-latency
 
+It also includes a **CBOR (RFC 8949) binary codec** driven by the same `QBUEM_JSON_FIELDS` registration: `qbuem::cbor::encode<T>()` / `decode<T>()`. CBOR is self-describing, so the bytes decode in any language (e.g. JavaScript `cbor-x`) with no shared schema — ~40% smaller than JSON and several times faster to decode, with a fully bounds-checked, fuzzed reader for untrusted input.
+
 Minimum requirements: C++20, GCC 13+ or Clang 18+ or Apple Clang. Supported platforms: Linux x86_64, Linux aarch64, macOS Apple Silicon. Windows is not supported.
 
 ## Docs
@@ -14,12 +16,13 @@ Minimum requirements: C++20, GCC 13+ or Clang 18+ or Apple Clang. Supported plat
 - [Getting Started](https://qbuem.com/qbuem-json/guide/getting-started): Installation (single header, CMake FetchContent, clone & build) and first usage examples
 - [Parsing & Access](https://qbuem.com/qbuem-json/guide/parsing): DOM parsing, value access, JSON Pointer, iteration, error handling
 - [Serialization](https://qbuem.com/qbuem-json/guide/serialization): Struct-to-JSON, STL container support, custom serialization hooks
+- [CBOR (Binary Serialization)](https://qbuem.com/qbuem-json/guide/cbor): RFC 8949 binary codec — qbuem::cbor::encode/decode from the same QBUEM_JSON_FIELDS list; cross-language (JS cbor-x), ~40% smaller than JSON, bounds-checked for untrusted input
 - [Object Mapping (Macros)](https://qbuem.com/qbuem-json/guide/mapping): QBUEM_JSON_FIELDS macro, nested structs, optional fields, STL type mappings
 - [Error Handling](https://qbuem.com/qbuem-json/guide/errors): ParseError, typed exceptions, safe vs. unsafe access patterns
 - [Custom Allocators](https://qbuem.com/qbuem-json/guide/allocators): Arena allocators, stack allocators, custom memory strategies
 - [Language Bindings](https://qbuem.com/qbuem-json/guide/bindings): C FFI, Python, Rust, Go bindings
 - [Low-Latency Patterns](https://qbuem.com/qbuem-json/guide/low-latency-patterns): HFT tick data patterns, pre-allocated documents, reuse strategies
-- [Correctness & Safety](https://qbuem.com/qbuem-json/guide/correctness): RFC 8259/6901/6902 compliance, IEEE 754 round-trip, 521 tests, sanitizers, fuzzing
+- [Correctness & Safety](https://qbuem.com/qbuem-json/guide/correctness): RFC 8259/6901/6902/8949 compliance, IEEE 754 round-trip, 572 tests, sanitizers, fuzzing
 - [Benchmarks](https://qbuem.com/qbuem-json/guide/benchmarks): Live CI benchmark results vs. simdjson, yyjson, RapidJSON, nlohmann
 - [Vision & Roadmap](https://qbuem.com/qbuem-json/guide/vision): Project goals and planned features
 
@@ -28,6 +31,7 @@ Minimum requirements: C++20, GCC 13+ or Clang 18+ or Apple Clang. Supported plat
 - [Tape Architecture](https://qbuem.com/qbuem-json/theory/architecture): How the flat-tape DOM eliminates tree-node allocation overhead
 - [SIMD Acceleration](https://qbuem.com/qbuem-json/theory/simd): AVX-512 (x86_64) and ARM NEON structural character scanning
 - [Nexus Fusion (Zero-Tape)](https://qbuem.com/qbuem-json/theory/nexus-fusion): Compile-time key dispatch, zero intermediate allocations
+- [CBOR Binary Codec](https://qbuem.com/qbuem-json/theory/cbor): RFC 8949 data model, definite-length keyed maps, compile-time key blobs, the positional decode fast path
 - [Numeric Serialization](https://qbuem.com/qbuem-json/theory/numeric-serialization): Schubfach algorithm (Giulietti 2020) + yy-itoa for integers
 - [The Russ Cox Algorithm](https://qbuem.com/qbuem-json/theory/russ-cox): Unrounded decimal-to-float scaling used in stage 2 of float parsing
 - [Zero-Allocation Principle](https://qbuem.com/qbuem-json/theory/zero-allocation): Memory layout, arena reuse, string_view zero-copy access

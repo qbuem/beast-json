@@ -26,6 +26,50 @@ Runs in parallel on three native GitHub-hosted runners (x86\_64 / Apple Silicon 
 
 ---
 
+## 📦 CBOR Binary Codec {#cbor-binary-codec}
+
+The [CBOR codec](./cbor) reuses the same `QBUEM_JSON_FIELDS` registration as the JSON
+engine. These numbers are a focused micro-benchmark (Apple Silicon M-series,
+single core, `-O3 -march=native`, reused output buffer — the hot-loop pattern),
+separate from the live CI dashboard above. They measure two representative
+game-server payloads.
+
+**CBOR vs JSON** — same struct, same data:
+
+| Payload | format | encode | decode | wire size |
+|:---|:---|---:|---:|---:|
+| AOI delta (16 entities × 7 ints) | **CBOR** | **515 ns** | **570 ns** | **590 B** |
+| AOI delta (16 entities × 7 ints) | JSON | 550 ns | 4309 ns | 1018 B |
+| Snapshot (8 players, nested/str/opt/vec) | **CBOR** | **409 ns** | **827 ns** | **880 B** |
+| Snapshot (8 players, nested/str/opt/vec) | JSON | 728 ns | 4557 ns | 1172 B |
+
+On the all-scalar hot path, CBOR **decode is ~7.5× faster than JSON** and the wire
+is **~42 % smaller**.
+
+**vs other CBOR codecs** — same payload (AOI delta), same map-keyed wire format:
+
+| Codec | encode | decode | notes |
+|:---|---:|---:|:---|
+| **qbuem-json** (reflection) | **515 ns** | **570 ns** | register fields once; bounds-checked |
+| hand-written (no reflection) | ~tuned-equal | 341 ns | the TinyCBOR/QCBOR-class ceiling; unsafe, every field by hand |
+| nlohmann/json (DOM) | 10175 ns | 15880 ns | the popular C++ choice |
+
+Against the most common C++ CBOR path (nlohmann's DOM-based `to_cbor`/`from_cbor`),
+qbuem-json is **~20× faster to encode and ~28× faster to decode**. Against a
+hand-written, reflection-free codec — the absolute ceiling, which gives up both
+safety and the convenience of struct registration — qbuem-json decode runs at
+~60 % of that speed while remaining bounds-checked and schema-driven. See
+[CBOR theory](../theory/cbor#decode-the-positional-fast-path) for how the
+positional fast path closes most of that gap.
+
+> The CBOR micro-benchmark source is `cbor` payloads built from `QBUEM_JSON_FIELDS`
+> structs; wire bytes are byte-identical across versions (a FastWriter
+> byte-identity regression test guards this). Numbers are single-machine and
+> carry the usual ±2 % build-to-build noise; the comparison binaries were run
+> interleaved to cancel it.
+
+---
+
 ## 🔗 Language Bindings Performance
 
 `qbuem-json` provides high-performance bindings for **Python**, **Go**, and **Rust**. The automated benchmark dashboard above includes a dedicated section for these bindings, comparing them against the native JSON libraries in each language.
