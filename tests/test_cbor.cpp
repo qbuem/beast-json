@@ -176,6 +176,50 @@ TEST(Cbor, DecodeForeignDefiniteMap) {
   EXPECT_EQ(m.inner.b, "q");
 }
 
+// ── Positional fast path (v1.1.4): in-order, fully-reversed, and fast-prefix-
+// then-reordered maps must ALL decode identically. The fast path consumes the
+// in-order prefix; the first out-of-order key flips it to the hash-dispatch
+// fallback. Build a foreign map per ordering and assert the same result. ───────
+static void put_field(Wr &w, const char *k, const Msg &m) {
+  std::string_view key(k);
+  w.key(k);
+  if (key == "id")          w.i(m.id);
+  else if (key == "name")   w.str(m.name);
+  else if (key == "score")  w.f64(m.score);
+  else if (key == "active") w.boolean(m.active);
+  else if (key == "opt")    { if (m.opt) w.i(*m.opt); else w.null(); }
+  else if (key == "nums")   { w.def_arr(m.nums.size()); for (auto n : m.nums) w.i(n); }
+  else /* inner */          { w.def_map(2); w.key("a"); w.i(m.inner.a); w.key("b"); w.str(m.inner.b); }
+}
+static Msg decode_in_order(const Msg &src, std::vector<const char *> order) {
+  Wr w; w.def_map(order.size());
+  for (auto *k : order) put_field(w, k, src);
+  return qbuem::cbor::decode<Msg>(w.b);
+}
+TEST(Cbor, PositionalFastPathOrderings) {
+  const Msg src{ 7, "kai", 2.25, true, std::optional<int64_t>{99}, {3, 4, 5}, Inner{ -8, "qq" } };
+  auto check = [&](const Msg &m) {
+    EXPECT_EQ(m.id, 7);
+    EXPECT_EQ(m.name, "kai");
+    EXPECT_DOUBLE_EQ(m.score, 2.25);
+    EXPECT_TRUE(m.active);
+    ASSERT_TRUE(m.opt.has_value());
+    EXPECT_EQ(*m.opt, 99);
+    EXPECT_EQ(m.nums, (std::vector<int64_t>{3, 4, 5}));
+    EXPECT_EQ(m.inner.a, -8);
+    EXPECT_EQ(m.inner.b, "qq");
+  };
+  // 1. Exact struct order — the all-fast path consumes every field.
+  check(decode_in_order(src, {"id", "name", "score", "active", "opt", "nums", "inner"}));
+  // 2. Fully reversed — fast path bails on the very first key (full fallback).
+  check(decode_in_order(src, {"inner", "nums", "opt", "active", "score", "name", "id"}));
+  // 3. Fast prefix then reorder — fast consumes id,name,score, then the next key
+  //    (opt, not active) flips to the hash fallback for the remaining four.
+  check(decode_in_order(src, {"id", "name", "score", "opt", "active", "nums", "inner"}));
+  // 4. Single swap in the middle.
+  check(decode_in_order(src, {"id", "name", "active", "score", "opt", "nums", "inner"}));
+}
+
 TEST(Cbor, DecodeHalfAndSingleFloat) {
   // score via half-float 0x4200 = 3.0; then via single-precision.
   { Wr w; w.def_map(1); w.key("score"); w.f16(0x4200);
