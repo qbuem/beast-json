@@ -88,6 +88,13 @@ QBUEM_JSON_FIELDS(Bag, dict, trip, kv)
 struct U64 { uint64_t big; };
 QBUEM_JSON_FIELDS(U64, big)
 
+// Generic types registered ONCE for all instantiations via QBUEM_JSON_FIELDS_TPL.
+template <typename T> struct Box { T v; int64_t tag; };
+QBUEM_JSON_FIELDS_TPL((typename T), (Box<T>), v, tag)
+
+template <typename A, typename B> struct TplPair { A a; B b; };
+QBUEM_JSON_FIELDS_TPL((typename A, typename B), (TplPair<A, B>), a, b)
+
 TEST(Cbor, EncodeStructFullRoundTrip) {
   Msg m{ 42, "hero", 3.5, true, std::optional<int64_t>{7}, {10, 20, 30}, Inner{ -1, "z" } };
   std::string bytes = qbuem::cbor::encode(m);
@@ -262,4 +269,44 @@ TEST(Cbor, TruncatedInputThrows) {
 TEST(Cbor, TypeMismatchThrows) {
   Wr w; w.def_map(1); w.key("name"); w.u(123); // number where string expected
   EXPECT_THROW((void)qbuem::cbor::decode<Msg>(w.b), qbuem::parse_error);
+}
+
+// ── Generic types via QBUEM_JSON_FIELDS_TPL: one registration, all instances ──
+TEST(Cbor, TemplateTypeSingleParam) {
+  // Three instantiations of the SAME registration, JSON + CBOR + fuse.
+  { auto b = qbuem::cbor::decode<Box<int64_t>>(qbuem::cbor::encode(Box<int64_t>{42, 7}));
+    EXPECT_EQ(b.v, 42); EXPECT_EQ(b.tag, 7); }
+  { auto b = qbuem::cbor::decode<Box<std::string>>(qbuem::cbor::encode(Box<std::string>{"hi", 2}));
+    EXPECT_EQ(b.v, "hi"); EXPECT_EQ(b.tag, 2); }
+  { auto b = qbuem::cbor::decode<Box<double>>(qbuem::cbor::encode(Box<double>{3.5, 9}));
+    EXPECT_DOUBLE_EQ(b.v, 3.5); EXPECT_EQ(b.tag, 9); }
+  { auto j = qbuem::write(Box<int64_t>{5, 1});
+    EXPECT_EQ(j, R"({"v":5,"tag":1})");
+    auto r = qbuem::read<Box<int64_t>>(j); EXPECT_EQ(r.v, 5); }
+  { auto f = qbuem::fuse<Box<int64_t>>(R"({"v":8,"tag":4})");  // zero-tape path
+    EXPECT_EQ(f.v, 8); EXPECT_EQ(f.tag, 4); }
+}
+
+TEST(Cbor, TemplateTypeTwoParams) {
+  auto c = qbuem::cbor::decode<TplPair<int64_t, std::string>>(
+      qbuem::cbor::encode(TplPair<int64_t, std::string>{-4, "y"}));
+  EXPECT_EQ(c.a, -4); EXPECT_EQ(c.b, "y");
+}
+
+TEST(Cbor, TemplateTypeNested) {
+  // Template wrapping a vector of another template instantiation.
+  std::vector<Box<int64_t>> in{ {1, 1}, {2, 2}, {3, 3} };
+  auto out = qbuem::cbor::decode<std::vector<Box<int64_t>>>(qbuem::cbor::encode(in));
+  ASSERT_EQ(out.size(), 3u);
+  EXPECT_EQ(out[2].v, 3); EXPECT_EQ(out[2].tag, 3);
+}
+
+TEST(Cbor, TemplateTypeFastPathFallback) {
+  // Reversed key order must still decode on a templated type (positional fast
+  // path bails to the hash-dispatch loop).
+  Wr w; w.def_map(2);
+  w.key("tag"); w.i(12);   // tag before v (struct order is v, tag)
+  w.key("v");   w.i(42);
+  auto x = qbuem::cbor::decode<Box<int64_t>>(w.b);
+  EXPECT_EQ(x.v, 42); EXPECT_EQ(x.tag, 12);
 }

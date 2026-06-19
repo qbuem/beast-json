@@ -84,6 +84,15 @@ CBOR decode/encode covers the **same type set as the JSON engine** — register 
 
 `uint64_t` values with the top bit set round-trip exactly (the decoder reads the raw CBOR argument, with no `int64` narrowing).
 
+**Generic types.** A class template can be registered once for all instantiations with [`QBUEM_JSON_FIELDS_TPL`](./mapping#generic-template-types) — handy for a generic envelope like `Message<T>`:
+
+```cpp
+template <typename T> struct Message { int64_t seq; T body; };
+QBUEM_JSON_FIELDS_TPL((typename T), (Message<T>), seq, body)
+
+auto bytes = qbuem::cbor::encode(Message<PlayerState>{ 7, state });   // any T
+```
+
 ---
 
 ## Cross-language interop

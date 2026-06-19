@@ -110,6 +110,34 @@ Unlike other libraries that use runtime string comparisons, `QBUEM_JSON_FIELDS` 
 > [!NOTE]
 > `QBUEM_JSON_FIELDS` now supports up to **32 fields** per struct. For larger structures, see the manual ADL hooks section below.
 
+### Generic (template) types: `QBUEM_JSON_FIELDS_TPL` {#generic-template-types}
+
+`QBUEM_JSON_FIELDS` registers a single concrete type. To register a **class template** so that *every* instantiation works — without repeating the macro per type — use `QBUEM_JSON_FIELDS_TPL`. Pass the template-parameter list and the dependent type **each wrapped in parentheses** (so their commas survive as one macro argument), then the field names:
+
+```cpp
+template <typename T>
+struct Box { T v; int tag; };
+QBUEM_JSON_FIELDS_TPL((typename T), (Box<T>), v, tag)   // one line covers Box<int>, Box<std::string>, …
+
+template <typename A, typename B>
+struct Pair { A a; B b; };
+QBUEM_JSON_FIELDS_TPL((typename A, typename B), (Pair<A, B>), a, b)
+```
+
+```cpp
+auto bytes = qbuem::cbor::encode(Box<int>{42, 7});      // works…
+auto a     = qbuem::read<Box<std::string>>(json);        // …for every instantiation
+auto f     = qbuem::fuse<Box<double>>(json);             // including the zero-tape engine
+```
+
+It emits the same ADL surface as `QBUEM_JSON_FIELDS` (DOM `read`/`write`, Nexus `fuse`, FastWriter, and [CBOR](./cbor) `encode`/`decode`) but as **function templates**, so ADL resolves them for any instantiation. Nesting works too — `Envelope<Box<int>>`, `std::vector<Box<int>>`, etc.
+
+::: warning
+- Like `QBUEM_JSON_FIELDS`, invoke it at **namespace scope** in the same namespace as the template (ADL).
+- Don't *also* register a concrete instantiation of the same template with `QBUEM_JSON_FIELDS` — the template and the concrete overload would be ambiguous.
+- The parentheses around the two type arguments are required; they are what lets multi-parameter templates (`(Pair<A, B>)`) pass through the preprocessor. A bare `QBUEM_JSON_FIELDS(Pair<int, std::string>, …)` does **not** compile because the preprocessor splits on the comma inside `<…>` — wrap multi-param instantiations in a `using` alias, or use `QBUEM_JSON_FIELDS_TPL`.
+:::
+
 ---
 
 ## ✏️ Mutating Parsed JSON
