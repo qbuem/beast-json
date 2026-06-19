@@ -70,6 +70,7 @@ add_qbuem_gtest(test_utf8_validation)
 add_qbuem_gtest(test_duplicate_keys)
 add_qbuem_gtest(test_serializer)
 add_qbuem_gtest(test_errors)
+add_qbuem_gtest(test_cbor)
 
 # ── New: dom API type coverage and round-trip fidelity ────────────────────
 add_qbuem_gtest(test_dom_types)

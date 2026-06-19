@@ -75,6 +75,11 @@ QBUEM_JSON_FIELDS(Player, name, score)  // must be outside the struct, at namesp
 
 auto player = qbuem::fuse<Player>(R"({"name":"Bob","score":99})");
 std::string json = qbuem::write(player);
+
+// ── CBOR binary codec (RFC 8949) — same field list, compact bytes ────
+std::string bytes  = qbuem::cbor::encode(player);          // → CBOR
+Player      back   = qbuem::cbor::decode<Player>(bytes);   // ← CBOR
+// The bytes decode in any language too (e.g. JS `cbor-x`) — no shared schema.
 ```
 
 ---
@@ -87,8 +92,9 @@ std::string json = qbuem::write(player);
 * **Zero-Allocation Execution** — Sequential memory layout and zero-copy strings for deterministic performance.
 * **Single Header** — Drop `qbuem_json.hpp` into your project and you're ready. Zero external dependencies.
 * **STL Support** — `std::vector`, `std::map`, `std::optional`, `std::tuple`, `std::variant` and more work out of the box.
+* **CBOR Codec (RFC 8949)** — `qbuem::cbor::encode<T>()` / `decode<T>()` reuse the same `QBUEM_JSON_FIELDS` list to produce compact, self-describing binary. Cross-language by design: the bytes decode in any RFC 8949 reader (e.g. JavaScript `cbor-x`) with no shared schema, and the decoder is bounds-checked + fuzzed for untrusted network input.
 * **Three-stage float parsing** — Eisel-Lemire (~98.8 %) → Russ Cox Unrounded Scaling (~1.2 %) → `std::strtod` (subnormals only). `parse(serialize(x)) == x` for all finite doubles.
-* **Hardened for untrusted input** — strict mode validates UTF-8 well-formedness (rejects overlong / surrogate / truncated sequences, RFC 8259 §8.1); parse failures throw a typed `qbuem::parse_error` with `offset()`; zero-copy use-after-free misuse is a **compile error**. Continuously fuzzed (11 libFuzzer targets) and sanitized (ASan/UBSan/TSan across x86_64 / aarch64 / Apple Silicon).
+* **Hardened for untrusted input** — strict mode validates UTF-8 well-formedness (rejects overlong / surrogate / truncated sequences, RFC 8259 §8.1); parse failures throw a typed `qbuem::parse_error` with `offset()`; zero-copy use-after-free misuse is a **compile error**. Continuously fuzzed (12 libFuzzer targets) and sanitized (ASan/UBSan/TSan across x86_64 / aarch64 / Apple Silicon).
 
 ---
 

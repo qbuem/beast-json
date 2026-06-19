@@ -61,3 +61,4 @@ add_fuzz_target(fuzz_direct)     # DirectParser & Key mapping stress test
 add_fuzz_target(fuzz_diff nlohmann_json::nlohmann_json) # Differential testing vs nlohmann/json
 add_fuzz_target(fuzz_pmr)        # PMR allocator stress test
 add_fuzz_target(fuzz_patch)      # JSON Pointer & Mutation stress test
+add_fuzz_target(fuzz_cbor)       # CBOR codec: decode hostile bytes + round-trip
