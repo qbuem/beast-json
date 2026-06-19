@@ -967,6 +967,23 @@ TEST(CborCodec, DecoderStillReadsIndefiniteMap) {
   EXPECT_EQ(back.b, "hi");
 }
 
+// ── CBOR (v1.1.2): encode routes through FastWriter (batched flush). encode_to
+//    (reused buffer) must be byte-identical to encode (fresh), including payloads
+//    larger than the 1 KB stack buffer (multi-flush path).
+struct CborBig { std::string blob; int n; };
+QBUEM_JSON_FIELDS(CborBig, blob, n)
+TEST(CborCodec, EncodeToMatchesEncodeAcrossFlush) {
+  CborBig big; big.blob = std::string(2000, 'x'); big.n = 42;   // > 1 KB → FastWriter flushes
+  const std::string fresh = qbuem::cbor::encode(big);
+  std::string reused;
+  qbuem::cbor::encode_to(reused, big);
+  EXPECT_EQ(fresh, reused);            // FastWriter path is byte-identical to a fresh encode
+  EXPECT_GT(fresh.size(), 1024u);      // confirms the multi-flush path was exercised
+  const CborBig back = qbuem::cbor::decode<CborBig>(fresh);
+  EXPECT_EQ(back.blob.size(), 2000u);
+  EXPECT_EQ(back.n, 42);
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
