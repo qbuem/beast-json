@@ -1,6 +1,6 @@
 /**
- * @brief qbuem-json v1.0.8 - High-Performance C++20 JSON Parser
- * @version 1.0.8
+ * @brief qbuem-json v1.1.0 - High-Performance C++20 JSON Parser
+ * @version 1.1.0
  *
  * 🏆 Ultimate C++20 JSON Library - 100% Complete!
  *
@@ -16,6 +16,9 @@
  * ✅ Russ Cox: Fast Unrounded Scaling — 2nd-stage float parser (Cox 2026).
  * ✅ Full SIMD: AVX-512, NEON, and SWAR structural indexing.
  * ✅ C++20 Native: Concepts, Ranges, and std::pmr support.
+ * ✅ CBOR codec (RFC 8949): qbuem::cbor::encode/decode — the same
+ *    QBUEM_JSON_FIELDS list serializes to compact binary that any RFC 8949
+ *    decoder (e.g. JS cbor-x) reads without a shared schema.
  *
  * Documentation: https://qbuem.com/qbuem-json/
  *
@@ -8683,6 +8686,381 @@ template <typename T> void append_json(std::string &out, const T &in) {
   append_json<std::string, T>(out, in);
 }
 
+// ── CBOR (RFC 8259's binary sibling, RFC 8949) ───────────────────────────────
+// A binary serialization backend that mirrors append_json<W,T> 1:1 and reuses
+// the SAME type concepts, so any QBUEM_JSON_FIELDS struct serializes to CBOR with
+// no extra per-struct code. Self-describing → any language decodes it (e.g. the
+// JS `cbor-x` library) without a shared schema. Output goes through the same
+// W writer abstraction (json_put / json_write) used by the JSON path.
+
+// Forward declaration for nested-struct dispatch (defined by QBUEM_JSON_FIELDS).
+template <typename T, typename W>
+concept HasQbuemJsonAppendCbor = requires(W &w, const T &t) {
+  qbuem_json_append_cbor(w, t);
+};
+
+// Write a CBOR data-item head: major type (0..7) + argument, smallest encoding.
+template <typename W>
+QBUEM_INLINE void cbor_head(W &out, uint8_t major, uint64_t val) {
+  const auto mt = static_cast<uint8_t>(major << 5);
+  if (val < 24u) {
+    json_put(out, static_cast<char>(mt | static_cast<uint8_t>(val)));
+  } else if (val <= 0xffull) {
+    json_put(out, static_cast<char>(mt | 24));
+    json_put(out, static_cast<char>(val));
+  } else if (val <= 0xffffull) {
+    json_put(out, static_cast<char>(mt | 25));
+    json_put(out, static_cast<char>(val >> 8));
+    json_put(out, static_cast<char>(val));
+  } else if (val <= 0xffffffffull) {
+    json_put(out, static_cast<char>(mt | 26));
+    for (int s = 24; s >= 0; s -= 8) json_put(out, static_cast<char>(val >> s));
+  } else {
+    json_put(out, static_cast<char>(mt | 27));
+    for (int s = 56; s >= 0; s -= 8) json_put(out, static_cast<char>(val >> s));
+  }
+}
+
+template <typename W, typename Tup, size_t... I>
+void append_cbor_tuple_(W &out, const Tup &in, std::index_sequence<I...>);
+
+template <typename W, typename T> void append_cbor(W &out, const T &in) {
+  if constexpr (std::is_same_v<T, std::nullptr_t>) {
+    json_put(out, static_cast<char>(0xf6)); // null
+  } else if constexpr (JsonDetailBool<T>) {
+    json_put(out, static_cast<char>(in ? 0xf5 : 0xf4)); // true / false
+  } else if constexpr (std::is_integral_v<T>) {
+    if constexpr (std::is_unsigned_v<T>) {
+      cbor_head(out, 0, static_cast<uint64_t>(in));
+    } else {
+      const int64_t v = static_cast<int64_t>(in);
+      if (v < 0) cbor_head(out, 1, static_cast<uint64_t>(-1 - v)); // negative
+      else       cbor_head(out, 0, static_cast<uint64_t>(v));
+    }
+  } else if constexpr (std::is_floating_point_v<T>) {
+    // IEEE-754 double, big-endian (major 7, additional info 27).
+    const double d = static_cast<double>(in);
+    uint64_t bits;
+    std::memcpy(&bits, &d, 8);
+    json_put(out, static_cast<char>(0xfb));
+    for (int s = 56; s >= 0; s -= 8) json_put(out, static_cast<char>(bits >> s));
+  } else if constexpr (std::is_same_v<T, std::string> ||
+                       std::is_same_v<T, std::string_view>) {
+    cbor_head(out, 3, in.size()); // text string
+    json_write(out, in.data(), in.size());
+  } else if constexpr (std::is_same_v<T, const char *>) {
+    const std::string_view sv(in ? in : "");
+    cbor_head(out, 3, sv.size());
+    json_write(out, sv.data(), sv.size());
+  } else if constexpr (JsonDetailOptional<T>) {
+    if (!in.has_value()) json_put(out, static_cast<char>(0xf6));
+    else append_cbor(out, *in);
+  } else if constexpr (JsonDetailSeq<T> || JsonDetailSet<T>) {
+    if constexpr (requires { in.size(); }) {
+      cbor_head(out, 4, in.size());                  // definite-length array
+      for (const auto &item : in) append_cbor(out, item);
+    } else {
+      json_put(out, static_cast<char>(0x9f));        // indefinite-length array
+      for (const auto &item : in) append_cbor(out, item);
+      json_put(out, static_cast<char>(0xff));        // break
+    }
+  } else if constexpr (JsonDetailMap<T>) {
+    cbor_head(out, 5, in.size());
+    for (const auto &[k, val] : in) { append_cbor(out, k); append_cbor(out, val); }
+  } else if constexpr (JsonDetailFixedArr<T>) {
+    constexpr size_t N = std::tuple_size_v<T>;
+    cbor_head(out, 4, N);
+    for (size_t i = 0; i < N; ++i) append_cbor(out, in[i]);
+  } else if constexpr (JsonDetailTuple<T>) {
+    constexpr size_t N = std::tuple_size_v<T>;
+    cbor_head(out, 4, N);
+    append_cbor_tuple_(out, in, std::make_index_sequence<N>{});
+  } else if constexpr (HasQbuemJsonAppendCbor<T, W>) {
+    qbuem_json_append_cbor(out, in); // nested struct (generated by the macro)
+  } else {
+    static_assert(sizeof(T) == 0,
+                  "qbuem::cbor::encode / append_cbor: no serialization for T. "
+                  "Use QBUEM_JSON_FIELDS(Type, field...).");
+  }
+}
+
+template <typename W, typename Tup, size_t... I>
+void append_cbor_tuple_(W &out, const Tup &in, std::index_sequence<I...>) {
+  (append_cbor(out, std::get<I>(in)), ...);
+}
+
+template <typename T> void append_cbor(std::string &out, const T &in) {
+  append_cbor<std::string, T>(out, in);
+}
+
+// ── CBOR decode ──────────────────────────────────────────────────────────────
+// Type-driven reader: the target C++ type dictates which CBOR data item is
+// expected (the inverse of append_cbor). Mirrors the from_json dispatch order so
+// any QBUEM_JSON_FIELDS struct round-trips JSON ⇄ CBOR through one field list.
+// Reads anything cbor-x / any RFC 8949 encoder emits: definite OR indefinite
+// arrays/maps, half/single/double floats, smallest-int encodings. Strings are
+// zero-copy views into the input buffer. Every advance is bounds-checked, so a
+// truncated or hostile payload throws parse_error rather than reading OOB.
+
+// Sentinel returned by read_*_header() for an indefinite-length item (0x9f/0xbf).
+inline constexpr size_t kCborIndef = static_cast<size_t>(-1);
+
+inline int &nexus_depth() noexcept; // defined below; shared recursion counter
+// Bounds CBOR nesting to the same depth as the typed JSON path (fuzz safety:
+// a recursive schema fed deeply-nested arrays/maps would otherwise blow the
+// native stack). Only the array/map/optional/struct branches construct it.
+struct CborDepthGuard {
+  CborDepthGuard() {
+    if (++nexus_depth() > 1024) {
+      --nexus_depth();
+      throw ::std::runtime_error("CBOR: input nesting too deep");
+    }
+  }
+  ~CborDepthGuard() { --nexus_depth(); }
+};
+
+// IEEE-754 binary16 → double (CBOR major 7 / 0xf9).
+QBUEM_INLINE double cbor_half_to_double(uint16_t h) noexcept {
+  const uint16_t exp = (h >> 10) & 0x1f;
+  const uint16_t mant = h & 0x3ff;
+  double val;
+  if (exp == 0)
+    val = ::std::ldexp(static_cast<double>(mant), -24);
+  else if (exp != 31)
+    val = ::std::ldexp(static_cast<double>(mant + 1024), exp - 25);
+  else
+    val = (mant == 0) ? ::std::numeric_limits<double>::infinity()
+                      : ::std::numeric_limits<double>::quiet_NaN();
+  return (h & 0x8000) ? -val : val;
+}
+
+struct CborReader {
+  const uint8_t *p;
+  const uint8_t *begin;
+  const uint8_t *end;
+
+  CborReader(const char *data, size_t n) noexcept
+      : p(reinterpret_cast<const uint8_t *>(data)), begin(p), end(p + n) {}
+
+  [[noreturn]] void fail(const char *msg) const {
+    throw_parse_error(
+        msg, reinterpret_cast<const char *>(p),
+        ::std::string_view(reinterpret_cast<const char *>(begin),
+                           static_cast<size_t>(end - begin)));
+  }
+  // Guarantee at least n more bytes; otherwise the payload is truncated.
+  void need(size_t n) const {
+    if (static_cast<size_t>(end - p) < n) fail("CBOR: truncated input");
+  }
+
+  // Read an initial byte + its finite argument; sets mt to the major type.
+  // Rejects additional-info 28..31 (reserved / indefinite — handled by the
+  // header readers, never as a plain argument).
+  uint64_t read_head(uint8_t &mt) {
+    need(1);
+    const uint8_t ib = *p++;
+    mt = static_cast<uint8_t>(ib >> 5);
+    const uint8_t ai = ib & 31;
+    if (ai < 24) return ai;
+    if (ai == 24) { need(1); return *p++; }
+    if (ai == 25) { need(2); uint64_t v = (uint64_t(p[0]) << 8) | p[1]; p += 2; return v; }
+    if (ai == 26) { need(4); uint64_t v = 0; for (int i = 0; i < 4; ++i) v = (v << 8) | *p++; return v; }
+    if (ai == 27) { need(8); uint64_t v = 0; for (int i = 0; i < 8; ++i) v = (v << 8) | *p++; return v; }
+    fail("CBOR: reserved/indefinite additional-info");
+  }
+
+  bool read_bool() {
+    need(1);
+    const uint8_t ib = *p;
+    if (ib == 0xf5) { ++p; return true; }
+    if (ib == 0xf4) { ++p; return false; }
+    fail("CBOR: expected bool");
+  }
+  bool try_read_null() {
+    need(1);
+    // Treat both null (0xf6) and undefined (0xf7) as "absent".
+    if (*p == 0xf6 || *p == 0xf7) { ++p; return true; }
+    return false;
+  }
+  void read_null() { if (!try_read_null()) fail("CBOR: expected null"); }
+
+  double read_float() {
+    need(1);
+    const uint8_t ib = *p;
+    if (ib == 0xfb) {
+      need(9); ++p; uint64_t b = 0;
+      for (int i = 0; i < 8; ++i) b = (b << 8) | *p++;
+      double d; ::std::memcpy(&d, &b, 8); return d;
+    }
+    if (ib == 0xfa) {
+      need(5); ++p; uint32_t b = 0;
+      for (int i = 0; i < 4; ++i) b = (b << 8) | *p++;
+      float f; ::std::memcpy(&f, &b, 4); return static_cast<double>(f);
+    }
+    if (ib == 0xf9) {
+      need(3); ++p; uint16_t h = static_cast<uint16_t>((uint16_t(p[0]) << 8) | p[1]);
+      p += 2; return cbor_half_to_double(h);
+    }
+    // Lenient: accept an integer where a float is expected (cbor-x emits whole
+    // numbers as ints), so {score: 3} decodes into a double field.
+    uint8_t mt; uint64_t arg = read_head(mt);
+    if (mt == 0) return static_cast<double>(arg);
+    if (mt == 1) return -1.0 - static_cast<double>(arg);
+    fail("CBOR: expected float or integer");
+  }
+
+  ::std::string_view read_text() {
+    uint8_t mt; uint64_t n = read_head(mt);
+    if (mt != 3) fail("CBOR: expected text string");
+    need(static_cast<size_t>(n));
+    const char *s = reinterpret_cast<const char *>(p);
+    p += n;
+    return ::std::string_view(s, static_cast<size_t>(n));
+  }
+
+  // Open an array/map. Returns the entry count, or kCborIndef for 0x9f/0xbf.
+  size_t read_array_header() {
+    need(1);
+    if (*p == 0x9f) { ++p; return kCborIndef; }
+    uint8_t mt; uint64_t n = read_head(mt);
+    if (mt != 4) fail("CBOR: expected array");
+    return static_cast<size_t>(n);
+  }
+  size_t read_map_header() {
+    need(1);
+    if (*p == 0xbf) { ++p; return kCborIndef; }
+    uint8_t mt; uint64_t n = read_head(mt);
+    if (mt != 5) fail("CBOR: expected map");
+    return static_cast<size_t>(n);
+  }
+  // For indefinite items: true while more entries remain (i.e. not at break).
+  bool peek_break() { need(1); return *p == 0xff; }
+  void consume_break() {
+    need(1);
+    if (*p != 0xff) fail("CBOR: expected break");
+    ++p;
+  }
+};
+
+// Skip exactly one complete CBOR data item (used for unknown map keys and
+// over-long fixed-size targets). Recursion is depth-bounded via CborDepthGuard.
+inline void cbor_skip(CborReader &cr) {
+  cr.need(1);
+  const uint8_t ib = *cr.p;
+  const uint8_t mt = static_cast<uint8_t>(ib >> 5);
+  const uint8_t ai = ib & 31;
+  if (ai == 31 && mt >= 2 && mt <= 5) { // indefinite array/map/byte/text string
+    ++cr.p;
+    CborDepthGuard g;
+    while (!cr.peek_break()) {
+      cbor_skip(cr);
+      if (mt == 5) cbor_skip(cr); // map: skip the value too
+    }
+    cr.consume_break();
+    return;
+  }
+  uint8_t m; uint64_t arg = cr.read_head(m);
+  switch (m) {
+    case 0: case 1: case 7: break; // int / float / simple — arg already consumed
+    case 2: case 3:                // byte / text string payload
+      cr.need(static_cast<size_t>(arg));
+      cr.p += arg;
+      break;
+    case 4: { CborDepthGuard g; for (uint64_t i = 0; i < arg; ++i) cbor_skip(cr); break; }
+    case 5: { CborDepthGuard g; for (uint64_t i = 0; i < arg; ++i) { cbor_skip(cr); cbor_skip(cr); } break; }
+    default: cr.fail("CBOR: unsupported major type");
+  }
+}
+
+template <typename T> void from_cbor(CborReader &cr, T &out);
+
+// ADL hook generated by QBUEM_JSON_FIELDS (decodes a CBOR map into the struct).
+template <typename T>
+concept HasQbuemJsonReadCbor =
+    requires(CborReader &cr, T &t) { qbuem_json_read_cbor(cr, t); };
+
+template <typename T, size_t... I>
+void from_cbor_tuple_(CborReader &cr, T &out, std::index_sequence<I...>) {
+  (from_cbor(cr, std::get<I>(out)), ...);
+}
+
+template <typename T> void from_cbor(CborReader &cr, T &out) {
+  if constexpr (std::is_same_v<T, std::nullptr_t>) {
+    cr.read_null();
+  } else if constexpr (JsonDetailBool<T>) {
+    out = cr.read_bool();
+  } else if constexpr (std::is_integral_v<T>) {
+    uint8_t mt; uint64_t arg = cr.read_head(mt);
+    if (mt == 0)      out = static_cast<T>(arg);               // unsigned: exact
+    else if (mt == 1) out = static_cast<T>(-1 - static_cast<int64_t>(arg));
+    else              cr.fail("CBOR: expected integer");
+  } else if constexpr (std::is_floating_point_v<T>) {
+    out = static_cast<T>(cr.read_float());
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    out.assign(cr.read_text());
+  } else if constexpr (JsonDetailOptional<T>) {
+    if (cr.try_read_null()) { out = std::nullopt; return; }
+    CborDepthGuard g;
+    typename T::value_type inner{};
+    from_cbor(cr, inner);
+    out = std::move(inner);
+  } else if constexpr (JsonDetailSeq<T> || JsonDetailSet<T>) {
+    CborDepthGuard g;
+    out.clear();
+    const size_t n = cr.read_array_header();
+    auto take = [&] {
+      typename T::value_type item{};
+      from_cbor(cr, item);
+      if constexpr (JsonDetailSeq<T>) out.push_back(std::move(item));
+      else                            out.insert(std::move(item));
+    };
+    if (n == kCborIndef) { while (!cr.peek_break()) take(); cr.consume_break(); }
+    else { for (size_t i = 0; i < n; ++i) take(); }
+  } else if constexpr (JsonDetailMap<T>) {
+    CborDepthGuard g;
+    out.clear();
+    const size_t n = cr.read_map_header();
+    auto take = [&] {
+      std::string k(cr.read_text());
+      typename T::mapped_type item{};
+      from_cbor(cr, item);
+      out.emplace(std::move(k), std::move(item));
+    };
+    if (n == kCborIndef) { while (!cr.peek_break()) take(); cr.consume_break(); }
+    else { for (size_t i = 0; i < n; ++i) take(); }
+  } else if constexpr (JsonDetailFixedArr<T>) {
+    CborDepthGuard g;
+    constexpr size_t N = std::tuple_size_v<T>;
+    const size_t n = cr.read_array_header();
+    if (n == kCborIndef) {
+      size_t i = 0;
+      while (!cr.peek_break()) {
+        if (i < N) from_cbor(cr, out[i++]); else cbor_skip(cr);
+      }
+      cr.consume_break();
+    } else {
+      for (size_t i = 0; i < n; ++i) {
+        if (i < N) from_cbor(cr, out[i]); else cbor_skip(cr);
+      }
+    }
+  } else if constexpr (JsonDetailTuple<T>) {
+    CborDepthGuard g;
+    constexpr size_t N = std::tuple_size_v<T>;
+    const size_t n = cr.read_array_header();
+    from_cbor_tuple_(cr, out, std::make_index_sequence<N>{});
+    // Drain any extra elements an oversized encoder may have written.
+    if (n == kCborIndef) { while (!cr.peek_break()) cbor_skip(cr); cr.consume_break(); }
+    else { for (size_t i = N; i < n; ++i) cbor_skip(cr); }
+  } else if constexpr (HasQbuemJsonReadCbor<T>) {
+    CborDepthGuard g;
+    qbuem_json_read_cbor(cr, out); // nested struct (generated by the macro)
+  } else {
+    static_assert(sizeof(T) == 0,
+                  "qbuem::cbor::decode / from_cbor: no deserialization for T. "
+                  "Use QBUEM_JSON_FIELDS(Type, field...).");
+  }
+}
+
 // ── Per-field helpers for QBUEM_JSON_FIELDS
 
 template <typename T>
@@ -8788,6 +9166,23 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   ::qbuem::json::detail::append_json(_bj_fw, obj.f);                          \
   _bj_fw.put(',');
 
+// QBUEM_JSON_DETAIL_APPEND_CBOR — one CBOR map entry: text key + value
+#define QBUEM_JSON_DETAIL_APPEND_CBOR(f)                                       \
+  ::qbuem::json::detail::append_cbor(_bj_w, ::std::string_view(#f));           \
+  ::qbuem::json::detail::append_cbor(_bj_w, obj.f);
+
+// QBUEM_JSON_DETAIL_CBOR_READ — one switch case routing a CBOR map key to its
+// field.  The hash is collision-prone, so the key bytes are verified before the
+// field is filled (same spoofing defence as the JSON nexus_pulse path); an
+// unmatched key has its value skipped wholesale.
+#define QBUEM_JSON_DETAIL_CBOR_READ(f)                                         \
+  case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
+    if (_key == ::std::string_view(#f, sizeof(#f) - 1))                        \
+      ::qbuem::json::detail::from_cbor(_cr, obj.f);                            \
+    else                                                                       \
+      ::qbuem::json::detail::cbor_skip(_cr);                                   \
+    break;
+
 #define QBUEM_JSON_FIELDS(Type, ...)                                           \
   /* Fast dispatch on pre-computed key hash — primary hot path */              \
   inline void nexus_pulse_h(uint64_t _h, ::std::string_view _key,             \
@@ -8824,6 +9219,35 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   }                                                                            \
   inline void append_qbuem_json(std::string &out, const Type &obj) {           \
     qbuem_json_append_fw(out, obj);                                            \
+  }                                                                            \
+  /* CBOR serialization — indefinite-length map of the registered fields */    \
+  template <typename _W>                                                       \
+  inline void qbuem_json_append_cbor(_W &_bj_w, const Type &obj) {             \
+    ::qbuem::json::detail::json_put(_bj_w, static_cast<char>(0xbf)); /*map(*)*/ \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_APPEND_CBOR, __VA_ARGS__)                  \
+    ::qbuem::json::detail::json_put(_bj_w, static_cast<char>(0xff)); /*break*/  \
+  }                                                                            \
+  /* CBOR deserialization — reads a map (definite or indefinite), dispatching  \
+     each text key to its field; unknown keys are skipped.  Templated on the    \
+     reader (always CborReader) purely so it is instantiated lazily — only      \
+     structs actually decoded pay the from_cbor type-check, matching the        \
+     append_cbor template above. */                                            \
+  template <typename _R>                                                       \
+  inline void qbuem_json_read_cbor(_R &_cr, Type &obj) {                        \
+    const ::std::size_t _n = _cr.read_map_header();                            \
+    for (::std::size_t _i = 0;                                                  \
+         (_n == ::qbuem::json::detail::kCborIndef) ? !_cr.peek_break()         \
+                                                   : (_i < _n);                 \
+         ++_i) {                                                                \
+      const ::std::string_view _key = _cr.read_text();                         \
+      switch (::qbuem::json::detail::fast_key_hash(_key)) {                     \
+        QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_CBOR_READ, __VA_ARGS__)                \
+      default:                                                                  \
+        ::qbuem::json::detail::cbor_skip(_cr);                                  \
+        break;                                                                  \
+      }                                                                         \
+    }                                                                          \
+    if (_n == ::qbuem::json::detail::kCborIndef) _cr.consume_break();           \
   }
 
 
@@ -9482,6 +9906,49 @@ template <typename T> void from_json(const Value &v, T &out) {
 template <typename T>::std::string to_json_str(const T &val) {
   return ::qbuem::json::detail::to_json_str(val);
 }
+
+// ── CBOR binary serialization (RFC 8949) ─────────────────────────────────────
+// cbor::encode(obj) → compact, self-describing binary that decodes in any
+// language (e.g. the JS `cbor-x` library) without a shared schema. Reuses the
+// QBUEM_JSON_FIELDS field list — register a field once and it serializes to both
+// JSON and CBOR. Bytes are returned in a std::string (a byte container here).
+namespace cbor {
+
+template <typename T> void encode_to(::std::string &buf, const T &obj) {
+  ::qbuem::json::detail::append_cbor(buf, obj);
+}
+
+template <typename T> [[nodiscard]] ::std::string encode(const T &obj) {
+  ::std::string buf;
+  buf.reserve(64);
+  ::qbuem::json::detail::append_cbor(buf, obj);
+  return buf;
+}
+
+// decode<T>(bytes) → T.  Inverse of encode: reads the CBOR data item into a T
+// (any QBUEM_JSON_FIELDS struct or supported STL type).  Throws qbuem::parse_error
+// on a truncated, malformed, or type-mismatched payload — never reads out of
+// bounds, so it is safe on untrusted network input.  Trailing bytes after the
+// top-level item are ignored (framed-message friendly).
+template <typename T> [[nodiscard]] T decode(::std::string_view bytes) {
+  ::qbuem::json::detail::CborReader cr(bytes.data(), bytes.size());
+  T obj{};
+  ::qbuem::json::detail::from_cbor(cr, obj);
+  return obj;
+}
+
+template <typename T>
+[[nodiscard]] T decode(const ::std::uint8_t *data, ::std::size_t n) {
+  return decode<T>(::std::string_view(reinterpret_cast<const char *>(data), n));
+}
+
+// decode_into(bytes, obj) — fill an existing object (reuses its heap capacity).
+template <typename T> void decode_into(::std::string_view bytes, T &obj) {
+  ::qbuem::json::detail::CborReader cr(bytes.data(), bytes.size());
+  ::qbuem::json::detail::from_cbor(cr, obj);
+}
+
+} // namespace cbor
 
 } // namespace qbuem
 

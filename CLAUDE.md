@@ -15,13 +15,14 @@ Existing Korean comments in legacy files should be translated to English when to
 
 ## Project Overview
 
-**qbuem-json v1.0.8** — Single-header C++20 JSON library.
+**qbuem-json v1.1.0** — Single-header C++20 JSON library.
 RFC 8259 compliant, IEEE 754 round-trip, zero external dependencies.
 
 - **Single header**: `include/qbuem_json/qbuem_json.hpp` — ALL logic lives here
 - **Standard**: C++20 (`target_compile_features(cxx_std_20)`)
 - **No external deps**: header-only INTERFACE library
 - **Integration**: `QBUEM_JSON_FIELDS(Struct, field1, field2, ...)` macro + `qbuem::read<T>()` / `qbuem::write()`
+- **CBOR (RFC 8949)**: the same `QBUEM_JSON_FIELDS` list also drives `qbuem::cbor::encode<T>()` / `qbuem::cbor::decode<T>()` — compact binary that decodes in any language (e.g. JS `cbor-x`). Register fields once; serialize to both JSON and CBOR.
 
 ---
 
@@ -121,6 +122,12 @@ Child c = *result;
 auto body_sv = std::string_view{
     reinterpret_cast<const char*>(body.data()), body.size()};
 auto child_r = qbuem::read<Child>(body_sv);
+
+// 5. CBOR binary (RFC 8949) — same field list, no extra registration
+std::string bytes = qbuem::cbor::encode(child);          // → compact binary
+Child       back  = qbuem::cbor::decode<Child>(bytes);   // ← throws parse_error on bad input
+// decode<T> accepts a string_view OR (const uint8_t*, size_t); trailing bytes
+// after the top-level item are ignored (framed-message friendly).
 ```
 
 ---
