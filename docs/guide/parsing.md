@@ -356,16 +356,28 @@ qbuem::query(root, "$.nums[::-1]");            // reversed
 qbuem::query(root, "$.nums[0, 2, 4]");         // union of indices
 qbuem::query(root, "$['store']['bicycle']");   // bracket + quoted names
 
+// filter selectors — keep array elements / object members the predicate accepts
+qbuem::query(root, "$.store.book[?@.price<10]");                 // comparison
+qbuem::query(root, "$.store.book[?@.isbn]");                     // existence test
+qbuem::query(root, "$.store.book[?@.category=='fiction' && @.price<10]"); // logical
+qbuem::query(root, "$.tags[?length(@)>=2]");                     // length() function
+
 for (const qbuem::Value& v : qbuem::query(root, "$.store.book[*].title"))
     std::cout << v.as<std::string_view>() << '\n';
 ```
 
 Supported selectors: root `$`, member (`.name` / `['name']`), array index incl.
 negative, wildcard (`.*` / `[*]`), recursive descent (`..`), slices
-(`[start:end:step]`), and unions. A **filter** expression (`[?...]`) is not yet
-supported and throws. A syntactically malformed query throws `qbuem::parse_error`;
-a valid query that matches nothing returns an empty vector. Returned Values view
-into the same document as `root`, so keep the document alive.
+(`[start:end:step]`), unions, and **filter selectors** `[?...]` (RFC 9535
+§2.3.5): comparisons (`==` `!=` `<` `<=` `>` `>=`), existence tests, the logical
+operators `&&` `||` `!` with parentheses, literals, singular queries (`@.a`,
+`$.x`) as comparison operands, and the functions `length()`, `count()`,
+`value()`. The I-Regexp functions `match()` and `search()` are intentionally
+**not** supported (they need a regex engine, out of scope for a single-header
+zero-dependency library) — a query using either throws. A syntactically
+malformed query throws `qbuem::parse_error`; a valid query that matches nothing
+returns an empty vector. Returned Values view into the same document as `root`,
+so keep the document alive.
 
 ---
 

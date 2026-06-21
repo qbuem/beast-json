@@ -29,7 +29,7 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 
 ## Tier 2 — Mid-term
 
-- 🚧 **JSONPath (RFC 9535)** — structural selectors (root, member, index, wildcard, recursive descent, slice, union) shipped *(v1.8.0)*; filter expressions planned.
+- ✅ **JSONPath (RFC 9535)** — structural selectors (root, member, index, wildcard, recursive descent, slice, union) *(v1.8.0)* + filter selectors `[?...]` (comparisons, existence tests, `&&`/`||`/`!`, `length()`/`count()`/`value()`) *(v1.13.0)*. The I-Regexp `match()`/`search()` functions are intentionally out of scope (no regex engine in a single-header lib).
 - ✅ **WebAssembly build** — `bindings/wasm`: validate / minify / canonicalize / JSONPath in the browser & Node *(v1.9.0)*.
 - ✅ **SAX-style event visitor** — `qbuem::visit` / `sax_parse` for transcoding & inspection *(v1.10.0)*.
 - ❌ **MessagePack codec** — declined: duplicative of the existing CBOR codec (both binary-JSON); not worth a second parallel codec to maintain.

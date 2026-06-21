@@ -1,6 +1,6 @@
 {
   "name": "qbuem-json",
-  "version": "1.12.0",
+  "version": "1.13.0",
   "description": "Single-header C++20 JSON library: dual-engine SIMD DOM + zero-tape struct mapping, CBOR (RFC 8949), JSONPath (RFC 9535), canonicalization (RFC 8785), JSON diff/patch (RFC 6902). Zero dependencies.",
   "homepage": "https://qbuem.com/qbuem-json/",
   "license": "Apache-2.0",

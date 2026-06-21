@@ -449,7 +449,7 @@ Canonical JSON: qbuem::canonicalize(json) returns a deterministic serialization 
 qbuem::canonicalize(R"({ "b":1, "a":2 })");  // {"a":2,"b":1}
 ```
 
-JSONPath (RFC 9535 structural selectors): qbuem::query(root, path) returns all matching Values in document order. Supports root $, member (.name / ['name']), array index incl. negative, wildcard (.* / [*]), recursive descent (..), slices [start:end:step], unions. Filters [?...] are not yet supported (throw). Malformed query throws parse_error.
+JSONPath (RFC 9535): qbuem::query(root, path) returns all matching Values in document order. Supports root $, member (.name / ['name']), array index incl. negative, wildcard (.* / [*]), recursive descent (..), slices [start:end:step], unions, and filter selectors [?...] (comparisons == != < <= > >=, existence tests, && || ! with parentheses, literals, singular queries @.a / $.x, and functions length()/count()/value()). The I-Regexp functions match()/search() are intentionally unsupported (throw — a regex engine is out of scope for a single-header library). Malformed query throws parse_error.
 
 ```cpp
 qbuem::query(root, "$.store.book[*].author");  // every author
