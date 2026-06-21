@@ -76,6 +76,7 @@ add_qbuem_gtest(test_field_rename)
 add_qbuem_gtest(test_ndjson)
 add_qbuem_gtest(test_canonical)
 add_qbuem_gtest(test_jsonpath)
+add_qbuem_gtest(test_sax)
 
 # ── New: dom API type coverage and round-trip fidelity ────────────────────
 add_qbuem_gtest(test_dom_types)

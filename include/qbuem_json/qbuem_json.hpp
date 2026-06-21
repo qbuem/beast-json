@@ -1,6 +1,14 @@
 /**
- * @brief qbuem-json v1.9.0 - High-Performance C++20 JSON Parser
- * @version 1.9.0
+ * @brief qbuem-json v1.10.0 - High-Performance C++20 JSON Parser
+ * @version 1.10.0
+ *
+ * v1.10.0: SAX-style event visitor (roadmap Tier 2). qbuem::visit(value, handler)
+ *          and sax_parse(json, handler) walk a document depth-first, emitting an
+ *          event per node (start_object/key/string/integer/…) to a handler
+ *          derived from qbuem::sax_handler — for transcoding / inspection / folds
+ *          without hand-navigating the DOM. Static dispatch (no virtuals); a
+ *          handler returning false aborts the walk. An event walk over the proven
+ *          tape parser, not a second parser (use NDJSON for data larger than RAM).
  *
  * v1.9.0: WebAssembly module (roadmap Tier 2). bindings/wasm compiles the engine
  *         to WASM via Emscripten/Embind, exposing validate / minify / prettify /
@@ -10512,6 +10520,74 @@ inline void canon_emit_(const json::Value &v, ::std::string &out) {
   out.reserve(json.size());
   canon_emit_(root, out);
   return out;
+}
+
+// ── SAX-style event visitor ──────────────────────────────────────────────────
+// qbuem::visit(value, handler) walks a parsed Value depth-first and emits an
+// event for each node to `handler`, so you can transcode / inspect / fold JSON
+// without navigating the DOM by hand.  This is an event walk over the (proven,
+// fuzzed) tape parser — not a separate streaming parser; for data larger than
+// RAM use NDJSON (read_lines).
+//
+// Derive a handler from qbuem::sax_handler and override only the events you care
+// about; the rest default to no-ops.  Dispatch is static (no virtuals → zero
+// overhead).  Every handler method returns bool — return false to ABORT the walk
+// early (visit then returns false).  String/key values are the RAW on-the-wire
+// slice (escaped, zero-copy), matching Value::as<std::string_view>(); decode with
+// the value's own escapes if you need the logical text.
+struct sax_handler {
+  bool start_object() { return true; }
+  bool end_object(::std::size_t /*member_count*/) { return true; }
+  bool start_array() { return true; }
+  bool end_array(::std::size_t /*element_count*/) { return true; }
+  bool key(::std::string_view /*raw*/) { return true; }
+  bool string(::std::string_view /*raw*/) { return true; }
+  bool integer(int64_t) { return true; }
+  bool real(double) { return true; }
+  bool boolean(bool) { return true; }
+  bool null() { return true; }
+};
+
+// Walk `v`, dispatching events to `h`.  Returns false iff a handler aborted.
+template <typename H>
+bool visit(const Value &v, H &h) {
+  if (v.is_object()) {
+    if (!h.start_object()) return false;
+    ::std::size_t n = 0;
+    for (const auto &[k, val] : v.items()) {
+      if (!h.key(k)) return false;
+      if (!visit(val, h)) return false;
+      ++n;
+    }
+    return h.end_object(n);
+  } else if (v.is_array()) {
+    if (!h.start_array()) return false;
+    ::std::size_t n = 0;
+    for (const auto &e : v.elements()) {
+      if (!visit(e, h)) return false;
+      ++n;
+    }
+    return h.end_array(n);
+  } else if (v.is_string()) {
+    return h.string(v.template as<::std::string_view>());
+  } else if (v.is_int()) {
+    return h.integer(v.template as<int64_t>());
+  } else if (v.is_double()) {
+    return h.real(v.template as<double>());
+  } else if (v.is_bool()) {
+    return h.boolean(v.template as<bool>());
+  } else {
+    return h.null();
+  }
+}
+
+// Parse `json` then visit it — the "stream events from text" one-liner. Throws
+// qbuem::parse_error on invalid input. Returns false iff a handler aborted.
+template <typename H>
+bool sax_parse(::std::string_view json, H &h) {
+  Document doc;
+  Value root = parse(doc, json);
+  return visit(root, h);
 }
 
 // ── JSONPath (RFC 9535 — structural selectors) ───────────────────────────────
