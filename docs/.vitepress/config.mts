@@ -179,10 +179,10 @@ export default withMermaid(
                         applicationCategory: 'DeveloperApplication',
                         applicationSubCategory: 'C++ Library',
                         operatingSystem: 'Linux, macOS',
-                        version: '1.13.0',
-                        softwareVersion: '1.13.0',
-                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.13.0',
-                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.13.0',
+                        version: '1.14.0',
+                        softwareVersion: '1.14.0',
+                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.14.0',
+                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.14.0',
                         installUrl: 'https://qbuem.com/qbuem-json/guide/getting-started',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, CBOR C++, RFC 8949 CBOR, binary serialization C++, nlohmann alternative, simdjson alternative, RapidJSON alternative',
@@ -196,9 +196,10 @@ export default withMermaid(
                             'RFC 8259, RFC 6901, RFC 6902, RFC 8949, RFC 9535 (JSONPath) compliant',
                             'IEEE 754 round-trip float correctness',
                             'Rich parse errors: line/column/offset + caret rendering (format_error)',
-                            '663 passing tests, 16 libFuzzer targets',
+                            '672 passing tests, 17 libFuzzer targets',
                             'STL container support (vector, map, optional, tuple, variant)',
                             'Enum support: integer by default, value-name via QBUEM_JSON_ENUM (JSON + CBOR)',
+                            'Macro-free aggregate reflection: plain structs serialize/deserialize (JSON + CBOR) with no QBUEM_JSON_FIELDS registration (GCC/Clang)',
                             'Field rename (member, "jsonKey") and skip-by-omission, across JSON/fuse/CBOR',
                             'NDJSON / JSON Lines streaming (read_lines / write_lines) in bounded memory',
                             'Canonical JSON (qbuem::canonicalize) — deterministic bytes for hashing/signing (RFC 8785-style)',
@@ -241,7 +242,7 @@ export default withMermaid(
                         },
                         runtimePlatform: 'C++20',
                         targetProduct: { '@id': 'https://qbuem.com/qbuem-json/#application' },
-                        version: '1.13.0',
+                        version: '1.14.0',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer, zero-allocation',
                         author: { '@id': 'https://qbuem.com/#organization' }
@@ -397,9 +398,9 @@ export default withMermaid(
                     ]
                 },
                 {
-                    text: 'v1.13.0',
+                    text: 'v1.14.0',
                     items: [
-                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.13.0' },
+                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.14.0' },
                         { text: 'All Releases', link: 'https://github.com/qbuem/qbuem-json/releases' }
                     ]
                 }

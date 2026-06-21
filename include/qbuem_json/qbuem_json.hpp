@@ -1,6 +1,19 @@
 /**
- * @brief qbuem-json v1.13.0 - High-Performance C++20 JSON Parser
- * @version 1.13.0
+ * @brief qbuem-json v1.14.0 - High-Performance C++20 JSON Parser
+ * @version 1.14.0
+ *
+ * v1.14.0: Macro-free aggregate reflection (GCC/Clang). A plain aggregate struct
+ *          now serializes/deserializes with NO QBUEM_JSON_FIELDS registration —
+ *          qbuem::write(dto) / read<Dto> and cbor::encode/decode just work, with
+ *          field names recovered from __PRETTY_FUNCTION__. Covers JSON (write +
+ *          read) and CBOR (encode + decode); nested aggregates, optional, and STL
+ *          containers included. A QBUEM_JSON_FIELDS / from_qbuem_json
+ *          registration, if present, ALWAYS wins, so this is purely additive and
+ *          source-compatible. Works for aggregates of any linkage (incl.
+ *          anonymous-namespace / function-local) and with non-constexpr members
+ *          (std::map, etc.); up to 32 fields, default-constructible. The zero-tape
+ *          fuse<T> path still requires the macro (the perf opt-in). GCC/Clang-only
+ *          by design — this leverages, rather than fights, the no-MSVC scope.
  *
  * v1.13.0: JSONPath filter selectors (RFC 9535 §2.3.5). query()/jsonpath() now
  *          support `[?<expr>]`: comparisons (== != < <= > >=), existence tests
@@ -8425,6 +8438,157 @@ concept JsonDetailStringEnum =
       qbuem_enum_from_string(s, er);
     };
 
+// ── Macro-free aggregate reflection (GCC/Clang only) ─────────────────────────
+// Serialize/deserialize a plain *aggregate* struct with NO QBUEM_JSON_FIELDS
+// registration: qbuem::write(dto) / read<Dto> just work when Dto is an aggregate
+// (no private members, no user-declared constructors, no base classes). A
+// QBUEM_JSON_FIELDS / from_qbuem_json registration, if present, always wins — so
+// this is purely additive. Field *names* are recovered from __PRETTY_FUNCTION__
+// (works on GCC and Clang; the library is GCC/Clang-only by design, so this needs
+// no MSVC fallback). Up to kReflectMaxFields fields; beyond that, use the macro.
+namespace refl {
+
+// A defined (inline) instance whose subobject addresses are compile-time
+// constants; used only to recover field names (never read at runtime). Defining
+// it — rather than `extern` — makes it work for types with ANY linkage (including
+// anonymous-namespace and function-local aggregates, which an extern of a
+// no-linkage type cannot) and for non-constexpr-constructible members (std::map,
+// etc.). Requires the type be default-constructible (so does read<T>).
+template <class T> inline const T probe_obj{};
+
+// Converts to anything; used only to count fields by aggregate-init probing. The
+// conversion is named only in unevaluated requires-expressions, so it is never
+// odr-used and needs no definition; the pragma silences the -Wundefined-inline
+// note that referencing an undefined inline member would otherwise raise in
+// consuming translation units.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wundefined-inline"
+#endif
+struct any_field {
+  template <class U> constexpr operator U() const noexcept;
+};
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
+// Double-braced initializers ({any}{any}...) defeat brace elision, so a nested
+// aggregate counts as ONE field rather than being flattened into its members.
+template <class T, class... A>
+concept brace_initable = requires { T{{A{}}...}; };
+
+template <class T, class... A>
+constexpr ::std::size_t count_fields_() {
+  if constexpr (brace_initable<T, A..., any_field>)
+    return count_fields_<T, A..., any_field>();
+  else
+    return sizeof...(A);
+}
+template <class T>
+constexpr ::std::size_t field_count() {
+  return count_fields_<::std::remove_cvref_t<T>>();
+}
+
+inline constexpr ::std::size_t kReflectMaxFields = 32;
+
+// One structured-binding ladder: returns a tuple of pointers to each field of the
+// referenced object. Used both for values (real object) and, via probe_obj, for
+// names (the pointers are constant expressions usable as template arguments).
+template <class T>
+constexpr auto field_ptrs(T &o) {
+  constexpr ::std::size_t n = field_count<T>();
+  if constexpr (n == 0) return ::std::make_tuple();
+    else if constexpr (n == 1) { auto &[ f0] = o; return ::std::make_tuple( &f0); }
+    else if constexpr (n == 2) { auto &[ f0, f1] = o; return ::std::make_tuple( &f0, &f1); }
+    else if constexpr (n == 3) { auto &[ f0, f1, f2] = o; return ::std::make_tuple( &f0, &f1, &f2); }
+    else if constexpr (n == 4) { auto &[ f0, f1, f2, f3] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3); }
+    else if constexpr (n == 5) { auto &[ f0, f1, f2, f3, f4] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4); }
+    else if constexpr (n == 6) { auto &[ f0, f1, f2, f3, f4, f5] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5); }
+    else if constexpr (n == 7) { auto &[ f0, f1, f2, f3, f4, f5, f6] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6); }
+    else if constexpr (n == 8) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7); }
+    else if constexpr (n == 9) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8); }
+    else if constexpr (n == 10) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9); }
+    else if constexpr (n == 11) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10); }
+    else if constexpr (n == 12) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11); }
+    else if constexpr (n == 13) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12); }
+    else if constexpr (n == 14) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13); }
+    else if constexpr (n == 15) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14); }
+    else if constexpr (n == 16) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15); }
+    else if constexpr (n == 17) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16); }
+    else if constexpr (n == 18) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17); }
+    else if constexpr (n == 19) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18); }
+    else if constexpr (n == 20) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19); }
+    else if constexpr (n == 21) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20); }
+    else if constexpr (n == 22) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21); }
+    else if constexpr (n == 23) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22); }
+    else if constexpr (n == 24) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23); }
+    else if constexpr (n == 25) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24); }
+    else if constexpr (n == 26) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25); }
+    else if constexpr (n == 27) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26); }
+    else if constexpr (n == 28) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26, &f27); }
+    else if constexpr (n == 29) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26, &f27, &f28); }
+    else if constexpr (n == 30) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26, &f27, &f28, &f29); }
+    else if constexpr (n == 31) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26, &f27, &f28, &f29, &f30); }
+    else if constexpr (n == 32) { auto &[ f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14, f15, f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31] = o; return ::std::make_tuple( &f0, &f1, &f2, &f3, &f4, &f5, &f6, &f7, &f8, &f9, &f10, &f11, &f12, &f13, &f14, &f15, &f16, &f17, &f18, &f19, &f20, &f21, &f22, &f23, &f24, &f25, &f26, &f27, &f28, &f29, &f30, &f31); }
+    else { static_assert(n <= kReflectMaxFields,
+            "qbuem reflection: struct has more than 32 fields; use QBUEM_JSON_FIELDS");
+           return ::std::make_tuple(); }
+}
+
+template <auto Ptr>
+constexpr ::std::string_view pretty_ptr_() { return __PRETTY_FUNCTION__; }
+
+// The field name is the trailing identifier of the NTTP value:
+//   Clang: "...pretty_ptr_() [Ptr = &probe_obj.id]"
+//   GCC:   "...pretty_ptr_() [with auto Ptr = (& probe_obj<Foo>.Foo::id); ...]"
+// The value ends at the first ';' (GCC alias separator) or the final ']'.
+constexpr ::std::string_view parse_field_name_(::std::string_view pf) {
+  ::std::size_t end = pf.find(';');
+  if (end == ::std::string_view::npos) end = pf.rfind(']');
+  if (end == ::std::string_view::npos) end = pf.size();
+  ::std::size_t i = end;
+  while (i > 0 && (pf[i - 1] == ')' || pf[i - 1] == ' ')) --i;
+  ::std::size_t e = i;
+  auto is_id = [](char c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+           (c >= '0' && c <= '9') || c == '_';
+  };
+  while (i > 0 && is_id(pf[i - 1])) --i;
+  return pf.substr(i, e - i);
+}
+
+template <class T, ::std::size_t I>
+constexpr ::std::string_view field_name() {
+  constexpr auto ptr = ::std::get<I>(field_ptrs(probe_obj<::std::remove_cvref_t<T>>));
+  return parse_field_name_(pretty_ptr_<ptr>());
+}
+
+// Invoke fn(field_name, field_ref) for each field, in declaration order.
+template <class T, class F, ::std::size_t... Is>
+constexpr void for_each_field_(T &o, F &&fn, ::std::index_sequence<Is...>) {
+  auto ptrs = field_ptrs(o);
+  (fn(field_name<T, Is>(), *::std::get<Is>(ptrs)), ...);
+}
+template <class T, class F>
+constexpr void for_each_field(T &o, F &&fn) {
+  for_each_field_(o, static_cast<F &&>(fn),
+                  ::std::make_index_sequence<field_count<T>()>{});
+}
+
+} // namespace refl
+
+// A type qbuem can serialize purely by aggregate reflection: a real aggregate
+// (so structured bindings work), not an array/scalar/container, with at least one
+// field and no explicit registration (the macro / from_qbuem_json always wins).
+template <typename T>
+concept ReflectableAggregate =
+    ::std::is_aggregate_v<::std::remove_cvref_t<T>> &&
+    ::std::is_default_constructible_v<::std::remove_cvref_t<T>> &&
+    !::std::is_array_v<::std::remove_cvref_t<T>> &&
+    !::std::is_union_v<::std::remove_cvref_t<T>> &&
+    (refl::field_count<T>() >= 1) &&
+    (refl::field_count<T>() <= refl::kReflectMaxFields);
+
 // ── Forward declarations
 
 template <typename T> void from_json(const Value &v, T &out);
@@ -8544,6 +8708,12 @@ template <typename T> void from_json(const Value &v, T &out) {
     from_json_tuple_(v, out);
   } else if constexpr (HasFromQbuemJson<T>) {
     from_qbuem_json(v, out); // ADL: user-defined or QBUEM_JSON_FIELDS-generated
+  } else if constexpr (ReflectableAggregate<T>) {
+    // Macro-free: match each reflected field name against the object's members.
+    refl::for_each_field(out, [&](::std::string_view _nm, auto &_f) {
+      Value _m = v[_nm];
+      if (_m.is_valid()) from_json(_m, _f);
+    });
   } else {
     static_assert(sizeof(T) == 0,
                   "qbuem::read / from_json: no deserialization for T. "
@@ -8666,6 +8836,10 @@ template <typename T> std::string to_json_str(const T &in) {
     Value root = ::qbuem::json::parse_reuse(doc, src);
     to_qbuem_json(root, in); // ADL: user-defined or QBUEM_JSON_FIELDS-generated
     return root.dump();
+  } else if constexpr (ReflectableAggregate<T>) {
+    std::string s; // macro-free aggregate — delegate to the append_json workhorse
+    append_json(s, in);
+    return s;
   } else {
     static_assert(sizeof(T) == 0,
                   "qbuem::write / to_json_str: no serialization for T. "
@@ -8884,6 +9058,21 @@ template <typename W, typename T> void append_json(W &out, const T &in) {
     to_qbuem_json(root, in);
     const std::string ds = root.dump();
     json_write(out, ds.data(), ds.size());
+  } else if constexpr (ReflectableAggregate<T>) {
+    // Macro-free aggregate: {"field":value,...} from reflected names. Field names
+    // are C++ identifiers, so they need no JSON escaping.
+    json_put(out, '{');
+    bool _first = true;
+    refl::for_each_field(in, [&](::std::string_view _nm, const auto &_f) {
+      if (!_first) json_put(out, ',');
+      _first = false;
+      json_put(out, '"');
+      json_write(out, _nm.data(), _nm.size());
+      json_put(out, '"');
+      json_put(out, ':');
+      append_json(out, _f);
+    });
+    json_put(out, '}');
   } else {
     static_assert(sizeof(T) == 0,
                   "qbuem::write / append_json: no serialization for T. "
@@ -9027,6 +9216,14 @@ template <typename W, typename T> void append_cbor(W &out, const T &in) {
     append_cbor_tuple_(out, in, std::make_index_sequence<N>{});
   } else if constexpr (HasQbuemJsonAppendCbor<T, W>) {
     qbuem_json_append_cbor(out, in); // nested struct (generated by the macro)
+  } else if constexpr (ReflectableAggregate<T>) {
+    // Macro-free aggregate: definite-length map of reflected fields, each entry a
+    // text key (the field name) + the encoded value.
+    cbor_head(out, 5, refl::field_count<T>());
+    refl::for_each_field(in, [&](::std::string_view _nm, const auto &_f) {
+      append_cbor(out, _nm);
+      append_cbor(out, _f);
+    });
   } else {
     static_assert(sizeof(T) == 0,
                   "qbuem::cbor::encode / append_cbor: no serialization for T. "
@@ -9360,6 +9557,21 @@ template <typename T> void from_cbor(CborReader &cr, T &out) {
   } else if constexpr (HasQbuemJsonReadCbor<T>) {
     CborDepthGuard g;
     qbuem_json_read_cbor(cr, out); // nested struct (generated by the macro)
+  } else if constexpr (ReflectableAggregate<T>) {
+    // Macro-free aggregate: read a map and match each text key against the
+    // reflected field names; unknown keys are skipped.
+    CborDepthGuard g;
+    const size_t n = cr.read_map_header();
+    const bool indef = (n == kCborIndef);
+    for (size_t i = 0; indef ? !cr.peek_break() : (i < n); ++i) {
+      const std::string_view key = cr.read_text();
+      bool matched = false;
+      refl::for_each_field(out, [&](std::string_view nm, auto &f) {
+        if (!matched && nm == key) { matched = true; from_cbor(cr, f); }
+      });
+      if (!matched) cbor_skip(cr);
+    }
+    if (indef) cr.consume_break();
   } else {
     static_assert(sizeof(T) == 0,
                   "qbuem::cbor::decode / from_cbor: no deserialization for T. "

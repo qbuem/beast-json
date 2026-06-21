@@ -78,6 +78,7 @@ add_qbuem_gtest(test_canonical)
 add_qbuem_gtest(test_jsonpath)
 add_qbuem_gtest(test_sax)
 add_qbuem_gtest(test_diff)
+add_qbuem_gtest(test_reflect)
 # JSONTestSuite conformance — skips unless QBUEM_JSONTESTSUITE_DIR points at a
 # checkout of the corpus (CI clones it at a pinned commit; see conformance job).
 add_qbuem_gtest(test_jsontestsuite)
