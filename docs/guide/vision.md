@@ -37,9 +37,8 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 
 ## Tier 3 — Longer-term
 
+- ✅ **JSON diff / patch generation** — `qbuem::diff` + a complete functional RFC 6902 `apply_patch` (real-time state sync) *(v1.11.0)*.
 - ⬜ **JSON Schema** (Draft-7 → 2020-12 subset) validation — OpenAPI / MCP alignment.
-- ⬜ **Structural diff / patch generation** — compute a minimal RFC 6902 patch between two documents
-  (real-time state sync).
 - ⬜ **Schemaless On-Demand lazy cursor** — parse only the values you touch.
 - ⬜ **Chunked / incremental (socket) parsing** — resumable feeding from a partial buffer.
 - ⬜ **Packaging** — vcpkg + Conan registry; explicit JSONTestSuite conformance badge.
