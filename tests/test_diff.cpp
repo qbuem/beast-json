@@ -29,6 +29,22 @@ TEST(Diff, NumbersCompareByValue) {
   EXPECT_EQ(qbuem::diff(std::string_view("{\"a\":1}"), std::string_view("{\"a\":1.0}")), "[]");
 }
 
+TEST(Diff, LargeIntegersCompareExactly) {
+  // 2^53 vs 2^53+1 must be reported different (a double compare would equate them).
+  EXPECT_NE(qbuem::diff(std::string_view("{\"n\":9007199254740993}"),
+                        std::string_view("{\"n\":9007199254740992}")),
+            "[]");
+  roundtrip("{\"n\":9007199254740993}", "{\"n\":9007199254740992}");
+}
+
+TEST(Diff, KeysMatchByDecodedName) {
+  // "a" and "a" are the same logical key → no diff.
+  EXPECT_EQ(qbuem::diff(std::string_view("{\"a\":1}"), std::string_view("{\"\\u0061\":1}")), "[]");
+  // same key, different value → a replace, not remove+add.
+  EXPECT_EQ(qbuem::diff(std::string_view("{\"x\":1}"), std::string_view("{\"\\u0078\":2}")),
+            "[{\"op\":\"replace\",\"path\":\"/x\",\"value\":2}]");
+}
+
 TEST(Diff, ObjectAddRemoveReplace) {
   roundtrip("{\"a\":1}", "{\"a\":2}");
   roundtrip("{\"a\":1}", "{\"a\":1,\"b\":2}");

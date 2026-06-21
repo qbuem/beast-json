@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(qbuem_json VERSION 1.11.1 LANGUAGES CXX)
+project(qbuem_json VERSION 1.11.2 LANGUAGES CXX)
 
 # Library Target
 add_library(qbuem_json INTERFACE)

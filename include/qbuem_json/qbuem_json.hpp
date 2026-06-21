@@ -1,6 +1,14 @@
 /**
- * @brief qbuem-json v1.11.1 - High-Performance C++20 JSON Parser
- * @version 1.11.1
+ * @brief qbuem-json v1.11.2 - High-Performance C++20 JSON Parser
+ * @version 1.11.2
+ *
+ * v1.11.2: Correctness fixes from a full review. (1) value_equal (diff / patch
+ *          `test`) now compares integers exactly — a double compare wrongly
+ *          equated e.g. 2^53 and 2^53+1, so diff could miss changes to large
+ *          integer IDs. (2) diff / value_equal match object keys by their DECODED
+ *          name, so "a" and "a" are one key (no false remove+add). (3) the
+ *          JSONPath index parser rejects out-of-int64-range indices cleanly
+ *          (RFC 9535) instead of wrapping via signed overflow.
  *
  * v1.11.1: Packaging (roadmap Tier 3). Fixed the CMake install to generate and
  *          install qbuem_jsonConfig.cmake, so `find_package(qbuem_json CONFIG)`
@@ -10843,12 +10851,25 @@ p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
 // Arrays diff element-wise (a length decrease emits one whole-array replace).
 
 // Deep value equality: numbers by numeric value, strings by decoded text.
+// Find a member of `obj` whose key equals the (decoded) `raw_key`. Fast path is
+// a raw byte match (the common case — both docs escape keys the same way); the
+// slow path compares decoded keys so two spellings of the same key (e.g. "a" vs
+// "a") are treated as equal.
+inline ::std::optional<Value> find_by_decoded_key_(const Value &obj,
+                                                   ::std::string_view raw_key) {
+  if (auto m = obj.find(raw_key)) return m;
+  const ::std::string want = ::qbuem::json::detail::json_unescape(raw_key);
+  for (const auto &[rk, v] : obj.items())
+    if (::qbuem::json::detail::json_unescape(rk) == want) return v;
+  return ::std::nullopt;
+}
+
 inline bool value_equal(const Value &a, const Value &b) {
   if (a.is_object() && b.is_object()) {
     ::std::size_t na = 0, nb = 0;
     for (const auto &[k, va] : a.items()) {
       ++na;
-      auto ob = b.find(k);
+      auto ob = find_by_decoded_key_(b, k);
       if (!ob || !value_equal(va, *ob)) return false;
     }
     for (const auto &kv : b.items()) { (void)kv; ++nb; }
@@ -10861,6 +10882,10 @@ inline bool value_equal(const Value &a, const Value &b) {
     return true;
   }
   if (a.is_string() && b.is_string()) return a.decoded() == b.decoded();
+  // Integers compare exactly (a double compare would equate e.g. 2^53 and
+  // 2^53+1); only mixed/real numbers fall back to a double compare so 1 == 1.0.
+  if (a.is_int() && b.is_int())
+    return a.template as<int64_t>() == b.template as<int64_t>();
   if (a.is_number() && b.is_number())
     return a.template as<double>() == b.template as<double>();
   if (a.is_bool() && b.is_bool())
@@ -10908,7 +10933,7 @@ inline void diff_emit_(const Value &from, const Value &to,
   if (from.is_object() && to.is_object()) {
     for (const auto &[k, fv] : from.items()) {
       (void)fv;
-      if (!to.find(k))
+      if (!find_by_decoded_key_(to, k)) // key removed (match by decoded name)
         diff_op_(out, first, "remove",
                  path + "/" +
                      diff_jptr_escape_(::qbuem::json::detail::json_unescape(k)));
@@ -10916,7 +10941,7 @@ inline void diff_emit_(const Value &from, const Value &to,
     for (const auto &[k, tv] : to.items()) {
       const ::std::string p =
           path + "/" + diff_jptr_escape_(::qbuem::json::detail::json_unescape(k));
-      auto fv = from.find(k);
+      auto fv = find_by_decoded_key_(from, k);
       if (!fv) diff_op_value_(out, first, "add", p, tv);
       else diff_emit_(*fv, tv, p, out, first);
     }
@@ -11025,12 +11050,14 @@ struct JpParser {
   bool parse_int(int64_t &out) {
     ws();
     const char *s = p;
-    bool neg = false;
-    if (p < end && (*p == '-' || *p == '+')) { neg = (*p == '-'); ++p; }
-    int64_t v = 0; bool any = false;
-    while (p < end && *p >= '0' && *p <= '9') { v = v * 10 + (*p - '0'); ++p; any = true; }
-    if (!any) { p = s; return false; }
-    out = neg ? -v : v;
+    if (p < end && *p == '+') ++p;        // std::from_chars rejects a leading '+'
+    const char *num = p;
+    if (p < end && *p == '-') ++p;
+    while (p < end && *p >= '0' && *p <= '9') ++p;
+    // need at least one digit after the optional sign
+    if (p == num || (p == num + 1 && *num == '-')) { p = s; return false; }
+    auto [ptr, ec] = ::std::from_chars(num, p, out); // detects overflow cleanly
+    if (ec != ::std::errc{}) { p = s; return false; } // out of range or malformed
     return true;
   }
 

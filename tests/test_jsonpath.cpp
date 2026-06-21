@@ -100,3 +100,12 @@ TEST_F(JsonPath, FilterSelectorsAreRejected) {
   EXPECT_THROW((void)qbuem::query(root, "$.store.book[?@.price]"),
                qbuem::parse_error);
 }
+
+TEST_F(JsonPath, OutOfRangeIndexRejectedNotWrapped) {
+  // An index that overflows int64 is a malformed query (RFC 9535 limits index to
+  // the I-JSON range) — it must be rejected cleanly, not wrap via overflow.
+  EXPECT_THROW((void)qbuem::query(root, "$.nums[99999999999999999999999999]"),
+               qbuem::parse_error);
+  // A large-but-representable index simply doesn't match.
+  EXPECT_TRUE(qbuem::query(root, "$.nums[1000000000]").empty());
+}
