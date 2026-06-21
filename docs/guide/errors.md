@@ -37,24 +37,57 @@ try {
 
 A parse failure throws **`qbuem::parse_error`**. It derives from
 `std::runtime_error` — so existing `catch (const std::runtime_error&)` /
-`catch (const std::exception&)` blocks keep working — and adds an **`offset()`**
-method giving the 0-based byte position in the input where parsing failed (equal
-to the input size when the input ends prematurely):
+`catch (const std::exception&)` blocks keep working — and exposes the full
+failure location: **`offset()`** (0-based byte position), plus **`line()`** and
+**`column()`** (1-based). `what()` reads `"<reason> at line L column C (byte
+offset N)"`.
 
 ```cpp
 try {
     qbuem::Document doc;
     auto root = qbuem::parse(doc, "[1, 2,"); // truncated → throws
 } catch (const qbuem::parse_error& e) {
-    std::cerr << "Parse failed: " << e.what()      // "Invalid JSON at offset 6"
-              << " (byte " << e.offset() << ")\n";  // byte 6
+    std::cerr << e.what() << '\n';        // "Invalid JSON at line 1 column 7 (byte offset 6)"
+    e.line();    // 1
+    e.column();  // 7
+    e.offset();  // 6
 }
 ```
 
 `parse_error` is thrown by every parsing entry point — `parse`, `parse_reuse`,
 `parse_strict`, and the owning `read<T>()` / `fuse<T>()`. On the relaxed scalar
 path `offset()` is the exact failure cursor; on the AVX-512 staged path it is the
-offset just past the last fully consumed value.
+offset just past the last fully consumed value. Line/column are computed only on
+the cold error path (a single pass over the prefix), so the happy path pays
+nothing; for binary inputs (CBOR) `line()`/`column()` are `0`.
+
+### Pretty errors with `format_error`
+
+For human-facing output, **`qbuem::format_error(e, source)`** renders the failing
+line with a caret under the column (the same buffer you parsed must still be
+alive). It falls back to `e.what()` when no location is available.
+
+```cpp
+std::string json = R"({
+  "name": "hero",
+  "score": 3.5.7,
+  "ok": true
+})";
+try {
+    qbuem::read<Config>(json);
+} catch (const qbuem::parse_error& e) {
+    std::cerr << qbuem::format_error(e, json) << '\n';
+}
+```
+
+```text
+Invalid JSON at line 3 column 15 (byte offset 34)
+    "score": 3.5.7,
+                ^
+```
+
+Very long (e.g. minified) lines are windowed around the caret with a leading `…`
+so the message stays readable.
 
 ---
 
@@ -148,7 +181,7 @@ v.type_name();   // "null", "bool", "int", "double", "string", "array", "object"
 
 ## 🔐 Strategy 4: RFC 8259 Strict Validation
 
-Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enforce strict JSON compliance (e.g., for security-sensitive input processing). Strict failures also throw `qbuem::parse_error`, and `what()` includes both the offset and a human-readable reason.
+Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enforce strict JSON compliance (e.g., for security-sensitive input processing). Strict failures also throw `qbuem::parse_error` with full line/column/offset, and `what()` includes a human-readable reason.
 
 ```cpp
 #include <qbuem_json/qbuem_json.hpp>
@@ -157,7 +190,7 @@ Use `qbuem::parse_strict()` or `qbuem::rfc8259::validate()` when you need to enf
 try {
     qbuem::rfc8259::validate("[1, 2,]");  // trailing comma → throws
 } catch (const qbuem::parse_error& e) {
-    std::cerr << e.what()        // "RFC 8259 violation at offset 6: trailing comma in array"
+    std::cerr << e.what()        // "RFC 8259 violation at line 1 column 7 (byte offset 6): trailing comma in array"
               << " @ " << e.offset(); // 6
 }
 

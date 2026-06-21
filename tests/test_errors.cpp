@@ -53,3 +53,76 @@ TEST(ErrorHandling, UnbalancedDepth) {
   EXPECT_FALSE(dom_ok("{\"a\":1"));
   EXPECT_FALSE(dom_ok("{\"key\":\"value\""));
 }
+
+// ── Rich error context: line / column / caret (v1.3) ─────────────────────────
+
+// Catch a parse_error and return it, or nullopt-style sentinel via flag.
+static bool catch_parse_error(std::string_view j, qbuem::parse_error &out) {
+  try {
+    Document doc;
+    parse(doc, j);
+    return false;
+  } catch (const qbuem::parse_error &e) {
+    out = e;
+    return true;
+  }
+}
+
+TEST(ErrorContext, LineColumnOnMultilineInput) {
+  // Error (@) sits on the 3rd line.
+  const std::string j = "{\n  \"a\": 1,\n  \"b\": @\n}";
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error(j, e));
+  EXPECT_EQ(e.line(), 3u);          // newline count is deterministic
+  EXPECT_GE(e.column(), 1u);
+  EXPECT_LT(e.offset(), j.size());
+}
+
+TEST(ErrorContext, SingleLineIsLineOne) {
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error("[1, 2, @]", e));
+  EXPECT_EQ(e.line(), 1u);
+  EXPECT_GE(e.column(), 1u);
+}
+
+TEST(ErrorContext, OffsetStillReported) {
+  // Backward-compat: offset() remains valid.
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error("{\"x\": tru}", e));
+  EXPECT_GT(e.offset(), 0u);
+}
+
+TEST(ErrorContext, WhatMentionsLineColumn) {
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error("{\n  bad\n}", e));
+  const std::string what = e.what();
+  EXPECT_NE(what.find("line"), std::string::npos);
+  EXPECT_NE(what.find("column"), std::string::npos);
+}
+
+TEST(ErrorContext, FormatErrorShowsCaret) {
+  const std::string j = "{\n  \"a\": 1,\n  \"b\": @\n}";
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error(j, e));
+  const std::string rendered = qbuem::format_error(e, j);
+  EXPECT_NE(rendered.find('^'), std::string::npos);     // caret present
+  EXPECT_NE(rendered.find("\"b\""), std::string::npos);  // offending line shown
+}
+
+TEST(ErrorContext, FormatErrorNoLocationFallsBack) {
+  // A bare offset-only error (line == 0) renders as what(), no caret.
+  qbuem::parse_error e("synthetic", 5);
+  EXPECT_EQ(qbuem::format_error(e, "whatever"), std::string("synthetic"));
+}
+
+TEST(ErrorContext, FormatErrorWindowsLongLine) {
+  // A very long single line must not crash and must still carry a caret.
+  std::string j = "[";
+  j.append(400, '1');
+  j += " @]"; // invalid token far along the line
+  qbuem::parse_error e("", 0);
+  ASSERT_TRUE(catch_parse_error(j, e));
+  const std::string rendered = qbuem::format_error(e, j);
+  EXPECT_NE(rendered.find('^'), std::string::npos);
+  EXPECT_LT(rendered.size(), j.size());                 // windowed, not the whole blob
+}
