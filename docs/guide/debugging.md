@@ -209,42 +209,36 @@ Explore every error category interactively — from what causes it to how to fix
 
 ### 🟢 Beginner: Catching and Reading Errors
 
-**All qbuem-json errors derive from `qbuem::json::error`.**
+**Malformed input throws `qbuem::parse_error`; type/access mistakes on the DOM (or
+Nexus) throw `std::runtime_error`.** There is no separate `type_error` /
+`access_error` hierarchy — catch `parse_error` then `std::runtime_error`.
 
 ```cpp
 #include <qbuem_json/qbuem_json.hpp>
 
 try {
-    auto doc  = qbuem::parse(input);
-    auto name = doc.root()["name"].as<std::string_view>();
-    auto age  = doc.root()["age"].as<int>();
+    qbuem::Document doc;
+    qbuem::Value root = qbuem::parse(doc, input);
+    auto name = root["name"].as<std::string_view>();
+    auto age  = root["age"].as<int>();
 }
 catch (const qbuem::parse_error& e) {
     // Malformed JSON — bad input from network, file, etc.
     std::cerr << "Parse failed: " << e.what()   << "\n";
-    std::cerr << "At byte:      " << e.position() << "\n";
-    std::cerr << "Context:      " << e.context()  << "\n";
-    // e.context() returns up to 20 bytes around the error site
+    std::cerr << "At byte:      " << e.offset() << "\n";
+    std::cerr << "Line/column:  " << e.line() << ":" << e.column() << "\n";
 }
-catch (const qbuem::type_error& e) {
-    // Wrong .as<T>() call
-    std::cerr << "Type error: " << e.what() << "\n";
-}
-catch (const qbuem::access_error& e) {
-    // Key not found, index out of range
-    std::cerr << "Access error: " << e.what() << "\n";
-}
-catch (const qbuem::json::error& e) {
-    // Catch-all for any qbuem-json error
-    std::cerr << "JSON error: " << e.what() << "\n";
+catch (const std::runtime_error& e) {
+    // Wrong .as<T>() type, missing key accessed throwingly, etc.
+    std::cerr << "Access/type error: " << e.what() << "\n";
 }
 ```
 
-**The three questions to ask when an error occurs:**
+**The questions to ask when an error occurs:**
 
-1. **What byte position?** — `e.position()` tells you exactly where in the input
-2. **What is the input around that position?** — `e.context()` shows the surrounding bytes
-3. **What type tag did the node have?** — a `type_error` tells you what tag was found vs. what was expected
+1. **What byte position?** — `e.offset()` (and `e.line()` / `e.column()`) tell you exactly where in the input.
+2. **Want a rendered caret?** — `qbuem::format_error(e, input)` returns the message with a `^` under the failure site.
+3. **Was it a type mistake?** — the `std::runtime_error::what()` says which `as<T>()` failed.
 
 ---
 
@@ -253,8 +247,8 @@ catch (const qbuem::json::error& e) {
 Always check before you extract:
 
 ```cpp
-auto doc  = qbuem::parse(input);
-auto root = doc.root();
+qbuem::Document doc;
+qbuem::Value root = qbuem::parse(doc, input);
 
 // ❌ Fragile — throws if key missing or wrong type
 auto name = root["name"].as<std::string_view>();
@@ -270,32 +264,31 @@ if (!name_val || !name_val->is_string()) {
 }
 auto name = name_val->as<std::string_view>();
 
-// ✅ Also safe — use the 'or_default' variant
-auto count = root["count"].as<int>(/*default=*/ 0);
+// ✅ Also safe — operator| supplies a default on missing/wrong type
+auto count = root["count"] | 0;
+// ✅ Or try_as<T>() for an explicit std::optional
+auto maybe = root["count"].try_as<int>();
 ```
 
 ---
 
 ### 🟡 Intermediate: Inspecting Error Context
 
-When you get a `parse_error`, the context string is your best diagnostic tool:
+When you get a `parse_error`, render the failure site with `format_error`:
 
 ```cpp
 catch (const qbuem::parse_error& e) {
-    auto pos = e.position();      // byte offset into input
-    auto ctx = e.context();       // up to 20 bytes around the error
-
-    // Print a visual position marker:
-    std::cerr << "Input:   " << std::string(ctx) << "\n";
-    std::cerr << "         " << std::string(pos % 20, ' ') << "^\n";
-    std::cerr << "Message: " << e.what() << "\n";
+    // line/column/offset are on the exception; format_error draws the caret.
+    std::cerr << "At " << e.line() << ":" << e.column()
+              << " (byte " << e.offset() << ")\n";
+    std::cerr << qbuem::format_error(e, input) << "\n"; // message + "^" marker
 }
 ```
 
-**Reading a `type_error` message:**
+**Reading a type-mismatch message:**
 
 <div class="bd-callout" style="font-size:0.82rem;">
-  <code>qbuem::type_error: expected INT64/UINT64, got STRING at tape[2]</code><br>
+  <code>qbuem::Value::as&lt;int64_t&gt;: not an integer (std::runtime_error)</code><br>
   <div class="bd-row" style="gap:2rem;margin-top:0.5rem;font-size:0.72rem;color:var(--vp-c-text-2);justify-content:flex-start;flex-wrap:wrap;">
     <span>↑ what you called <code>.as&lt;&gt;()</code> with</span>
     <span>↑ what the tape actually contains</span>
@@ -311,18 +304,20 @@ Check the TapeNode type tags table above to decode the tag name.
 For hot paths receiving untrusted input (network, files), validate cheaply before a full parse:
 
 ```cpp
-// Quick structural check — does not allocate
-bool looks_valid = qbuem::validate(input);
-
-// Check document size (prevent tape exhaustion DoS)
+// Reject oversized payloads up front (prevent tape-exhaustion DoS)
 if (input.size() > MAX_DOCUMENT_BYTES) {
     return reject("document too large");
 }
 
-// Only parse if validation passes
-if (looks_valid) {
-    auto root = qbuem::parse(doc, input);
+// rfc8259::validate() checks well-formedness (incl. UTF-8); it returns void and
+// THROWS qbuem::parse_error on the first violation.
+try {
+    qbuem::rfc8259::validate(input);     // strict structural + UTF-8 check
+    qbuem::Document doc;
+    qbuem::Value root = qbuem::parse(doc, input);
     // ...
+} catch (const qbuem::parse_error& e) {
+    return reject(e.what());
 }
 ```
 
@@ -371,42 +366,31 @@ ParseResult parse_and_keep(std::string json) {
 
 ### 🔴 Expert: Dumping the Tape
 
-When you have a hard-to-reproduce parse bug, dump the tape directly to understand what the parser saw:
+When you have a hard-to-reproduce parse bug, re-serialize what the parser captured
+and inspect each node's type tag:
 
 ```cpp
-#include <qbuem_json/qbuem_json.hpp>  // debug utilities
-
 qbuem::Document doc;
-auto root = qbuem::parse(doc, input);
+qbuem::Value root = qbuem::parse(doc, input);
 
-// Print the entire tape as human-readable text
-qbuem::debug::dump_tape(doc, std::cerr);
+// 1. Dump the parsed structure back to JSON — what the parser actually saw.
+std::cerr << root.dump() << "\n";          // compact
+std::cerr << root.dump(2) << "\n";         // pretty (2-space indent)
+
+// 2. Inspect a node's type tag directly.
+std::cerr << "root is: " << root.type_name() << "\n";        // "object", "array", ...
+for (const auto& [key, val] : root.items())
+    std::cerr << key << " : " << val.type_name() << "\n";
 ```
 
-Sample output:
-
-```
-TapeArena — 6 nodes, capacity 256
-────────────────────────────────────────────────────────
-tape[0]  OBJ_START  tag=0x01  jump→5
-tape[1]  KEY        tag=0x05  ptr=0x7ffe1234  len=2  → "id"
-tape[2]  INT64      tag=0x08  value=42
-tape[3]  KEY        tag=0x05  ptr=0x7ffe1238  len=6  → "active"
-tape[4]  BOOL_TRUE  tag=0x0A
-tape[5]  OBJ_END    tag=0x02  jump→0
-────────────────────────────────────────────────────────
-Input buffer: 0x7ffe1230  length: 26
-Stage1Index:  24 structural positions
-```
-
-**What to look for in the dump:**
+**What to look for:**
 
 | Symptom | Cause |
 |:---|:---|
-| Node count much lower than expected | Parser stopped early — check for errors |
-| KEY node count ≠ STRING node count | Malformed object (missing value for a key) |
-| Jump index points to wrong node | Nested depth mismatch — mismatched braces |
-| STRING ptr very different from KEY ptr | Input buffer layout issue |
+| `dump()` shows fewer fields than the input | Parser stopped early — check for a `parse_error` |
+| A field's `type_name()` is `"null"`/missing | Key absent, or a malformed object (missing value for a key) |
+| Numbers came back as strings (or vice versa) | The input had quotes where you expected a number, or vice versa |
+| Nested structure looks truncated | Mismatched braces / exceeded `kMaxDepth` (1024) |
 | `DOUBLE` where you expected `INT64` | Number has a decimal point or exponent in JSON |
 
 ---
@@ -485,7 +469,7 @@ Use this when an error occurs and you're not sure where to start:
 ### Type errors
 
 <div class="bd-checklist">
-  <div class="bd-checklist-item">What does <code>dump_tape()</code> show as the actual type tag?</div>
+  <div class="bd-checklist-item">What does <code>value.type_name()</code> report as the actual type?</div>
   <div class="bd-checklist-item">Did you call <code>.as&lt;int&gt;()</code> on a float like <code>1.0</code>? Use <code>.as&lt;double&gt;()</code> instead.</div>
   <div class="bd-checklist-item">Did you call <code>.as&lt;string_view&gt;()</code> on a key that might not exist? Use <code>.find()</code> first.</div>
   <div class="bd-checklist-item">Are array indices zero-based and within range?</div>

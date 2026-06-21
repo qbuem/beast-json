@@ -51,9 +51,9 @@ To mathematically and dynamically prove memory safety and the absence of undefin
 qbuem-json adheres to the "Zero-Cost" principle: you don't pay for the mutation features unless you use them.
 
 - **Read-Path Efficiency**: Accessors like `operator[]` and `at()` use `QBUEM_UNLIKELY` branch hints to check for mutations. For read-only documents, this cost is a single bit-check.
-- **Throughput Verification** (Release build, twitter.json):
-  - **Parsing**: ~227 μs (**2.7 GB/s**)
-  - **Serialization**: ~75 μs (**8.1 GB/s**)
+- **Throughput Verification** (Release build, twitter.json; see the live CI dashboard for current per-dataset numbers):
+  - **Parsing**: up to **~2.9 GB/s** (x86_64)
+  - **Serialization**: up to **~7.2 GB/s**
 - **No Regressions**: Comparisons against the baseline show 0% performance loss on cold-path (read-only) usage after RFC 6901/6902 integration.
 
 | **Leaks** | Memory Leaks | **PASS (0 byte)** |

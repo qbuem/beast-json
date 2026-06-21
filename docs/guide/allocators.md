@@ -1,59 +1,71 @@
-# Custom Allocators
+# Memory & Allocators
 
-qbuem-json is designed for environments where memory management is critical. It fully supports the C++17/20 **Polymorphic Memory Resource (PMR)** model, allowing you to control exactly where and how memory is allocated.
+qbuem-json is built for environments where memory management is critical — backend
+services handling many requests, low-latency paths, and constrained devices. Its
+primary memory model is a **single reusable arena per `Document`**, not a
+per-call allocator argument.
 
-## 🧠 Why Custom Allocators?
+## 🧠 The memory model
 
-While the default allocator is fast, certain scenarios benefit from specialized memory management:
-1. **Low Latency (HFT)**: Avoid system-wide locks in `malloc` by using thread-local pool allocators.
-2. **Embedded Systems**: Use a fixed-size stack buffer to ensure the parser never touches the heap.
-3. **Security**: Use "Scrubbing" allocators that zero-out memory after use.
+A parse does **not** allocate a tree of nodes. The DOM is a single flat **tape**
+(one contiguous arena) owned by the `Document` / `DocumentView`. That arena is
+**reused** across parses: after the first few requests the steady-state heap
+traffic is essentially zero, because the same buffer is refilled instead of
+re-allocated.
 
-## 🛠️ Using `std::pmr`
+There is intentionally **no** `parse(json, &resource)` or per-`Document`
+`memory_resource` argument — reuse is the lever, and it is simpler and faster than
+threading a resource through every call.
 
-The `qbuem::json::Document` class and the `parse` functions accept an optional `std::pmr::memory_resource*`.
+## 🔁 Reuse: allocate once, then never touch the heap
 
-### 1. Stack-Based Parsing (Zero Heap)
-Use a `std::pmr::monotonic_buffer_resource` with a stack-allocated array for absolute peak performance and zero heap noise.
+Keep one `Document` alive and re-parse into it. The arena grows to the high-water
+mark of your payloads and then stops allocating.
 
 ```cpp
-#include <memory_resource>
+#include <qbuem_json/qbuem_json.hpp>
 
-void process_small_json(std::string_view json) {
-    // 16KB stack buffer
-    std::byte buffer[1024 * 16];
-    std::pmr::monotonic_buffer_resource pool(buffer, sizeof(buffer));
-
-    // This document and its Tape will reside entirely on the stack
-    auto doc = qbuem::json::parse(json, &pool);
-    
-    // ... use doc ...
+void serve(/* a stream of request bodies */) {
+    qbuem::Document doc;                 // owns the reusable arena
+    for (std::string_view body : requests()) {
+        qbuem::Value root = qbuem::parse(doc, body);  // refills the SAME arena
+        // ... read fields off `root` ...
+        // Values are string_views into `body` + offsets into `doc`'s tape:
+        // finish using them before the next parse() reuses the tape.
+    }
 }
 ```
 
-### 2. Global Pool Allocators
-For high-concurrency servers, use a pool allocator to reduce contention.
+For a known-schema DTO, `qbuem::fuse<T>(body)` skips the tape entirely (zero-tape)
+— there is no document arena to reuse because there is no intermediate
+representation at all.
+
+## 🧩 PMR building blocks
+
+The header exposes `std::pmr`-based aliases for code that builds containers on top
+of the library:
 
 ```cpp
-std::pmr::synchronized_pool_resource global_pool;
-
-void on_request(std::string_view payload) {
-    auto doc = qbuem::json::parse(payload, &global_pool);
-    // ...
-}
+qbuem::json::String              s;   // = std::pmr::string
+qbuem::json::Vector<int>         v;   // = std::pmr::vector<int>
+qbuem::json::Allocator           a;   // = std::pmr::polymorphic_allocator<char>
 ```
 
-## 🏗️ Technical Details
+These honor the process-wide `std::pmr::get_default_resource()`, so setting a
+default pool affects code that uses them. Note that the DOM **tape** itself uses
+its own arena (not a user-supplied `memory_resource`), so a custom resource is not
+a substitute for `Document` reuse on the parse hot path.
 
-qbuem-json's internal `Tape` is a `std::pmr::vector<TapeNode>`. 
-- When a `memory_resource` is provided, the vector uses it for all growth operations.
-- All subsequent `Value` accessors and `dump()` operations inherit this memory context where appropriate.
+## 🚀 Performance impact
 
-## 🚀 Performance Impact
-
-Using a `monotonic_buffer_resource` for small-to-medium JSON documents typically results in a **15-20% speedup** in parsing time because it eliminates the overhead of the system's global heap manager.
+Reuse is the big win: the first parse pays the allocation, every subsequent parse
+into the same `Document` is allocation-free in steady state. Combine it with
+`fuse<T>` for known-schema request handling to remove the tape from the picture
+entirely.
 
 ---
 
 > [!TIP]
-> Combine custom allocators with [Document Reuse](/guide/low-latency-patterns#the-fundamental-pattern-document-reuse) for the ultimate steady-state optimization where memory is allocated once on startup and never touched again.
+> See [Low-Latency Patterns → Document Reuse](/guide/low-latency-patterns) for the
+> full steady-state pattern, and [Zero-Allocation Principle](/theory/zero-allocation)
+> for how the tape arena is laid out.

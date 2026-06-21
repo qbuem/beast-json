@@ -27,7 +27,7 @@ Standard library functions like `strtod` and `atof` are notoriously slow for hig
   </div>
 </div>
 
-`STMXCSR` / `LDMXCSR` are **serializing instructions** — they prevent the CPU from executing any subsequent instruction until the FPU state is written back to memory. For a parser targeting 2.7 GB/s, even a single `strtod` call per number would destroy all SIMD gains.
+`STMXCSR` / `LDMXCSR` are **serializing instructions** — they prevent the CPU from executing any subsequent instruction until the FPU state is written back to memory. For a parser targeting ~2.9 GB/s, even a single `strtod` call per number would destroy all SIMD gains.
 
 ---
 

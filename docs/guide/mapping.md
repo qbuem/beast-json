@@ -464,56 +464,56 @@ QBUEM_JSON_FIELDS(Transform, position, rotation)  // glm::vec3 is automatically 
 
 ---
 
-## 🎮 Complete Real-World Example
+## 🧩 Complete Real-World Example
 
-Here's how qbuem-json handles a full game player profile:
+Here's how qbuem-json handles a full backend account-API response:
 
 ```cpp
-struct Stats {
-    int    kills    = 0;
-    int    deaths   = 0;
-    double kd_ratio = 0.0;
+struct Usage {
+    int64_t api_calls  = 0;
+    int64_t storage_mb = 0;
+    double  cost_usd   = 0.0;
 };
-QBUEM_JSON_FIELDS(Stats, kills, deaths, kd_ratio)
+QBUEM_JSON_FIELDS(Usage, api_calls, storage_mb, cost_usd)
 
-struct Equipment {
-    std::string weapon;
-    std::string armor;
-    std::vector<std::string> consumables;
+struct Plan {
+    std::string tier;
+    std::string renews_on;
+    std::vector<std::string> features;
 };
-QBUEM_JSON_FIELDS(Equipment, weapon, armor, consumables)
+QBUEM_JSON_FIELDS(Plan, tier, renews_on, features)
 
-struct Player {
+struct Account {
     uint64_t    id;
-    std::string name;
-    int         level   = 1;
-    Stats       stats;
-    Equipment   equip;
-    std::optional<std::string> guild;
-    std::vector<std::string>   achievements;
+    std::string email;
+    int         seats   = 1;
+    Usage       usage;
+    Plan        plan;
+    std::optional<std::string> org;
+    std::vector<std::string>   roles;
 };
-QBUEM_JSON_FIELDS(Player, id, name, level, stats, equip, guild, achievements)
+QBUEM_JSON_FIELDS(Account, id, email, seats, usage, plan, org, roles)
 
 int main() {
-    // --- Deserialize from API response ---
+    // --- Deserialize an API response ---
     std::string api_json = R"({
-        "id": 123456, "name": "DragonSlayer", "level": 87,
-        "stats": {"kills": 500, "deaths": 42, "kd_ratio": 11.9},
-        "equip": {"weapon": "Excalibur", "armor": "Dragon Mail", "consumables": ["Potion", "Elixir"]},
-        "guild": "Knights of qbuem",
-        "achievements": ["First Blood", "Legend"]
+        "id": 123456, "email": "ada@example.com", "seats": 25,
+        "usage": {"api_calls": 1840221, "storage_mb": 4096, "cost_usd": 119.90},
+        "plan": {"tier": "business", "renews_on": "2026-07-01", "features": ["sso", "audit-log"]},
+        "org": "Acme Inc",
+        "roles": ["admin", "billing"]
     })";
 
-    Player p = qbuem::read<Player>(api_json);
-    std::cout << p.name << " (Level " << p.level << ")\n";
-    std::cout << "K/D: " << p.stats.kd_ratio << "\n";
-    std::cout << "Guild: " << p.guild.value_or("No Guild") << "\n";
+    Account a = qbuem::read<Account>(api_json);
+    std::cout << a.email << " (" << a.seats << " seats)\n";
+    std::cout << "Spend: $" << a.usage.cost_usd << "\n";
+    std::cout << "Org: " << a.org.value_or("(personal)") << "\n";
 
-    // --- Modify and Serialize back ---
-    p.level = 88;
-    p.achievements.push_back("Legendary Warrior");
+    // --- Modify and serialize back ---
+    a.seats = 30;
+    a.roles.push_back("auditor");
 
-    std::string updated_json = qbuem::write(p, 2); // pretty-print
+    std::string updated_json = qbuem::write(a, 2); // pretty-print
     std::cout << updated_json << "\n";
 }
 ```

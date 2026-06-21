@@ -71,7 +71,7 @@ target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
 
 ```bash
 conan create . -s compiler.cppstd=20      # build & test the package locally
-# in your conanfile: requires = "qbuem-json/1.11.1"
+# in your conanfile: requires = "qbuem-json/1.15.0"
 ```
 
 **vcpkg** — an overlay port ships under `ports/qbuem-json/`:
