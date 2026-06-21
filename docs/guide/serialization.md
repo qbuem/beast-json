@@ -107,6 +107,40 @@ to that record.
 
 ---
 
+## 🔒 Canonical JSON (deterministic output)
+
+`qbuem::canonicalize` produces a **deterministic** serialization — the same
+logical document always yields the same bytes — so it can be hashed, signed, or
+content-addressed:
+
+```cpp
+qbuem::canonicalize(R"({ "b":1, "a":2, "c":[3, 2] })");
+// {"a":2,"b":1,"c":[3,2]}
+
+qbuem::canonicalize(R"({"x":1.50,"y":1e2,"z":-0.0})");
+// {"x":1.5,"y":100,"z":0}
+```
+
+It follows the [RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785.html)
+structure: object keys sorted, no insignificant whitespace, shortest numeric
+forms, minimal string escaping, and `-0` normalized to `0`. Input is
+**strict-parsed** (a canonical form is only meaningful for valid input), so
+malformed JSON throws `qbuem::parse_error`.
+
+> [!NOTE] Scope vs byte-exact RFC 8785
+> Two intentional simplifications: keys are ordered by Unicode code point (UTF-8
+> byte order) rather than UTF-16 — identical except for keys with
+> supplementary-plane characters — and numbers use the library's shortest
+> round-trip form, which matches RFC 8785 across the common range but may differ
+> in exponential notation for extreme magnitudes (`1E21` vs `1e+21`). For
+> in-toolchain hashing/dedup this is fully deterministic.
+>
+> **CBOR is canonical by construction:** a `QBUEM_JSON_FIELDS` struct always emits
+> a definite-length map with fields in declaration order and shortest integers —
+> so `cbor::encode` of a given struct is already byte-stable across runs.
+
+---
+
 ## 🚀 Quick Start
 
 ```cpp

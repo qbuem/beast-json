@@ -25,7 +25,7 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 - ✅ **Rich error context** — `parse_error` exposes line/column + `format_error()` caret rendering *(v1.3.0)*.
 - ✅ **serde-style field attributes** — enum (integer default + `QBUEM_JSON_ENUM` value names) *(v1.4.0)*, field rename `(member, "jsonKey")` + skip-by-omission *(v1.5.0)*, default-on-absent (built in).
 - ✅ **NDJSON / JSON Lines** streaming — `read_lines` / `write_lines`, bounded memory *(v1.6.0)*.
-- ⬜ **Deterministic / canonical CBOR** + **JSON Canonicalization (RFC 8785 / JCS)** — reproducible bytes for signing & hashing.
+- ✅ **Canonical JSON** — `qbuem::canonicalize`, deterministic bytes for hashing/signing (RFC 8785-style); CBOR is canonical by construction *(v1.7.0)*.
 
 ## Tier 2 — Mid-term (v1.4–1.5)
 

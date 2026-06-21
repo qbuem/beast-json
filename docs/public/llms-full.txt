@@ -443,6 +443,12 @@ std::vector<LogEntry> all = qbuem::read_lines<LogEntry>(text);     // collect
 std::string out = qbuem::write_lines(all);                          // serialize a range
 ```
 
+Canonical JSON: qbuem::canonicalize(json) returns a deterministic serialization (sorted keys, no whitespace, shortest numbers, minimal escaping, -0 normalized) for hashing/signing/content-addressing — RFC 8785 (JCS) structure; strict-parses input. CBOR is canonical by construction (definite map, declaration-order fields, shortest ints).
+
+```cpp
+qbuem::canonicalize(R"({ "b":1, "a":2 })");  // {"a":2,"b":1}
+```
+
 Parse failures throw qbuem::parse_error (derives from std::runtime_error). It carries offset() (0-based byte), and line()/column() (1-based); what() reads "<reason> at line L column C (byte offset N)". For binary/CBOR errors line()/column() are 0. qbuem::format_error(e, source) renders the failing line with a caret under the column (pass the same buffer you parsed):
 
 ```cpp

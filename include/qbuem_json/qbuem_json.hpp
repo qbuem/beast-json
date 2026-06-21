@@ -1,6 +1,13 @@
 /**
- * @brief qbuem-json v1.6.0 - High-Performance C++20 JSON Parser
- * @version 1.6.0
+ * @brief qbuem-json v1.7.0 - High-Performance C++20 JSON Parser
+ * @version 1.7.0
+ *
+ * v1.7.0: Canonical JSON (roadmap Tier 1, final). qbuem::canonicalize(json)
+ *         returns a deterministic serialization — object keys sorted, no
+ *         whitespace, shortest numbers, minimal string escaping, -0 normalized —
+ *         so the same logical document always hashes to the same bytes (for
+ *         signing / dedup / content-addressing). Follows the RFC 8785 (JCS)
+ *         structure; strict-parses its input.
  *
  * v1.6.0: NDJSON / JSON Lines (roadmap Tier 1). qbuem::read_lines<T>(text, fn)
  *         decodes one JSON value per line, reusing a single Document so a
@@ -10424,6 +10431,75 @@ template <typename T> void from_json(const Value &v, T &out) {
 
 template <typename T>::std::string to_json_str(const T &val) {
   return ::qbuem::json::detail::to_json_str(val);
+}
+
+// ── Canonical JSON ───────────────────────────────────────────────────────────
+// qbuem::canonicalize(json) → a deterministic serialization: the SAME logical
+// document always produces the SAME bytes, so it can be hashed, signed, or
+// content-addressed.  Follows the RFC 8785 (JCS) structure: object keys sorted
+// lexicographically, no insignificant whitespace, shortest numeric forms,
+// minimal string escaping, -0 normalized to 0.
+//
+// Scope (honest about the two places it diverges from byte-exact RFC 8785):
+//   • keys are ordered by Unicode code point (UTF-8 byte order); RFC 8785 uses
+//     UTF-16 order, which differs only for keys containing supplementary-plane
+//     (non-BMP) characters.
+//   • numbers use the library's shortest round-trip format, which matches the
+//     RFC 8785 ECMAScript form across the common range; very large/small
+//     magnitudes may differ in exponential notation (e.g. "1E21" vs "1e+21").
+// For in-toolchain hashing/dedup this is fully deterministic; for cross-impl
+// RFC 8785 signing, account for the two notes above.
+
+inline void canon_emit_(const json::Value &v, ::std::string &out) {
+  if (v.is_object()) {
+    ::std::vector<::std::pair<::std::string, json::Value>> items;
+    for (const auto &[k, val] : v.items())
+      items.emplace_back(::qbuem::json::detail::json_unescape(k), val);
+    ::std::sort(items.begin(), items.end(),
+                [](const auto &a, const auto &b) { return a.first < b.first; });
+    out += '{';
+    for (::std::size_t i = 0; i < items.size(); ++i) {
+      if (i) out += ',';
+      out += to_json_str(items[i].first); // canonical (minimal) key escaping
+      out += ':';
+      canon_emit_(items[i].second, out);
+    }
+    out += '}';
+  } else if (v.is_array()) {
+    out += '[';
+    bool first = true;
+    for (const auto &e : v.elements()) {
+      if (!first) out += ',';
+      first = false;
+      canon_emit_(e, out);
+    }
+    out += ']';
+  } else if (v.is_string()) {
+    out += to_json_str(v.decoded()); // decode then re-escape minimally
+  } else if (v.is_bool()) {
+    out += v.as<bool>() ? "true" : "false";
+  } else if (v.is_int()) {
+    out += to_json_str(v.as<int64_t>());
+  } else if (v.is_double()) {
+    double d = v.as<double>();
+    if (d == 0.0) d = 0.0; // normalize -0.0 → 0.0
+    out += to_json_str(d);
+  } else {
+    out += "null";
+  }
+}
+
+// Parse `json` and return its canonical form. Uses STRICT parsing (RFC 8259 +
+// well-formed UTF-8) — a canonical form is only meaningful for valid input, and
+// the signing/hashing use case must reject malformed data rather than silently
+// canonicalize a best-effort interpretation. Throws qbuem::parse_error otherwise.
+[[nodiscard]] inline ::std::string canonicalize(::std::string_view json) {
+  Document doc;
+  Value root = parse_strict(doc, json);
+  ::std::string out;
+  out.reserve(json.size());
+  canon_emit_(root, out);
+  return out;
 }
 
 // ── NDJSON / JSON Lines ──────────────────────────────────────────────────────
