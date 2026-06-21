@@ -1,6 +1,12 @@
 /**
- * @brief qbuem-json v1.11.0 - High-Performance C++20 JSON Parser
- * @version 1.11.0
+ * @brief qbuem-json v1.11.1 - High-Performance C++20 JSON Parser
+ * @version 1.11.1
+ *
+ * v1.11.1: Packaging (roadmap Tier 3). Fixed the CMake install to generate and
+ *          install qbuem_jsonConfig.cmake, so `find_package(qbuem_json CONFIG)`
+ *          works downstream (previously only Targets + ConfigVersion shipped).
+ *          Added a Conan recipe (conanfile.py + test_package) and a vcpkg port.
+ *          Library code unchanged.
  *
  * v1.11.0: JSON diff + a complete functional RFC 6902 applier (roadmap Tier 3).
  *          qbuem::diff(from, to) computes the JSON Patch taking one document to

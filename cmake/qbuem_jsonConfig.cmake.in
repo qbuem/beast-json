@@ -1,0 +1,7 @@
+@PACKAGE_INIT@
+
+# qbuem-json is a header-only INTERFACE library with zero external dependencies,
+# so the package config only needs to pull in the exported target.
+include("${CMAKE_CURRENT_LIST_DIR}/qbuem_jsonTargets.cmake")
+
+check_required_components(qbuem_json)

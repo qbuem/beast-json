@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(qbuem_json VERSION 1.11.0 LANGUAGES CXX)
+project(qbuem_json VERSION 1.11.1 LANGUAGES CXX)
 
 # Library Target
 add_library(qbuem_json INTERFACE)
@@ -51,8 +51,16 @@ write_basic_package_version_file(
     COMPATIBILITY SameMajorVersion
 )
 
+# Generate the package config so `find_package(qbuem_json CONFIG)` works downstream.
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/qbuem_jsonConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/qbuem_jsonConfig.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qbuem_json
+)
+
 install(FILES
-    "qbuem_jsonConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/qbuem_jsonConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/qbuem_jsonConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/qbuem_json
 )
 
