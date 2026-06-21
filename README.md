@@ -107,7 +107,7 @@ Player      back   = qbuem::cbor::decode<Player>(bytes);   // ← CBOR
 * **STL Support** — `std::vector`, `std::map`, `std::optional`, `std::tuple`, `std::variant` and more work out of the box.
 * **CBOR Codec (RFC 8949)** — `qbuem::cbor::encode<T>()` / `decode<T>()` reuse the same `QBUEM_JSON_FIELDS` list to produce compact, self-describing binary. Cross-language by design: the bytes decode in any RFC 8949 reader (e.g. JavaScript `cbor-x`) with no shared schema, and the decoder is bounds-checked + fuzzed for untrusted network input.
 * **Three-stage float parsing** — Eisel-Lemire (~98.8 %) → Russ Cox Unrounded Scaling (~1.2 %) → `std::strtod` (subnormals only). `parse(serialize(x)) == x` for all finite doubles.
-* **Hardened for untrusted input** — strict mode validates UTF-8 well-formedness (rejects overlong / surrogate / truncated sequences, RFC 8259 §8.1); parse failures throw a typed `qbuem::parse_error` with `offset()`; zero-copy use-after-free misuse is a **compile error**. Continuously fuzzed (12 libFuzzer targets) and sanitized (ASan/UBSan/TSan across x86_64 / aarch64 / Apple Silicon).
+* **Hardened for untrusted input** — strict mode validates UTF-8 well-formedness (rejects overlong / surrogate / truncated sequences, RFC 8259 §8.1); parse failures throw a typed `qbuem::parse_error` with `offset()`; zero-copy use-after-free misuse is a **compile error**. Continuously fuzzed (17 libFuzzer targets) and sanitized (ASan/UBSan/TSan across x86_64 / aarch64 / Apple Silicon).
 
 ---
 

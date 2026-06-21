@@ -218,9 +218,11 @@ auto title = root.at("/store/book/1/title"_jptr).as<std::string>();
 
 ---
 
-## Struct Mapping — QBUEM_JSON_FIELDS Macro
+## Struct Mapping — Macro-Free Reflection or QBUEM_JSON_FIELDS Macro
 
-The `QBUEM_JSON_FIELDS` macro must be placed **outside** the struct, at namespace scope. It generates free functions for ADL-based serialization/deserialization.
+**Macro-free (v1.14.0+, GCC/Clang):** a plain aggregate struct (public members, no user-declared constructors, no base classes) serializes/deserializes with NO registration — qbuem::write/read and cbor::encode/decode reflect the fields and recover their names automatically. Built for backend DTOs. Works for any linkage (incl. anonymous-namespace/local types) and non-constexpr members (std::map); default-constructible, <= 32 fields. A QBUEM_JSON_FIELDS / from_qbuem_json registration ALWAYS wins (purely additive). The zero-tape fuse<T> path still needs the macro.
+
+The `QBUEM_JSON_FIELDS` macro (for renames, skip, non-aggregates, >32 fields, or fuse) must be placed **outside** the struct, at namespace scope. It generates free functions for ADL-based serialization/deserialization.
 
 ```cpp
 struct Address {
@@ -551,8 +553,8 @@ CBOR codec (Apple Silicon, 16-entity × 7-int message, reused buffer): encode ~5
 - IEEE 754 round-trip: `parse(serialize(x)) == x` for all finite doubles
 - Three-stage float parsing: Eisel-Lemire (~98.8%) → Russ Cox Unrounded Scaling (~1.2%) → strtod (subnormals <0.01%)
 - Float serialization: Schubfach (Giulietti 2020) — shortest decimal, no trailing zeros
-- 576 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
-- 12 libFuzzer targets (including a dedicated CBOR fuzzer)
+- 672 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
+- 17 libFuzzer targets (including dedicated CBOR and reflection fuzzers)
 - ASan, UBSan, TSan on every commit
 
 ---
