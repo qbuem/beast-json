@@ -3805,6 +3805,12 @@ public:
     size_t add_idx_ = ::std::numeric_limits<size_t>::max(); // max = done
 
     void skip_deleted_() noexcept {
+      // An invalid Value (doc_ == nullptr) iterates as empty — .items() on a
+      // non-object or absent value must not deref a null doc.
+      if (QBUEM_UNLIKELY(!doc_)) {
+        key_idx_ = UINT32_MAX;
+        return;
+      }
       const size_t tape_sz = doc_->tape.size();
       while (key_idx_ != UINT32_MAX) {
         // Bounds guard: malformed tape may lack an ObjectEnd sentinel.
@@ -3913,6 +3919,13 @@ public:
     DocumentState *doc_;
     uint32_t elem_idx_; // UINT32_MAX = end
     void skip_deleted_() noexcept {
+      // An invalid Value (doc_ == nullptr) iterates as empty — e.g. .elements()
+      // on a non-array or absent value, such as a malformed object key with no
+      // value (`{"k"}`).  Without this the constructor would deref a null doc.
+      if (QBUEM_UNLIKELY(!doc_)) {
+        elem_idx_ = UINT32_MAX;
+        return;
+      }
       const size_t tape_sz = doc_->tape.size();
       while (elem_idx_ != UINT32_MAX) {
         // Bounds guard: malformed tape may lack an ArrayEnd sentinel.
