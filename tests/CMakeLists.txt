@@ -73,6 +73,7 @@ add_qbuem_gtest(test_errors)
 add_qbuem_gtest(test_cbor)
 add_qbuem_gtest(test_enum)
 add_qbuem_gtest(test_field_rename)
+add_qbuem_gtest(test_ndjson)
 
 # ── New: dom API type coverage and round-trip fidelity ────────────────────
 add_qbuem_gtest(test_dom_types)

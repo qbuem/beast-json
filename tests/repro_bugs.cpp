@@ -984,6 +984,26 @@ TEST(CborCodec, EncodeToMatchesEncodeAcrossFlush) {
   EXPECT_EQ(back.n, 42);
 }
 
+// ── v1.6.0: null-DocumentState deref in Array/Object iterators.
+// A malformed object whose key has NO value (e.g. `{"tags"}`) made find(key)
+// yield an invalid (doc_==nullptr) Value; reading it into a vector/map field then
+// iterated .elements()/.items(), whose skip_deleted_() dereferenced the null doc
+// (SEGV / UBSan null member access). Found by the NDJSON libFuzzer target; the
+// bug is in from_json itself (read<T> reproduces it without NDJSON). Iterating an
+// invalid Value must yield zero elements per the Value contract.
+struct ReproIterRec { int64_t id; std::string name; std::vector<int64_t> tags; };
+QBUEM_JSON_FIELDS(ReproIterRec, id, name, tags)
+struct ReproIterMap { std::map<std::string, int> m; };
+QBUEM_JSON_FIELDS(ReproIterMap, m)
+TEST(ReproBugs, MalformedKeyNoValueDoesNotDerefNullDoc) {
+  // Each must decode to an empty container, not crash.
+  EXPECT_EQ(qbuem::read<ReproIterRec>("{\"tags\"}").tags.size(), 0u);
+  EXPECT_EQ(qbuem::read<ReproIterRec>("{\"tags\":}").tags.size(), 0u);
+  EXPECT_EQ(qbuem::read<ReproIterRec>("{\"tags\":,}").tags.size(), 0u);
+  EXPECT_EQ(qbuem::read<ReproIterMap>("{\"m\"}").m.size(), 0u);
+  EXPECT_EQ(qbuem::read<ReproIterMap>("{\"m\":}").m.size(), 0u);
+}
+
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
