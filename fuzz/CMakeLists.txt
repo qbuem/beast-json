@@ -63,3 +63,4 @@ add_fuzz_target(fuzz_pmr)        # PMR allocator stress test
 add_fuzz_target(fuzz_patch)      # JSON Pointer & Mutation stress test
 add_fuzz_target(fuzz_cbor)       # CBOR codec: decode hostile bytes + round-trip
 add_fuzz_target(fuzz_ndjson)     # NDJSON line splitter + sub-view parse safety
+add_fuzz_target(fuzz_jsonpath)   # JSONPath query parser + evaluator on untrusted input

@@ -63,7 +63,7 @@ jobs:
         status=0
         for t in fuzz_parse fuzz_dom fuzz_nexus fuzz_direct fuzz_pmr \
                  fuzz_patch fuzz_api_stress fuzz_rfc8259 fuzz_float fuzz_cbor \
-                 fuzz_ndjson; do
+                 fuzz_ndjson fuzz_jsonpath; do
           echo "::group::$t (${SECS}s)"
           if ! ./build-fuzz/fuzz/$t fuzz/corpus -dict=fuzz/json.dict \
                  -max_len=65536 -rss_limit_mb=4096 -max_total_time=$SECS \

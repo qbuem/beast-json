@@ -334,6 +334,39 @@ using namespace qbuem::literals;
 auto title = root.at("/store/book/1/title"_jptr).as<std::string>(); // "Effective C++"
 ```
 
+JSON Pointer addresses **one** node. For multi-match queries (wildcards,
+recursive descent, slices), use JSONPath below.
+
+---
+
+## 🛣️ JSONPath (RFC 9535)
+
+`qbuem::query(root, path)` returns **all** Values a [JSONPath](https://www.rfc-editor.org/rfc/rfc9535.html)
+query selects, in document order:
+
+```cpp
+auto root = qbuem::parse(doc, store_json);
+
+qbuem::query(root, "$.store.book[0].title");   // a single title
+qbuem::query(root, "$.store.book[-1].author"); // negative index
+qbuem::query(root, "$.store.book[*].author");  // every author (wildcard)
+qbuem::query(root, "$..price");                // every price anywhere (recursive descent)
+qbuem::query(root, "$.nums[1:4]");             // array slice
+qbuem::query(root, "$.nums[::-1]");            // reversed
+qbuem::query(root, "$.nums[0, 2, 4]");         // union of indices
+qbuem::query(root, "$['store']['bicycle']");   // bracket + quoted names
+
+for (const qbuem::Value& v : qbuem::query(root, "$.store.book[*].title"))
+    std::cout << v.as<std::string_view>() << '\n';
+```
+
+Supported selectors: root `$`, member (`.name` / `['name']`), array index incl.
+negative, wildcard (`.*` / `[*]`), recursive descent (`..`), slices
+(`[start:end:step]`), and unions. A **filter** expression (`[?...]`) is not yet
+supported and throws. A syntactically malformed query throws `qbuem::parse_error`;
+a valid query that matches nothing returns an empty vector. Returned Values view
+into the same document as `root`, so keep the document alive.
+
 ---
 
 ## ⚠️ Common Pitfalls
