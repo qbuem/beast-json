@@ -55,6 +55,8 @@
 
 **qbuem-json** is a high-performance C++20 JSON library with two complementary engines in a single header file.
 
+It is built to be the **JSON/CBOR serialization layer for a high-performance C++ backend on Linux**: parse request bodies into typed DTOs (macro-free for plain structs), serialize responses, and exchange compact, cross-language CBOR with a JS/TS web client. Fast and bounds-checked on untrusted input, zero dependencies. (Windows/MSVC is unsupported by design — the target is a Linux backend.)
+
 ---
 
 ## Two Engines, One Header
@@ -64,7 +66,7 @@
 | **API** | `qbuem::parse()` / `qbuem::read<T>()` | `qbuem::fuse<T>()` |
 | **How it works** | Builds a flat tape in one SIMD pass, then accesses values on demand | Streams JSON directly into struct fields — no tape, no intermediate representation |
 | **Allocation** | Single arena per document | Zero |
-| **Best for** | Dynamic keys, partial reads, mutations, arbitrary JSON | Fixed schemas, HFT, embedded, latency-critical DTOs |
+| **Best for** | Dynamic keys, partial reads, mutations, arbitrary JSON | Known-schema backend DTOs, low-latency services, latency-critical request handling |
 | **Throughput** | Up to 2.9 GB/s parse · 7.2 GB/s serialize | 50–230 ns struct mapping |
 
 ```cpp

@@ -1,6 +1,6 @@
 # Low-Latency Patterns
 
-qbuem-json is engineered for workloads where parsing overhead must not stall execution. These patterns apply to any domain that processes JSON at high throughput or under strict timing constraints — trading systems, game engines, web API gateways, embedded devices, and data pipelines.
+qbuem-json is engineered for workloads where parsing overhead must not stall execution. These patterns apply to any domain that processes JSON at high throughput or under strict timing constraints — high-throughput backend services and API gateways, data pipelines, embedded devices, and trading or game engines.
 
 The core principle is always the same: **allocate once, reuse forever**.
 

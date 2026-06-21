@@ -97,7 +97,7 @@ export default withMermaid(
             ['meta', { name: 'theme-color', content: '#1a2744' }],
 
             // SEO - Core
-            ['meta', { name: 'keywords', content: 'C++ JSON, C++20 JSON library, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, qbuem-json, CBOR C++, RFC 8949, binary serialization C++, C++ CBOR library, cbor-x interop, nlohmann alternative, simdjson alternative, RapidJSON alternative' }],
+            ['meta', { name: 'keywords', content: 'C++ JSON, C++20 JSON library, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, C++ backend JSON, API DTO serialization, microservice JSON, JSON serializer, single header JSON, qbuem-json, CBOR C++, RFC 8949, binary serialization C++, C++ CBOR library, cbor-x interop, nlohmann alternative, simdjson alternative, RapidJSON alternative' }],
             ['meta', { name: 'author', content: 'qbuem-json Authors' }],
             ['meta', { name: 'robots', content: 'index, follow, max-image-preview:large' }],
 
@@ -185,7 +185,7 @@ export default withMermaid(
                         downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.14.0',
                         installUrl: 'https://qbuem.com/qbuem-json/guide/getting-started',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
-                        keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, CBOR C++, RFC 8949 CBOR, binary serialization C++, nlohmann alternative, simdjson alternative, RapidJSON alternative',
+                        keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, C++ backend JSON, API DTO serialization, microservice JSON, JSON serializer, single header JSON, header-only JSON, CBOR C++, RFC 8949 CBOR, binary serialization C++, nlohmann alternative, simdjson alternative, RapidJSON alternative',
                         featureList: [
                             'AVX-512 and ARM NEON SIMD acceleration',
                             'Zero-allocation flat tape DOM',
@@ -350,7 +350,7 @@ export default withMermaid(
                                 name: 'What is Nexus Fusion and when should I use it?',
                                 acceptedAnswer: {
                                     '@type': 'Answer',
-                                    text: 'Nexus Fusion is qbuem-json\'s zero-tape engine. Instead of building a DOM tape first, it streams JSON bytes directly into struct fields using compile-time FNV-1a key hashing for O(1) dispatch. Use qbuem::fuse<T>() instead of qbuem::read<T>() when you need minimum latency (50–230 ns), such as in HFT tick data processing or real-time game state. Requires QBUEM_JSON_FIELDS registration.'
+                                    text: 'Nexus Fusion is qbuem-json\'s zero-tape engine. Instead of building a DOM tape first, it streams JSON bytes directly into struct fields using compile-time FNV-1a key hashing for O(1) dispatch. Use qbuem::fuse<T>() instead of qbuem::read<T>() when you need minimum latency (50–230 ns) on a known-schema DTO — e.g. the request-handling hot path of a high-throughput C++ backend. Requires QBUEM_JSON_FIELDS registration.'
                                 }
                             },
                             {

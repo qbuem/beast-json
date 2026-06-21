@@ -26,27 +26,53 @@ Runs in parallel on three native GitHub-hosted runners (x86\_64 / Apple Silicon 
 
 ---
 
+## 🎯 Where qbuem-json fits — an honest competitive read
+
+qbuem-json is built to be the **JSON/CBOR serialization layer for a
+high-performance C++ backend**: parsing request bodies into typed DTOs,
+serializing responses, and exchanging compact binary with a web client. The
+honest position against the field (exact current numbers are on the live
+dashboard above — these are *directions*, not cherry-picked records):
+
+| Axis | Position | Notes |
+|:---|:---|:---|
+| **Struct decode** (known-schema DTO → C++) | **We lead** | The zero-tape `fuse<T>` engine streams bytes straight into fields; this is the request-handling hot path and our strongest axis. |
+| **Serialization** (C++ → JSON) | **We lead / parity** | Schubfach `double`→decimal + `yy-itoa`; ahead of `snprintf`/`to_chars`-based libraries, competitive with the fastest. |
+| **CBOR codec** | **We lead vs DOM libs** | ~20–28× a nlohmann `to_cbor`/`from_cbor`; at the hand-written TinyCBOR/QCBOR ceiling, but *bounds-checked* and from one field list. Few competitors ship a standard binary codec at all. |
+| **Schemaless parse throughput** (huge arbitrary doc) | **simdjson/yyjson can lead** | simdjson's lazy two-pass defers validation and wins pure streaming throughput; our one-pass tape pays a little for O(1) random access. We lead on *total* parse+access+serialize for typical request sizes. |
+| **All-in-one breadth, single header** | **Unique** | CBOR + JSONPath(+filters) + canonical + diff/patch + NDJSON + SAX + WASM + **macro-free reflection** in one zero-dep header. No single competitor matches the breadth at this speed. |
+| **Ergonomics** | **Now competitive** | Macro-free aggregate reflection (v1.14.0) closes the gap vs Glaze / reflect-cpp for plain DTOs. |
+
+**Honest non-goals:** we are **not** the absolute fastest at raw schemaless
+parsing of giant documents (reach for simdjson On-Demand there), and **Windows /
+MSVC is unsupported by design** (the target is a Linux C++ backend). If your
+workload is "parse a 1 GB log and touch three fields," simdjson is the better
+tool; if it is "(de)serialize typed API DTOs, fast and safely, with a binary path
+to a JS client," that is exactly what qbuem-json optimizes for.
+
+---
+
 ## 📦 CBOR Binary Codec {#cbor-binary-codec}
 
 The [CBOR codec](./cbor) reuses the same `QBUEM_JSON_FIELDS` registration as the JSON
 engine. These numbers are a focused micro-benchmark (Apple Silicon M-series,
 single core, `-O3 -march=native`, reused output buffer — the hot-loop pattern),
 separate from the live CI dashboard above. They measure two representative
-game-server payloads.
+backend payloads: a list/batch delta and a nested entity record.
 
 **CBOR vs JSON** — same struct, same data:
 
 | Payload | format | encode | decode | wire size |
 |:---|:---|---:|---:|---:|
-| AOI delta (16 entities × 7 ints) | **CBOR** | **515 ns** | **570 ns** | **590 B** |
-| AOI delta (16 entities × 7 ints) | JSON | 550 ns | 4309 ns | 1018 B |
-| Snapshot (8 players, nested/str/opt/vec) | **CBOR** | **409 ns** | **827 ns** | **880 B** |
-| Snapshot (8 players, nested/str/opt/vec) | JSON | 728 ns | 4557 ns | 1172 B |
+| List delta (16 items × 7 ints) | **CBOR** | **515 ns** | **570 ns** | **590 B** |
+| List delta (16 items × 7 ints) | JSON | 550 ns | 4309 ns | 1018 B |
+| Entity batch (8 records, nested/str/opt/vec) | **CBOR** | **409 ns** | **827 ns** | **880 B** |
+| Entity batch (8 records, nested/str/opt/vec) | JSON | 728 ns | 4557 ns | 1172 B |
 
 On the all-scalar hot path, CBOR **decode is ~7.5× faster than JSON** and the wire
 is **~42 % smaller**.
 
-**vs other CBOR codecs** — same payload (AOI delta), same map-keyed wire format:
+**vs other CBOR codecs** — same payload (the list delta), same map-keyed wire format:
 
 | Codec | encode | decode | notes |
 |:---|---:|---:|:---|
