@@ -179,10 +179,10 @@ export default withMermaid(
                         applicationCategory: 'DeveloperApplication',
                         applicationSubCategory: 'C++ Library',
                         operatingSystem: 'Linux, macOS',
-                        version: '1.8.0',
-                        softwareVersion: '1.8.0',
-                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.8.0',
-                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.8.0',
+                        version: '1.9.0',
+                        softwareVersion: '1.9.0',
+                        releaseNotes: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.9.0',
+                        downloadUrl: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.9.0',
                         installUrl: 'https://qbuem.com/qbuem-json/guide/getting-started',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++ JSON library, C++20 JSON, fastest JSON parser, SIMD JSON, AVX-512 JSON, zero-allocation JSON, high-performance JSON, HFT JSON, JSON serializer, single header JSON, header-only JSON, CBOR C++, RFC 8949 CBOR, binary serialization C++, nlohmann alternative, simdjson alternative, RapidJSON alternative',
@@ -203,10 +203,11 @@ export default withMermaid(
                             'NDJSON / JSON Lines streaming (read_lines / write_lines) in bounded memory',
                             'Canonical JSON (qbuem::canonicalize) — deterministic bytes for hashing/signing (RFC 8785-style)',
                             'JSONPath query (qbuem::query, RFC 9535 structural selectors: wildcard, recursive descent, slices)',
+                            'WebAssembly build (browser & Node): validate, canonicalize, JSONPath via Emscripten',
                             'Generic/template types via QBUEM_JSON_FIELDS_TPL (one registration, all instantiations)',
                             'Up to 2.9 GB/s parsing, 7.2 GB/s serialization',
                             'Apache 2.0 license — free for commercial use',
-                            'C, Python, Rust, Go language bindings'
+                            'C, Python, Rust, Go, and WebAssembly bindings'
                         ],
                         screenshot: {
                             '@type': 'ImageObject',
@@ -238,7 +239,7 @@ export default withMermaid(
                         },
                         runtimePlatform: 'C++20',
                         targetProduct: { '@id': 'https://qbuem.com/qbuem-json/#application' },
-                        version: '1.8.0',
+                        version: '1.9.0',
                         license: 'https://www.apache.org/licenses/LICENSE-2.0',
                         keywords: 'C++, JSON, SIMD, AVX-512, High-Performance, HFT, parser, serializer, zero-allocation',
                         author: { '@id': 'https://qbuem.com/#organization' }
@@ -394,9 +395,9 @@ export default withMermaid(
                     ]
                 },
                 {
-                    text: 'v1.8.0',
+                    text: 'v1.9.0',
                     items: [
-                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.8.0' },
+                        { text: 'Release Notes', link: 'https://github.com/qbuem/qbuem-json/releases/tag/v1.9.0' },
                         { text: 'All Releases', link: 'https://github.com/qbuem/qbuem-json/releases' }
                     ]
                 }

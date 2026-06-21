@@ -1,0 +1,34 @@
+{
+  "name": "@qbuem/json-wasm",
+  "version": "1.9.0",
+  "description": "qbuem-json compiled to WebAssembly — fast JSON validate/minify, RFC 8785 canonicalization, and RFC 9535 JSONPath in the browser and Node.",
+  "type": "module",
+  "main": "dist/qbuem_json.mjs",
+  "types": "index.d.ts",
+  "files": [
+    "dist/qbuem_json.mjs",
+    "dist/qbuem_json.wasm",
+    "index.d.ts",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "./build.sh",
+    "test": "node test/smoke.mjs"
+  },
+  "keywords": [
+    "json",
+    "wasm",
+    "webassembly",
+    "jsonpath",
+    "rfc9535",
+    "canonicalization",
+    "rfc8785",
+    "validate"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qbuem/qbuem-json"
+  },
+  "homepage": "https://qbuem.com/qbuem-json/"
+}

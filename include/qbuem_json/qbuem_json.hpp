@@ -1,6 +1,11 @@
 /**
- * @brief qbuem-json v1.8.0 - High-Performance C++20 JSON Parser
- * @version 1.8.0
+ * @brief qbuem-json v1.9.0 - High-Performance C++20 JSON Parser
+ * @version 1.9.0
+ *
+ * v1.9.0: WebAssembly module (roadmap Tier 2). bindings/wasm compiles the engine
+ *         to WASM via Emscripten/Embind, exposing validate / minify / prettify /
+ *         canonicalize / JSONPath query to the browser and Node — the operations
+ *         JS lacks natively. No library change; a new build target + npm package.
  *
  * v1.8.0: JSONPath query (roadmap Tier 2, RFC 9535 structural selectors).
  *         qbuem::query(root, "$.store.book[-1].title") returns every Value a

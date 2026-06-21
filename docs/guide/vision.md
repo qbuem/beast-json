@@ -30,10 +30,10 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 ## Tier 2 — Mid-term
 
 - 🚧 **JSONPath (RFC 9535)** — structural selectors (root, member, index, wildcard, recursive descent, slice, union) shipped *(v1.8.0)*; filter expressions planned.
-- ⬜ **MessagePack codec** — second binary target reusing the CBOR field reflection.
+- ✅ **WebAssembly build** — `bindings/wasm`: validate / minify / canonicalize / JSONPath in the browser & Node *(v1.9.0)*.
 - ⬜ **SAX / event / pull API** — bounded-memory huge-document handling and transcoding.
-- ⬜ **WebAssembly build + npm package** — run the parser (and CBOR) in the browser.
 - ⬜ **Runtime CPU dispatch** — one binary that selects AVX-512/AVX2/NEON at load time.
+- ❌ **MessagePack codec** — declined: duplicative of the existing CBOR codec (both binary-JSON); not worth a second parallel codec to maintain.
 
 ## Tier 3 — Longer-term
 

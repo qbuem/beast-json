@@ -1,0 +1,46 @@
+name: WASM
+
+# Builds the WebAssembly module and runs its Node smoke test, so the Emscripten
+# build and the browser/Node API surface stay green.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'bindings/wasm/**'
+      - 'include/qbuem_json/qbuem_json.hpp'
+      - '.github/workflows/wasm.yml'
+  pull_request:
+    paths:
+      - 'bindings/wasm/**'
+      - 'include/qbuem_json/qbuem_json.hpp'
+      - '.github/workflows/wasm.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build WASM module
+        run: bash bindings/wasm/build.sh
+
+      - name: Node smoke test
+        run: node bindings/wasm/test/smoke.mjs
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: qbuem-json-wasm
+          path: bindings/wasm/dist/
+          if-no-files-found: error
