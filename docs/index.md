@@ -69,7 +69,7 @@ features:
   <!-- Row 3: Testing -->
   <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.5rem;">
     <span style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #999; min-width: 5.5rem; flex-shrink: 0;">Testing</span>
-    <a href="/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-649%20passing-brightgreen" alt="649 tests passing" /></a>
+    <a href="/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-663%20passing-brightgreen" alt="663 tests passing" /></a>
     <a href="/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-16%20libFuzzer%20targets-orange" alt="16 libFuzzer targets" /></a>
     <a href="/qbuem-json/guide/correctness#jsontestsuite-conformance"><img src="https://img.shields.io/badge/JSONTestSuite-100%25%20(283%2F283)-brightgreen" alt="JSONTestSuite 100% (283/283 mandatory cases)" /></a>
   </div>
@@ -77,7 +77,7 @@ features:
   <!-- Row 4: Package -->
   <div style="display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;">
     <span style="font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: #999; min-width: 5.5rem; flex-shrink: 0;">Package</span>
-    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.12.0"><img src="https://img.shields.io/badge/version-v1.12.0-blue" alt="v1.12.0" /></a>
+    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.13.0"><img src="https://img.shields.io/badge/version-v1.13.0-blue" alt="v1.13.0" /></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0" /></a>
     <a href="https://github.com/qbuem/qbuem-json/blob/main/include/qbuem_json/qbuem_json.hpp"><img src="https://img.shields.io/badge/header--only-single%20file-lightgrey" alt="header-only" /></a>
     <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="zero dependencies" />

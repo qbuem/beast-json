@@ -47,7 +47,7 @@ differentiators where few competitors play.
 
 | # | Feature | Why | Class | Effort |
 |---|---------|-----|-------|--------|
-| 5 | ✅ **JSONPath (RFC 9535)** — structural selectors shipped *(v1.8.0)*; filters planned | The biggest *query* completeness gap vs jsoncons/serde_json_path; first normative JSONPath (Feb 2024) → becoming table-stakes. | table-stakes | **L** |
+| 5 | ✅ **JSONPath (RFC 9535)** — structural selectors *(v1.8.0)* + **filter selectors `[?...]` shipped *(v1.13.0)*** (comparisons, existence, `&&`/`||`/`!`, `length()`/`count()`/`value()`; I-Regexp `match()`/`search()` declined — no regex engine in a single-header lib) | The biggest *query* completeness gap vs jsoncons/serde_json_path; first normative JSONPath (Feb 2024) → becoming table-stakes. | table-stakes | **L** |
 | 8 | ✅ **WASM build + npm package** *(v1.9.0, bindings/wasm)* | Amplifies the cross-language pitch into the *browser* — validate / canonicalize / JSONPath, the things JS lacks natively. | differentiator | **S–M** |
 | 7 | ✅ **SAX-style event visitor** *(v1.10.0, `visit` / `sax_parse`)* — event walk over the tape parser (not a second streaming parser) | Transcoding / inspection / folds without hand-navigating the DOM. | foundation | **M** |
 | ~~9~~ | ❌ **Runtime CPU dispatch** — **DECLINED** (2026-06-21 curation) | Header-only consumers recompile (`-march=native` → optimal SIMD free); a multi-versioned dispatcher in the core hot path is high regression risk for a benefit only prebuilt artifacts see. Shipped a portable-vs-native build guide instead. | — | — |

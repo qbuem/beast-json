@@ -6,7 +6,7 @@ from conan.tools.build import check_min_cppstd
 
 class QbuemJsonConan(ConanFile):
     name = "qbuem-json"
-    version = "1.12.0"
+    version = "1.13.0"
     license = "Apache-2.0"
     url = "https://github.com/qbuem/qbuem-json"
     homepage = "https://qbuem.com/qbuem-json/"

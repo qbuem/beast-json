@@ -22,7 +22,7 @@ Minimum requirements: C++20, GCC 13+ or Clang 18+ or Apple Clang. Supported plat
 - [Custom Allocators](https://qbuem.com/qbuem-json/guide/allocators): Arena allocators, stack allocators, custom memory strategies
 - [Language Bindings](https://qbuem.com/qbuem-json/guide/bindings): C FFI, Python, Rust, Go, and WebAssembly (browser/Node) bindings
 - [Low-Latency Patterns](https://qbuem.com/qbuem-json/guide/low-latency-patterns): HFT tick data patterns, pre-allocated documents, reuse strategies
-- [Correctness & Safety](https://qbuem.com/qbuem-json/guide/correctness): RFC 8259/6901/6902/8949 compliance, IEEE 754 round-trip, rich parse errors (line/column/caret), enum support, field rename/skip, NDJSON streaming, canonical JSON, JSONPath query (RFC 9535), SAX event visitor, JSON diff + RFC 6902 apply_patch, 100% JSONTestSuite conformance (283/283 mandatory cases under ASan+UBSan), 649 tests, sanitizers, fuzzing
+- [Correctness & Safety](https://qbuem.com/qbuem-json/guide/correctness): RFC 8259/6901/6902/8949 compliance, IEEE 754 round-trip, rich parse errors (line/column/caret), enum support, field rename/skip, NDJSON streaming, canonical JSON, JSONPath query (RFC 9535, incl. filter selectors [?...]), SAX event visitor, JSON diff + RFC 6902 apply_patch, 100% JSONTestSuite conformance (283/283 mandatory cases under ASan+UBSan), 663 tests, sanitizers, fuzzing
 - [Benchmarks](https://qbuem.com/qbuem-json/guide/benchmarks): Live CI benchmark results vs. simdjson, yyjson, RapidJSON, nlohmann
 - [Vision & Roadmap](https://qbuem.com/qbuem-json/guide/vision): Project goals and planned features
 

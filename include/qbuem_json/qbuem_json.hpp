@@ -1,6 +1,18 @@
 /**
- * @brief qbuem-json v1.12.0 - High-Performance C++20 JSON Parser
- * @version 1.12.0
+ * @brief qbuem-json v1.13.0 - High-Performance C++20 JSON Parser
+ * @version 1.13.0
+ *
+ * v1.13.0: JSONPath filter selectors (RFC 9535 §2.3.5). query()/jsonpath() now
+ *          support `[?<expr>]`: comparisons (== != < <= > >=), existence tests
+ *          (a bare relative/absolute query is true iff it selects ≥1 node), the
+ *          logical operators && || ! with parentheses, literals (numbers,
+ *          strings, true/false/null), singular queries (@.a.b, $.x[0]) as
+ *          comparison operands, and the non-regex functions length(), count(),
+ *          value(). The I-Regexp functions match()/search() are intentionally
+ *          unsupported (they need a regex engine — out of scope for a single-
+ *          header zero-dep library) and throw qbuem::parse_error. Filter
+ *          nesting is depth-capped (512) so an adversarial query can't overflow
+ *          the stack. Additive — every previously valid query behaves identically.
  *
  * v1.12.0: API hygiene (no behavior change). (1) The internal helpers behind
  *          canonicalize / diff / apply_patch / query (canon_emit_, value_equal,
@@ -11033,36 +11045,96 @@ inline void diff_to(::std::string &buf, ::std::string_view from_json,
   return out;
 }
 
-// ── JSONPath (RFC 9535 — structural selectors) ───────────────────────────────
-// qbuem::query(root, "$.store.book[0].title") returns every Value the query
-// selects, in document order.  Supported selectors: root `$`, member access
-// (`.name` / `['name']` / `["name"]`), array index incl. negative (`[0]`,
-// `[-1]`), wildcard (`.*` / `[*]`), recursive descent (`..`), array slices
-// (`[start:end:step]`), and unions (`[0, 2, 'k']`).  Filter expressions
-// (`[?...]`) are not (yet) supported — a query containing one throws.
+// ── JSONPath (RFC 9535) ──────────────────────────────────────────────────────
+// qbuem::query(root, "$.store.book[?@.price<10].title") returns every Value the
+// query selects, in document order.  Supported:
+//   - segments: root `$`, member access (`.name` / `['name']` / `["name"]`),
+//     array index incl. negative (`[0]`, `[-1]`), wildcard (`.*` / `[*]`),
+//     recursive descent (`..`), slices (`[start:end:step]`), unions
+//     (`[0, 2, 'k']`).
+//   - filter selectors `[?<expr>]` (RFC 9535 §2.3.5): comparisons (`==` `!=` `<`
+//     `<=` `>` `>=`), existence tests (a bare relative/absolute query is true iff
+//     it selects ≥1 node), the logical operators `&&` `||` `!` with parentheses,
+//     literals (numbers, `'...'`/`"..."` strings, `true`, `false`, `null`),
+//     singular queries (`@.a.b`, `$.x[0]`) as comparison operands, and the
+//     non-regex functions `length()`, `count()`, `value()`.
+//
+// NOT supported, by design: the I-Regexp functions `match()` and `search()` —
+// they require a regular-expression engine, which has no place in a single-header
+// zero-dependency library; a query using either throws qbuem::parse_error. Pre-
+// filter with your own regex if you need them.
 //
 // A syntactically malformed query throws qbuem::parse_error; a valid query that
 // matches nothing returns an empty vector.  Returned Values view into the same
 // document as `root`, so that document must outlive them.
 namespace json::detail::jsonpath {
 
+struct FilterExpr; // filter-expression AST root (shared_ptr-referenced)
+struct JpSegment;  // a path segment (referenced from a filter-query)
+
 struct JpSelector {
-  enum class Kind { Name, Wildcard, Index, Slice };
+  enum class Kind { Name, Wildcard, Index, Slice, Filter };
   Kind kind;
   ::std::string name;                  // Kind::Name
   int64_t index = 0;                   // Kind::Index
   int64_t s_start = 0, s_end = 0, s_step = 1; // Kind::Slice
   bool has_start = false, has_end = false;
+  ::std::shared_ptr<FilterExpr> filter; // Kind::Filter
 };
 struct JpSegment {
   bool descendant = false;             // leading `..`
   ::std::vector<JpSelector> selectors; // union of ≥1
 };
 
+// ── Filter-expression AST (RFC 9535 §2.3.5) ──────────────────────────────────
+// Singular query (`@`/`$` + only name/index steps): selects ≤1 node, usable as a
+// comparison operand.
+struct SingularQuery {
+  bool from_root = false;              // `$` vs `@`
+  struct Step { bool is_index; ::std::string name; int64_t index; };
+  ::std::vector<Step> steps;
+};
+// Filter query (`@`/`$` + arbitrary segments): used in existence tests and as the
+// argument to count()/value(); may select any number of nodes.
+struct FilterQuery {
+  bool from_root = false;
+  ::std::vector<JpSegment> segs;
+};
+// A comparison operand or function argument.
+struct Comparable {
+  enum class T { Null, Bool, Int, Dbl, Str, Singular, Length, Count, Value } t;
+  bool b = false;
+  int64_t i = 0;
+  double d = 0;
+  ::std::string s;                          // Str literal
+  ::std::shared_ptr<SingularQuery> sq;      // Singular
+  ::std::shared_ptr<Comparable> len_arg;    // Length(arg)
+  ::std::shared_ptr<FilterQuery> fq;        // Count(query) / Value(query)
+};
+// A logical-expression node.
+struct FilterExpr {
+  enum class T { Or, And, Not, Cmp, Exists } t;
+  ::std::vector<FilterExpr> kids;           // Or/And operands, or Not's one child
+  Comparable lhs, rhs;                      // Cmp
+  int op = 0;                               // Cmp op: 0..5 == != < <= > >=
+  ::std::shared_ptr<FilterQuery> exists;    // Exists
+};
+
 struct JpParser {
   const char *p;
   const char *begin;
   const char *end;
+  size_t fdepth = 0; // filter-expression recursion depth (DoS guard)
+
+  // Every level of filter nesting (parentheses, `!`, and nested `[?...]`) passes
+  // through parse_unary exactly once; cap the depth so a pathologically nested
+  // query string can't overflow the stack (mirrors the tape parser's kMaxDepth).
+  static constexpr size_t kFilterMaxDepth = 512;
+  struct DepthGuard {
+    size_t &d;
+    explicit DepthGuard(size_t &x) : d(x) { ++d; }
+    ~DepthGuard() { --d; }
+  };
 
   [[noreturn]] void fail(const char *msg) const {
     ::qbuem::json::throw_parse_error(
@@ -11120,8 +11192,8 @@ struct JpParser {
   JpSelector parse_bracket_selector() {
     ws();
     if (p >= end) fail("JSONPath: unexpected end of selector");
-    if (*p == '?') fail("JSONPath: filter selectors ([?...]) are not supported");
-    if (*p == '*') { ++p; return {JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false}; }
+    if (*p == '?') return parse_filter_selector();
+    if (*p == '*') { ++p; return {JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false, {}}; }
     if (*p == '\'' || *p == '"') {
       JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_quoted(*p); return s;
     }
@@ -11148,6 +11220,46 @@ struct JpParser {
     s.kind = JpSelector::Kind::Index; s.index = a; return s;
   }
 
+  // Parse exactly one segment (`.name` / `..name` / `[selectors]` / `.*` / `..*`)
+  // if one starts at the current position; returns false (without consuming) if
+  // the next token cannot begin a segment.  Shared by parse() and filter-queries.
+  bool parse_one_segment(JpSegment &seg) {
+    ws();
+    if (p >= end) return false;
+    if (*p == '.' && p + 1 < end && p[1] == '.') {
+      seg.descendant = true;
+      p += 2;
+      // `..` may be followed by a name, `*`, or `[selectors]`.
+      if (p < end && *p == '[') {
+        ++p;
+        parse_bracket_list(seg);
+      } else if (p < end && *p == '*') {
+        ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false, {}});
+      } else {
+        JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
+        if (s.name.empty()) fail("JSONPath: expected member name after '..'");
+        seg.selectors.push_back(std::move(s));
+      }
+      return true;
+    }
+    if (*p == '.') {
+      ++p;
+      if (p < end && *p == '*') { ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false, {}}); }
+      else {
+        JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
+        if (s.name.empty()) fail("JSONPath: expected member name after '.'");
+        seg.selectors.push_back(std::move(s));
+      }
+      return true;
+    }
+    if (*p == '[') {
+      ++p;
+      parse_bracket_list(seg);
+      return true;
+    }
+    return false;
+  }
+
   ::std::vector<JpSegment> parse() {
     ::std::vector<JpSegment> segs;
     ws();
@@ -11157,34 +11269,7 @@ struct JpParser {
       ws();
       if (p >= end) break;
       JpSegment seg;
-      if (*p == '.' && p + 1 < end && p[1] == '.') {
-        seg.descendant = true;
-        p += 2;
-        // `..` may be followed by a name, `*`, or `[selectors]`.
-        if (p < end && *p == '[') {
-          ++p;
-          parse_bracket_list(seg);
-        } else if (p < end && *p == '*') {
-          ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false});
-        } else {
-          JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
-          if (s.name.empty()) fail("JSONPath: expected member name after '..'");
-          seg.selectors.push_back(std::move(s));
-        }
-      } else if (*p == '.') {
-        ++p;
-        if (p < end && *p == '*') { ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false}); }
-        else {
-          JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
-          if (s.name.empty()) fail("JSONPath: expected member name after '.'");
-          seg.selectors.push_back(std::move(s));
-        }
-      } else if (*p == '[') {
-        ++p;
-        parse_bracket_list(seg);
-      } else {
-        fail("JSONPath: expected '.', '..', or '[' ");
-      }
+      if (!parse_one_segment(seg)) fail("JSONPath: expected '.', '..', or '['");
       segs.push_back(std::move(seg));
     }
     return segs;
@@ -11201,19 +11286,302 @@ struct JpParser {
     }
   }
 
-  // Dotted member name (unquoted): a run of name chars.
+  // Dotted member name (unquoted): a run of name chars.  Stops at structural and
+  // filter-operator characters so `@.price<10` reads the name as `price`.
   ::std::string parse_member_name() {
     const char *s = p;
     while (p < end) {
       char c = *p;
       if (c == '.' || c == '[' || c == ']' || c == ' ' || c == '\t' ||
-          c == '\n' || c == '\r' || c == ',')
+          c == '\n' || c == '\r' || c == ',' || c == '=' || c == '!' ||
+          c == '<' || c == '>' || c == '&' || c == '|' || c == '(' ||
+          c == ')')
         break;
       ++p;
     }
     return ::std::string(s, static_cast<size_t>(p - s));
   }
+
+  // ── Filter-expression parsing (RFC 9535 §2.3.5) ────────────────────────────
+  void expect_char(char ch, const char *msg) {
+    ws();
+    if (p >= end || *p != ch) fail(msg);
+    ++p;
+  }
+
+  // `[?<logical-expr>]` — the `?` is current; the closing `]` is left for the
+  // surrounding bracket-list to consume.
+  JpSelector parse_filter_selector() {
+    ++p; // '?'
+    JpSelector s;
+    s.kind = JpSelector::Kind::Filter;
+    s.filter = ::std::make_shared<FilterExpr>(parse_logical_or());
+    return s;
+  }
+
+  FilterExpr parse_logical_or() {
+    FilterExpr first = parse_logical_and();
+    ws();
+    if (!(p + 1 < end && p[0] == '|' && p[1] == '|')) return first;
+    FilterExpr node;
+    node.t = FilterExpr::T::Or;
+    node.kids.push_back(::std::move(first));
+    while (p + 1 < end && p[0] == '|' && p[1] == '|') {
+      p += 2;
+      node.kids.push_back(parse_logical_and());
+      ws();
+    }
+    return node;
+  }
+
+  FilterExpr parse_logical_and() {
+    FilterExpr first = parse_unary();
+    ws();
+    if (!(p + 1 < end && p[0] == '&' && p[1] == '&')) return first;
+    FilterExpr node;
+    node.t = FilterExpr::T::And;
+    node.kids.push_back(::std::move(first));
+    while (p + 1 < end && p[0] == '&' && p[1] == '&') {
+      p += 2;
+      node.kids.push_back(parse_unary());
+      ws();
+    }
+    return node;
+  }
+
+  FilterExpr parse_unary() {
+    DepthGuard guard(fdepth);
+    if (fdepth > kFilterMaxDepth) fail("JSONPath: filter expression nested too deeply");
+    ws();
+    if (p < end && *p == '!' && !(p + 1 < end && p[1] == '=')) {
+      ++p;
+      FilterExpr node;
+      node.t = FilterExpr::T::Not;
+      node.kids.push_back(parse_unary());
+      return node;
+    }
+    return parse_primary();
+  }
+
+  FilterExpr parse_primary() {
+    ws();
+    if (p >= end) fail("JSONPath: expected a filter expression");
+    if (*p == '(') {
+      ++p;
+      FilterExpr e = parse_logical_or();
+      expect_char(')', "JSONPath: expected ')' in filter expression");
+      return e;
+    }
+    // A query (`@`/`$`) is either a singular-query comparison operand or a
+    // filter-query existence test; everything else (literal/function) must be the
+    // left operand of a comparison.
+    if (*p == '@' || *p == '$') {
+      FilterQuery fq = parse_filter_query();
+      const int op = parse_comp_op();
+      if (op < 0) { // existence test
+        FilterExpr e;
+        e.t = FilterExpr::T::Exists;
+        e.exists = ::std::make_shared<FilterQuery>(::std::move(fq));
+        return e;
+      }
+      FilterExpr e;
+      e.t = FilterExpr::T::Cmp;
+      e.op = op;
+      if (!filter_query_to_singular(fq, e.lhs))
+        fail("JSONPath: left side of a comparison must be a singular query");
+      e.rhs = parse_comparable();
+      return e;
+    }
+    Comparable lhs = parse_comparable();
+    const int op = parse_comp_op();
+    if (op < 0)
+      fail("JSONPath: expected a comparison operator (a bare literal is not a "
+           "valid filter test)");
+    FilterExpr e;
+    e.t = FilterExpr::T::Cmp;
+    e.op = op;
+    e.lhs = ::std::move(lhs);
+    e.rhs = parse_comparable();
+    return e;
+  }
+
+  // Comparison operator → 0..5 (== != < <= > >=), or -1 if none is present.
+  int parse_comp_op() {
+    ws();
+    if (p + 1 < end) {
+      if (p[0] == '=' && p[1] == '=') { p += 2; return 0; }
+      if (p[0] == '!' && p[1] == '=') { p += 2; return 1; }
+      if (p[0] == '<' && p[1] == '=') { p += 2; return 3; }
+      if (p[0] == '>' && p[1] == '=') { p += 2; return 5; }
+    }
+    if (p < end && *p == '<') { ++p; return 2; }
+    if (p < end && *p == '>') { ++p; return 4; }
+    return -1;
+  }
+
+  Comparable parse_comparable() {
+    ws();
+    if (p >= end) fail("JSONPath: expected a value in filter expression");
+    const char c = *p;
+    if (c == '@' || c == '$') {
+      Comparable cv;
+      cv.t = Comparable::T::Singular;
+      cv.sq = ::std::make_shared<SingularQuery>(parse_singular_query());
+      return cv;
+    }
+    if (c == '\'' || c == '"') {
+      Comparable cv;
+      cv.t = Comparable::T::Str;
+      cv.s = parse_quoted(c);
+      return cv;
+    }
+    if (c == '-' || (c >= '0' && c <= '9')) return parse_number_comparable();
+    // identifier: keyword literal (true/false/null) or function call
+    const char *s = p;
+    while (p < end && ((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
+                       (*p >= '0' && *p <= '9') || *p == '_'))
+      ++p;
+    ::std::string id(s, static_cast<size_t>(p - s));
+    if (id == "true") { Comparable cv; cv.t = Comparable::T::Bool; cv.b = true; return cv; }
+    if (id == "false") { Comparable cv; cv.t = Comparable::T::Bool; cv.b = false; return cv; }
+    if (id == "null") { Comparable cv; cv.t = Comparable::T::Null; return cv; }
+    ws();
+    if (p < end && *p == '(') {
+      ++p;
+      if (id == "length") {
+        Comparable cv; cv.t = Comparable::T::Length;
+        cv.len_arg = ::std::make_shared<Comparable>(parse_comparable());
+        expect_char(')', "JSONPath: expected ')' after length() argument");
+        return cv;
+      }
+      if (id == "count") {
+        Comparable cv; cv.t = Comparable::T::Count;
+        cv.fq = ::std::make_shared<FilterQuery>(parse_filter_query());
+        expect_char(')', "JSONPath: expected ')' after count() argument");
+        return cv;
+      }
+      if (id == "value") {
+        Comparable cv; cv.t = Comparable::T::Value;
+        cv.fq = ::std::make_shared<FilterQuery>(parse_filter_query());
+        expect_char(')', "JSONPath: expected ')' after value() argument");
+        return cv;
+      }
+      if (id == "match" || id == "search")
+        fail("JSONPath: match()/search() (I-Regexp) are not supported");
+      fail("JSONPath: unknown function in filter expression");
+    }
+    fail("JSONPath: unexpected token in filter expression");
+  }
+
+  // A singular query: `@`/`$` then only single name/index steps (no wildcard,
+  // descent, slice, union, or filter).  Selects at most one node.
+  SingularQuery parse_singular_query() {
+    SingularQuery q;
+    ws();
+    if (p < end && *p == '$') { q.from_root = true; ++p; }
+    else if (p < end && *p == '@') { ++p; }
+    else fail("JSONPath: a query must start with '@' or '$'");
+    while (true) {
+      if (p < end && *p == '.' && !(p + 1 < end && p[1] == '.')) {
+        ++p;
+        SingularQuery::Step st; st.is_index = false; st.index = 0;
+        st.name = parse_member_name();
+        if (st.name.empty()) fail("JSONPath: expected member name in singular query");
+        q.steps.push_back(::std::move(st));
+      } else if (p < end && *p == '[') {
+        ++p; ws();
+        SingularQuery::Step st;
+        if (p < end && (*p == '\'' || *p == '"')) {
+          st.is_index = false; st.index = 0; st.name = parse_quoted(*p);
+        } else {
+          int64_t idx;
+          if (!parse_int(idx))
+            fail("JSONPath: singular query brackets accept only a name or index");
+          st.is_index = true; st.index = idx;
+        }
+        expect_char(']', "JSONPath: expected ']' in singular query");
+        q.steps.push_back(::std::move(st));
+      } else {
+        break;
+      }
+    }
+    return q;
+  }
+
+  // A filter query: `@`/`$` then arbitrary segments.  May select many nodes.
+  FilterQuery parse_filter_query() {
+    FilterQuery q;
+    ws();
+    if (p < end && *p == '$') { q.from_root = true; ++p; }
+    else if (p < end && *p == '@') { ++p; }
+    else fail("JSONPath: a query must start with '@' or '$'");
+    JpSegment seg;
+    while (parse_one_segment(seg)) {
+      q.segs.push_back(::std::move(seg));
+      seg = JpSegment{};
+    }
+    return q;
+  }
+
+  Comparable parse_number_comparable() {
+    const char *s = p;
+    if (p < end && *p == '-') ++p;
+    while (p < end && *p >= '0' && *p <= '9') ++p;
+    bool is_dbl = false;
+    if (p < end && *p == '.') { is_dbl = true; ++p; while (p < end && *p >= '0' && *p <= '9') ++p; }
+    if (p < end && (*p == 'e' || *p == 'E')) {
+      is_dbl = true; ++p;
+      if (p < end && (*p == '+' || *p == '-')) ++p;
+      while (p < end && *p >= '0' && *p <= '9') ++p;
+    }
+    Comparable cv;
+    if (is_dbl) {
+      cv.t = Comparable::T::Dbl;
+      cv.d = ::std::strtod(::std::string(s, static_cast<size_t>(p - s)).c_str(), nullptr);
+    } else {
+      int64_t v;
+      auto [ptr, ec] = ::std::from_chars(s, p, v);
+      (void)ptr;
+      if (ec != ::std::errc{}) { // out of int64 range → fall back to double
+        cv.t = Comparable::T::Dbl;
+        cv.d = ::std::strtod(::std::string(s, static_cast<size_t>(p - s)).c_str(), nullptr);
+      } else {
+        cv.t = Comparable::T::Int; cv.i = v;
+      }
+    }
+    return cv;
+  }
+
+  // Reinterpret a parsed filter-query as a singular query (name/index steps
+  // only); false if any segment is descendant, a union, or a non-name/index
+  // selector.
+  bool filter_query_to_singular(const FilterQuery &fq, Comparable &out) {
+    auto sq = ::std::make_shared<SingularQuery>();
+    sq->from_root = fq.from_root;
+    for (const JpSegment &seg : fq.segs) {
+      if (seg.descendant || seg.selectors.size() != 1) return false;
+      const JpSelector &s = seg.selectors[0];
+      if (s.kind == JpSelector::Kind::Name) {
+        sq->steps.push_back({false, s.name, 0});
+      } else if (s.kind == JpSelector::Kind::Index) {
+        sq->steps.push_back({true, ::std::string(), s.index});
+      } else {
+        return false;
+      }
+    }
+    out.t = Comparable::T::Singular;
+    out.sq = ::std::move(sq);
+    return true;
+  }
 };
+
+// Mutually-recursive evaluator: a filter selector evaluates a filter expression,
+// whose existence tests / count() / value() run sub-queries (apply_segments),
+// which may themselves apply more filter selectors.
+inline ::std::vector<Value> apply_segments(const Value &start,
+                                           const ::std::vector<JpSegment> &segs,
+                                           const Value &root);
+inline bool filter_eval(const FilterExpr &e, const Value &cur, const Value &root);
 
 // Recursion is bounded by the parser's kMaxDepth (1024) — `v` views a parsed
 // tape, which cannot be nested deeper than the parser allowed, so `$..` over
@@ -11228,8 +11596,19 @@ inline void jp_collect_descendants(const Value &v, ::std::vector<Value> &out) {
 }
 
 inline void jp_apply_selector(const Value &v, const JpSelector &s,
-                              ::std::vector<Value> &out) {
+                              const Value &root, ::std::vector<Value> &out) {
   using K = JpSelector::Kind;
+  if (s.kind == K::Filter) {
+    // RFC 9535: a filter selector selects array elements and object member values
+    // for which the expression tests true (current node `@` = each child).
+    if (v.is_array()) {
+      for (const auto &e : v.elements())
+        if (filter_eval(*s.filter, e, root)) out.push_back(e);
+    } else if (v.is_object()) {
+      for (const auto &[k, val] : v.items()) { (void)k; if (filter_eval(*s.filter, val, root)) out.push_back(val); }
+    }
+    return;
+  }
   if (s.kind == K::Name) {
     if (v.is_object()) { Value m = v[std::string_view(s.name)]; if (m.is_valid()) out.push_back(m); }
   } else if (s.kind == K::Wildcard) {
@@ -11263,15 +11642,13 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
   }
 }
 
-} // namespace json::detail::jsonpath
-
-[[nodiscard]] inline ::std::vector<Value> query(const Value &root,
-                                                ::std::string_view path) {
-  using namespace json::detail::jsonpath;
-  JpParser parser{path.data(), path.data(), path.data() + path.size()};
-  const ::std::vector<JpSegment> segs = parser.parse();
+// Run a query's segments from `start`, threading the absolute `$` root through so
+// nested filter selectors can evaluate `$`-rooted sub-queries.
+inline ::std::vector<Value> apply_segments(const Value &start,
+                                           const ::std::vector<JpSegment> &segs,
+                                           const Value &root) {
   ::std::vector<Value> nodes;
-  if (root.is_valid()) nodes.push_back(root);
+  if (start.is_valid()) nodes.push_back(start);
   for (const JpSegment &seg : segs) {
     ::std::vector<Value> next;
     for (const Value &node : nodes) {
@@ -11279,14 +11656,184 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
         ::std::vector<Value> desc;
         jp_collect_descendants(node, desc);
         for (const Value &d : desc)
-          for (const JpSelector &s : seg.selectors) jp_apply_selector(d, s, next);
+          for (const JpSelector &s : seg.selectors) jp_apply_selector(d, s, root, next);
       } else {
-        for (const JpSelector &s : seg.selectors) jp_apply_selector(node, s, next);
+        for (const JpSelector &s : seg.selectors) jp_apply_selector(node, s, root, next);
       }
     }
-    nodes = std::move(next);
+    nodes = ::std::move(next);
   }
   return nodes;
+}
+
+// ── Filter evaluation ────────────────────────────────────────────────────────
+// A comparison operand's runtime value. Scalars normalise to a primitive kind;
+// arrays/objects stay a Node (deep-equality compare); a query that selects
+// nothing is Nothing (distinct from JSON null, per RFC 9535).
+struct CmpVal {
+  enum class K { Nothing, Null, Bool, Int, Dbl, Str, Node } k = K::Nothing;
+  bool b = false;
+  int64_t i = 0;
+  double d = 0;
+  ::std::string s;
+  Value node;
+};
+
+inline CmpVal cmpval_from_node(const Value &n) {
+  CmpVal v;
+  if (!n.is_valid()) { v.k = CmpVal::K::Nothing; return v; }
+  if (n.is_null()) { v.k = CmpVal::K::Null; return v; }
+  if (n.is_bool()) { v.k = CmpVal::K::Bool; v.b = n.template as<bool>(); return v; }
+  if (n.is_int()) { v.k = CmpVal::K::Int; v.i = n.template as<int64_t>(); return v; }
+  if (n.is_number()) { v.k = CmpVal::K::Dbl; v.d = n.template as<double>(); return v; }
+  if (n.is_string()) { v.k = CmpVal::K::Str; v.s = n.decoded(); return v; }
+  v.k = CmpVal::K::Node; v.node = n; // array / object
+  return v;
+}
+
+// Resolve a singular query (name/index steps only) to its one node, or an invalid
+// Value (= Nothing) if any step misses.
+inline Value resolve_singular(const SingularQuery &q, const Value &cur,
+                              const Value &root) {
+  Value v = q.from_root ? root : cur;
+  for (const auto &st : q.steps) {
+    if (!v.is_valid()) return Value{};
+    if (st.is_index) {
+      if (!v.is_array()) return Value{};
+      const int64_t n = static_cast<int64_t>(v.size());
+      const int64_t idx = st.index < 0 ? n + st.index : st.index;
+      if (idx < 0 || idx >= n) return Value{};
+      v = v[static_cast<size_t>(idx)];
+    } else {
+      if (!v.is_object()) return Value{};
+      v = v[::std::string_view(st.name)];
+    }
+  }
+  return v;
+}
+
+// length() per RFC 9535 §2.4.4: array elements / object members / string Unicode
+// scalar values; -1 (→ Nothing) for anything else.
+inline int64_t jp_node_length(const Value &n) {
+  if (n.is_array()) return static_cast<int64_t>(n.size());
+  if (n.is_object()) { int64_t c = 0; for (const auto &kv : n.items()) { (void)kv; ++c; } return c; }
+  return -1;
+}
+inline int64_t utf8_scalar_count(::std::string_view s) {
+  int64_t n = 0;
+  for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++n; // skip 10xxxxxx continuations
+  return n;
+}
+
+inline CmpVal eval_comparable(const Comparable &c, const Value &cur,
+                              const Value &root) {
+  CmpVal v;
+  switch (c.t) {
+    case Comparable::T::Null: v.k = CmpVal::K::Null; return v;
+    case Comparable::T::Bool: v.k = CmpVal::K::Bool; v.b = c.b; return v;
+    case Comparable::T::Int: v.k = CmpVal::K::Int; v.i = c.i; return v;
+    case Comparable::T::Dbl: v.k = CmpVal::K::Dbl; v.d = c.d; return v;
+    case Comparable::T::Str: v.k = CmpVal::K::Str; v.s = c.s; return v;
+    case Comparable::T::Singular:
+      return cmpval_from_node(resolve_singular(*c.sq, cur, root));
+    case Comparable::T::Count:
+      v.k = CmpVal::K::Int;
+      v.i = static_cast<int64_t>(
+          apply_segments(c.fq->from_root ? root : cur, c.fq->segs, root).size());
+      return v;
+    case Comparable::T::Value: {
+      auto nodes = apply_segments(c.fq->from_root ? root : cur, c.fq->segs, root);
+      if (nodes.size() == 1) return cmpval_from_node(nodes[0]);
+      v.k = CmpVal::K::Nothing; // empty or multiple → Nothing
+      return v;
+    }
+    case Comparable::T::Length: {
+      CmpVal a = eval_comparable(*c.len_arg, cur, root);
+      if (a.k == CmpVal::K::Str) { v.k = CmpVal::K::Int; v.i = utf8_scalar_count(a.s); return v; }
+      if (a.k == CmpVal::K::Node) {
+        const int64_t len = jp_node_length(a.node);
+        if (len >= 0) { v.k = CmpVal::K::Int; v.i = len; return v; }
+      }
+      v.k = CmpVal::K::Nothing; // length of a non-string/array/object → Nothing
+      return v;
+    }
+  }
+  v.k = CmpVal::K::Nothing;
+  return v;
+}
+
+inline bool cmpval_is_num(const CmpVal &v) {
+  return v.k == CmpVal::K::Int || v.k == CmpVal::K::Dbl;
+}
+inline double cmpval_as_dbl(const CmpVal &v) {
+  return v.k == CmpVal::K::Int ? static_cast<double>(v.i) : v.d;
+}
+
+inline bool cmp_eq(const CmpVal &a, const CmpVal &b) {
+  if (a.k == CmpVal::K::Nothing || b.k == CmpVal::K::Nothing)
+    return a.k == CmpVal::K::Nothing && b.k == CmpVal::K::Nothing;
+  if (cmpval_is_num(a) && cmpval_is_num(b)) {
+    if (a.k == CmpVal::K::Int && b.k == CmpVal::K::Int) return a.i == b.i;
+    return cmpval_as_dbl(a) == cmpval_as_dbl(b);
+  }
+  if (a.k != b.k) return false; // different non-numeric types are never equal
+  switch (a.k) {
+    case CmpVal::K::Null: return true;
+    case CmpVal::K::Bool: return a.b == b.b;
+    case CmpVal::K::Str: return a.s == b.s;
+    case CmpVal::K::Node: return value_equal(a.node, b.node);
+    default: return false;
+  }
+}
+// Ordering is defined only for number/number and string/string (UTF-8 byte order
+// == Unicode code-point order); every other operand pairing yields false.
+inline bool cmp_lt(const CmpVal &a, const CmpVal &b) {
+  if (cmpval_is_num(a) && cmpval_is_num(b)) {
+    if (a.k == CmpVal::K::Int && b.k == CmpVal::K::Int) return a.i < b.i;
+    return cmpval_as_dbl(a) < cmpval_as_dbl(b);
+  }
+  if (a.k == CmpVal::K::Str && b.k == CmpVal::K::Str) return a.s < b.s;
+  return false;
+}
+inline bool cmp_apply(int op, const CmpVal &a, const CmpVal &b) {
+  switch (op) {
+    case 0: return cmp_eq(a, b);                       // ==
+    case 1: return !cmp_eq(a, b);                      // !=
+    case 2: return cmp_lt(a, b);                       // <
+    case 3: return cmp_lt(a, b) || cmp_eq(a, b);       // <=
+    case 4: return cmp_lt(b, a);                       // >
+    case 5: return cmp_lt(b, a) || cmp_eq(a, b);       // >=
+    default: return false;
+  }
+}
+
+inline bool filter_eval(const FilterExpr &e, const Value &cur, const Value &root) {
+  switch (e.t) {
+    case FilterExpr::T::Or:
+      for (const FilterExpr &k : e.kids) if (filter_eval(k, cur, root)) return true;
+      return false;
+    case FilterExpr::T::And:
+      for (const FilterExpr &k : e.kids) if (!filter_eval(k, cur, root)) return false;
+      return true;
+    case FilterExpr::T::Not:
+      return !filter_eval(e.kids[0], cur, root);
+    case FilterExpr::T::Exists:
+      return !apply_segments(e.exists->from_root ? root : cur, e.exists->segs, root).empty();
+    case FilterExpr::T::Cmp:
+      return cmp_apply(e.op, eval_comparable(e.lhs, cur, root),
+                       eval_comparable(e.rhs, cur, root));
+  }
+  return false;
+}
+
+} // namespace json::detail::jsonpath
+
+[[nodiscard]] inline ::std::vector<Value> query(const Value &root,
+                                                ::std::string_view path) {
+  using namespace json::detail::jsonpath;
+  JpParser parser{path.data(), path.data(), path.data() + path.size()};
+  const ::std::vector<JpSegment> segs = parser.parse();
+  return apply_segments(root, segs, root);
 }
 
 // jsonpath(root, path) — the RFC 9535 spelling, an exact alias for query(root,
