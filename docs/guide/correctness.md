@@ -6,7 +6,7 @@
   <a href="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml/badge.svg" alt="Benchmark CI" /></a>
   <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
   <img src="https://img.shields.io/badge/tests-521%20passing-brightgreen" alt="521 tests passing" />
-  <img src="https://img.shields.io/badge/fuzz-11%20libFuzzer%20targets-orange" alt="11 libFuzzer targets" />
+  <img src="https://img.shields.io/badge/fuzz-17%20libFuzzer%20targets-orange" alt="17 libFuzzer targets" />
   <img src="https://img.shields.io/badge/RFC%208259-compliant-brightgreen" alt="RFC 8259" />
   <img src="https://img.shields.io/badge/RFC%206901-JSON%20Pointer-brightgreen" alt="RFC 6901" />
   <img src="https://img.shields.io/badge/RFC%206902-JSON%20Patch-brightgreen" alt="RFC 6902" />

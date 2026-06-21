@@ -18,7 +18,7 @@ hero:
 
 features:
   - icon: ⚡
-    title: "Up to 2.5 GB/s Parsing"
+    title: "Up to 2.9 GB/s Parsing"
     details: "AVX-512 (x86) and ARM NEON SIMD structural scanning. Two-pass tape architecture eliminates all per-node allocation overhead. Numbers from live CI — see Benchmarks page."
 
   - icon: 🎯
@@ -224,7 +224,7 @@ to CI you can inspect:
 </div>
 
 <div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
-  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">3 libFuzzer targets</div>
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">17 libFuzzer targets</div>
   <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">fuzz_dom · fuzz_parse · fuzz_rfc8259.  Seed corpus from real-world benchmark datasets.  <a href="/qbuem-json/guide/correctness#fuzz-testing">Details →</a></div>
 </div>
 
