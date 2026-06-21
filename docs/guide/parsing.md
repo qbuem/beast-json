@@ -369,6 +369,36 @@ into the same document as `root`, so keep the document alive.
 
 ---
 
+## 🎬 SAX-style Event Visitor
+
+`qbuem::visit(value, handler)` walks a parsed document depth-first and emits an
+event for each node — for **transcoding, inspection, or folds** without
+navigating the DOM by hand. Derive a handler from `qbuem::sax_handler` and
+override only the events you want (the rest default to no-ops); dispatch is static
+(no virtuals → zero overhead). Return `false` from any event to **abort** the walk.
+
+```cpp
+struct PriceSum : qbuem::sax_handler {
+    double total = 0;
+    bool key(std::string_view k) { want = (k == "price"); return true; }
+    bool real(double v)    { if (want) total += v; want = false; return true; }
+    bool integer(int64_t v){ if (want) total += v; want = false; return true; }
+    bool want = false;
+};
+
+PriceSum h;
+qbuem::sax_parse(json, h);     // parse + visit in one call
+// or: qbuem::visit(alreadyParsedValue, h);
+std::cout << h.total << '\n';
+```
+
+This is an event walk over the proven tape parser — **not** a second streaming
+parser. For data larger than RAM, use [NDJSON](/guide/serialization#ndjson-json-lines)
+(`read_lines`). String/key values are the raw on-the-wire slice (zero-copy),
+matching `as<std::string_view>()`.
+
+---
+
 ## ⚠️ Common Pitfalls
 
 ### 1. Doc Must Outlive Values
