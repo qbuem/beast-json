@@ -1,6 +1,6 @@
 {
-  "timestamp": "2026-06-21T06:23:41Z",
-  "commit": "433164ec",
+  "timestamp": "2026-06-21T06:59:32Z",
+  "commit": "3459cfbd",
   "platforms": [
     {
       "arch": "x86_64",
@@ -11,38 +11,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 309.62,
-              "serialize_us": 140.15,
+              "parse_us": 309.51,
+              "serialize_us": 167.89,
               "alloc_kb": 296
             },
             {
               "library": "simdjson",
-              "parse_us": 233.73,
-              "serialize_us": 891.09,
-              "alloc_kb": 1848
+              "parse_us": 245.68,
+              "serialize_us": 859.75,
+              "alloc_kb": 1792
             },
             {
               "library": "yyjson",
-              "parse_us": 750.02,
-              "serialize_us": 160.54,
-              "alloc_kb": 1176
+              "parse_us": 714.11,
+              "serialize_us": 173.77,
+              "alloc_kb": 1240
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1122.43,
-              "serialize_us": 672.44,
+              "parse_us": 1287.63,
+              "serialize_us": 873.03,
               "alloc_kb": 820
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2399.7,
-              "serialize_us": 471.93,
-              "alloc_kb": 2144
+              "parse_us": 2383.21,
+              "serialize_us": 471.75,
+              "alloc_kb": 2272
             },
             {
               "library": "nlohmann",
-              "parse_us": 6473.13,
-              "serialize_us": 2067.6,
+              "parse_us": 6559.51,
+              "serialize_us": 2113.26,
               "alloc_kb": 2288
             }
           ]
@@ -52,39 +52,39 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1630.25,
-              "serialize_us": 978.56,
+              "parse_us": 1607.39,
+              "serialize_us": 960.24,
               "alloc_kb": 3404
             },
             {
               "library": "simdjson",
-              "parse_us": 2719.98,
-              "serialize_us": 10241.39,
-              "alloc_kb": 6888
+              "parse_us": 2497.33,
+              "serialize_us": 10330.58,
+              "alloc_kb": 6896
             },
             {
               "library": "yyjson",
-              "parse_us": 2879.9,
-              "serialize_us": 4837.77,
-              "alloc_kb": 6560
+              "parse_us": 3008.51,
+              "serialize_us": 3997.37,
+              "alloc_kb": 6528
             },
             {
               "library": "RapidJSON",
-              "parse_us": 5570.02,
-              "serialize_us": 9632.3,
-              "alloc_kb": 2864
+              "parse_us": 5161.21,
+              "serialize_us": 9007.5,
+              "alloc_kb": 2800
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 8917.56,
-              "serialize_us": 5192.43,
-              "alloc_kb": 10976
+              "parse_us": 8618.16,
+              "serialize_us": 4836.39,
+              "alloc_kb": 11040
             },
             {
               "library": "nlohmann",
-              "parse_us": 38320.29,
-              "serialize_us": 12737.8,
-              "alloc_kb": 5596
+              "parse_us": 36406.68,
+              "serialize_us": 12006.52,
+              "alloc_kb": 5724
             }
           ]
         },
@@ -93,39 +93,39 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 732.62,
-              "serialize_us": 363.23,
-              "alloc_kb": 732
+              "parse_us": 727.19,
+              "serialize_us": 364.3,
+              "alloc_kb": 668
             },
             {
               "library": "simdjson",
-              "parse_us": 719.85,
-              "serialize_us": 1054.9,
-              "alloc_kb": 5412
+              "parse_us": 744.64,
+              "serialize_us": 1107.91,
+              "alloc_kb": 5288
             },
             {
               "library": "yyjson",
-              "parse_us": 1914.73,
-              "serialize_us": 284.52,
+              "parse_us": 1959.63,
+              "serialize_us": 265.44,
               "alloc_kb": 2876
             },
             {
               "library": "RapidJSON",
-              "parse_us": 2095.53,
-              "serialize_us": 761.24,
+              "parse_us": 2038.54,
+              "serialize_us": 861.93,
               "alloc_kb": 1204
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 3712.57,
-              "serialize_us": 1136.05,
+              "parse_us": 3652.32,
+              "serialize_us": 1083.85,
               "alloc_kb": 5568
             },
             {
               "library": "nlohmann",
-              "parse_us": 12425.13,
-              "serialize_us": 2439.39,
-              "alloc_kb": 3984
+              "parse_us": 12009.41,
+              "serialize_us": 2540.45,
+              "alloc_kb": 4048
             }
           ]
         },
@@ -134,38 +134,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 618.67,
-              "serialize_us": 384.51,
-              "alloc_kb": 392
+              "parse_us": 618.18,
+              "serialize_us": 386.36,
+              "alloc_kb": 328
             },
             {
               "library": "simdjson",
-              "parse_us": 891.35,
-              "serialize_us": 5568.73,
-              "alloc_kb": 7872
+              "parse_us": 965.39,
+              "serialize_us": 5578.2,
+              "alloc_kb": 7936
             },
             {
               "library": "yyjson",
-              "parse_us": 3029.01,
-              "serialize_us": 1114.81,
+              "parse_us": 2929.78,
+              "serialize_us": 1075.81,
               "alloc_kb": 4040
             },
             {
               "library": "RapidJSON",
-              "parse_us": 5933.01,
-              "serialize_us": 3120.76,
+              "parse_us": 6532.5,
+              "serialize_us": 4563.3,
               "alloc_kb": 3716
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 4401.58,
-              "serialize_us": 1465.02,
+              "parse_us": 4290.12,
+              "serialize_us": 1474.59,
               "alloc_kb": 5860
             },
             {
               "library": "nlohmann",
-              "parse_us": 28666.95,
-              "serialize_us": 15222.2,
+              "parse_us": 26386.77,
+              "serialize_us": 15096.01,
               "alloc_kb": 5864
             }
           ]
@@ -175,38 +175,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 8820.32,
-              "serialize_us": 3119.03,
+              "parse_us": 8307.74,
+              "serialize_us": 3609.31,
               "alloc_kb": 8604
             },
             {
               "library": "simdjson",
-              "parse_us": 5568.36,
-              "serialize_us": 14534.07,
-              "alloc_kb": 26992
+              "parse_us": 6045.34,
+              "serialize_us": 14766.68,
+              "alloc_kb": 27028
             },
             {
               "library": "yyjson",
-              "parse_us": 6158.15,
-              "serialize_us": 4860.12,
+              "parse_us": 8895.42,
+              "serialize_us": 4536.23,
               "alloc_kb": 19116
             },
             {
               "library": "RapidJSON",
-              "parse_us": 16394.11,
-              "serialize_us": 17365.33,
-              "alloc_kb": 13992
+              "parse_us": 16672.5,
+              "serialize_us": 15412.79,
+              "alloc_kb": 13928
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 67349.31,
-              "serialize_us": 39118.18,
+              "parse_us": 71672.5,
+              "serialize_us": 39067.16,
               "alloc_kb": 60280
             },
             {
               "library": "nlohmann",
-              "parse_us": 143231.67,
-              "serialize_us": 38495.64,
+              "parse_us": 158326.75,
+              "serialize_us": 46117.29,
               "alloc_kb": 33912
             }
           ]
@@ -218,7 +218,7 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.27,
+              "parse_us": 0.29,
               "serialize_us": 0.06,
               "alloc_kb": 64
             },
@@ -230,20 +230,20 @@
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.16,
-              "serialize_us": 0.07,
+              "parse_us": 0.15,
+              "serialize_us": 0.09,
               "alloc_kb": 64
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.28,
-              "serialize_us": 0.81,
+              "parse_us": 1.66,
+              "serialize_us": 0.78,
               "alloc_kb": 68
             },
             {
               "library": "rapidjson-struct",
               "parse_us": 0.34,
-              "serialize_us": 0.31,
+              "serialize_us": 0.32,
               "alloc_kb": 0
             }
           ]
@@ -253,32 +253,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.61,
-              "serialize_us": 0.13,
+              "parse_us": 0.62,
+              "serialize_us": 0.12,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
               "parse_us": 0.28,
-              "serialize_us": 0.13,
+              "serialize_us": 0.12,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.28,
-              "serialize_us": 0.09,
+              "parse_us": 0.29,
+              "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 2.64,
-              "serialize_us": 1.4,
+              "parse_us": 2.62,
+              "serialize_us": 1.37,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.61,
-              "serialize_us": 0.51,
+              "parse_us": 0.8,
+              "serialize_us": 0.54,
               "alloc_kb": 0
             }
           ]
@@ -288,32 +288,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.89,
-              "serialize_us": 0.34,
+              "parse_us": 1.97,
+              "serialize_us": 0.36,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.99,
-              "serialize_us": 0.32,
+              "parse_us": 1.1,
+              "serialize_us": 0.35,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 1.14,
-              "serialize_us": 0.36,
-              "alloc_kb": 64
+              "parse_us": 1.08,
+              "serialize_us": 0.5,
+              "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 8.43,
-              "serialize_us": 4.82,
+              "parse_us": 8.33,
+              "serialize_us": 4.67,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 2.5,
-              "serialize_us": 1.5,
+              "parse_us": 2.08,
+              "serialize_us": 1.6,
               "alloc_kb": 0
             }
           ]
@@ -323,32 +323,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 72.2,
-              "serialize_us": 7.25,
+              "parse_us": 78.56,
+              "serialize_us": 7.56,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 27.46,
-              "serialize_us": 7.06,
+              "parse_us": 27.48,
+              "serialize_us": 7.24,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 38.21,
-              "serialize_us": 6.95,
+              "parse_us": 34.97,
+              "serialize_us": 13.48,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 240.82,
-              "serialize_us": 170.32,
+              "parse_us": 252.89,
+              "serialize_us": 158.46,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 68.63,
-              "serialize_us": 51.23,
+              "parse_us": 74.13,
+              "serialize_us": 49.87,
               "alloc_kb": 0
             }
           ]
@@ -358,32 +358,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 494.12,
-              "serialize_us": 19.86,
-              "alloc_kb": 8
+              "parse_us": 479.09,
+              "serialize_us": 22.96,
+              "alloc_kb": 68
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 88.49,
-              "serialize_us": 22.38,
+              "parse_us": 94.34,
+              "serialize_us": 20.71,
               "alloc_kb": 4
             },
             {
               "library": "glaze-struct",
-              "parse_us": 98.12,
-              "serialize_us": 23.29,
-              "alloc_kb": 84
+              "parse_us": 91.17,
+              "serialize_us": 28.26,
+              "alloc_kb": 24
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 505.15,
-              "serialize_us": 306.81,
-              "alloc_kb": 8
+              "parse_us": 519.5,
+              "serialize_us": 292.89,
+              "alloc_kb": 4
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 143.32,
-              "serialize_us": 74.03,
+              "parse_us": 143.96,
+              "serialize_us": 72.97,
               "alloc_kb": 0
             }
           ]
@@ -393,8 +393,8 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.48,
-              "serialize_us": 0.12,
+              "parse_us": 0.42,
+              "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
@@ -405,20 +405,20 @@
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.63,
-              "serialize_us": 0.15,
+              "parse_us": 0.2,
+              "serialize_us": 0.17,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 3.72,
-              "serialize_us": 1.69,
+              "parse_us": 3.69,
+              "serialize_us": 2.0,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.62,
-              "serialize_us": 0.69,
+              "parse_us": 0.79,
+              "serialize_us": 0.62,
               "alloc_kb": 0
             }
           ]
@@ -428,32 +428,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.42,
+              "parse_us": 0.78,
               "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.33,
-              "serialize_us": 0.17,
+              "parse_us": 0.15,
+              "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.28,
-              "serialize_us": 1.18,
+              "parse_us": 0.16,
+              "serialize_us": 0.13,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 3.63,
-              "serialize_us": 1.91,
+              "parse_us": 2.2,
+              "serialize_us": 1.55,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.48,
-              "serialize_us": 0.41,
+              "parse_us": 0.49,
+              "serialize_us": 0.42,
               "alloc_kb": 0
             }
           ]
@@ -463,32 +463,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.31,
+              "parse_us": 0.32,
               "serialize_us": 0.08,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.12,
+              "parse_us": 0.11,
               "serialize_us": 0.08,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.13,
+              "parse_us": 0.12,
               "serialize_us": 0.1,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.61,
-              "serialize_us": 0.84,
+              "parse_us": 1.58,
+              "serialize_us": 0.86,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.36,
-              "serialize_us": 0.3,
+              "parse_us": 0.37,
+              "serialize_us": 0.32,
               "alloc_kb": 0
             }
           ]
@@ -498,32 +498,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.78,
-              "serialize_us": 0.53,
+              "parse_us": 1.74,
+              "serialize_us": 0.51,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
               "parse_us": 0.47,
-              "serialize_us": 0.51,
+              "serialize_us": 0.5,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.64,
-              "serialize_us": 0.49,
+              "parse_us": 0.74,
+              "serialize_us": 0.52,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 11.41,
-              "serialize_us": 4.98,
+              "parse_us": 8.54,
+              "serialize_us": 6.48,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 2.73,
-              "serialize_us": 2.07,
+              "parse_us": 1.33,
+              "serialize_us": 1.86,
               "alloc_kb": 0
             }
           ]
@@ -535,14 +535,14 @@
           "results": [
             {
               "library": "qbuem-json (Go)",
-              "parse_us": 1.47,
+              "parse_us": 1.66,
               "serialize_us": 0.79,
               "alloc_kb": 0
             },
             {
               "library": "encoding/json (Go)",
-              "parse_us": 10.96,
-              "serialize_us": 9.43,
+              "parse_us": 12.27,
+              "serialize_us": 10.18,
               "alloc_kb": 0
             }
           ]
@@ -556,26 +556,26 @@
           "results": [
             {
               "library": "Python stdlib",
-              "parse_us": 48.93,
-              "serialize_us": 73.28,
+              "parse_us": 55.63,
+              "serialize_us": 77.42,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (ctypes)",
-              "parse_us": 132.32,
-              "serialize_us": 9.87,
+              "parse_us": 140.93,
+              "serialize_us": 9.06,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (nanobind)",
-              "parse_us": 10.82,
-              "serialize_us": 7.8,
+              "parse_us": 14.52,
+              "serialize_us": 10.03,
               "alloc_kb": 0
             },
             {
               "library": "orjson",
-              "parse_us": 17.73,
-              "serialize_us": 5.31,
+              "parse_us": 17.55,
+              "serialize_us": 6.33,
               "alloc_kb": 0
             }
           ]
@@ -591,38 +591,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 243.89,
-              "serialize_us": 97.05,
+              "parse_us": 578.67,
+              "serialize_us": 242.31,
               "alloc_kb": 288
             },
             {
               "library": "simdjson",
-              "parse_us": 228.05,
-              "serialize_us": 493.6,
+              "parse_us": 228.62,
+              "serialize_us": 832.35,
               "alloc_kb": 1648
             },
             {
               "library": "yyjson",
-              "parse_us": 195.78,
-              "serialize_us": 125.44,
+              "parse_us": 216.91,
+              "serialize_us": 303.84,
               "alloc_kb": 1136
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1315.67,
-              "serialize_us": 1200.18,
+              "parse_us": 1487.06,
+              "serialize_us": 1304.57,
               "alloc_kb": 1008
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2785.3,
-              "serialize_us": 307.86,
-              "alloc_kb": 2272
+              "parse_us": 2202.25,
+              "serialize_us": 605.73,
+              "alloc_kb": 2336
             },
             {
               "library": "nlohmann",
-              "parse_us": 5162.26,
-              "serialize_us": 2219.64,
+              "parse_us": 5639.73,
+              "serialize_us": 2503.91,
               "alloc_kb": 1712
             }
           ]
@@ -632,38 +632,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1987.04,
-              "serialize_us": 971.06,
-              "alloc_kb": 1792
+              "parse_us": 2676.27,
+              "serialize_us": 964.76,
+              "alloc_kb": 1824
             },
             {
               "library": "simdjson",
-              "parse_us": 2780.76,
-              "serialize_us": 11931.45,
-              "alloc_kb": 6288
+              "parse_us": 3648.68,
+              "serialize_us": 9676.42,
+              "alloc_kb": 6272
             },
             {
               "library": "yyjson",
-              "parse_us": 2265.12,
-              "serialize_us": 3380.64,
+              "parse_us": 1954.06,
+              "serialize_us": 2979.26,
               "alloc_kb": 4928
             },
             {
               "library": "RapidJSON",
-              "parse_us": 4944.04,
-              "serialize_us": 9006.75,
+              "parse_us": 5419.91,
+              "serialize_us": 8553.59,
               "alloc_kb": 5520
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 8454.09,
-              "serialize_us": 3452.05,
-              "alloc_kb": 7456
+              "parse_us": 9521.39,
+              "serialize_us": 3702.63,
+              "alloc_kb": 6992
             },
             {
               "library": "nlohmann",
-              "parse_us": 26683.48,
-              "serialize_us": 17373.78,
+              "parse_us": 23028.09,
+              "serialize_us": 13528.07,
               "alloc_kb": 4880
             }
           ]
@@ -673,39 +673,39 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 812.29,
-              "serialize_us": 227.66,
+              "parse_us": 1464.45,
+              "serialize_us": 406.02,
               "alloc_kb": 704
             },
             {
               "library": "simdjson",
-              "parse_us": 1028.07,
-              "serialize_us": 711.73,
+              "parse_us": 649.3,
+              "serialize_us": 927.44,
               "alloc_kb": 3488
             },
             {
               "library": "yyjson",
-              "parse_us": 944.34,
-              "serialize_us": 222.45,
+              "parse_us": 949.62,
+              "serialize_us": 306.84,
               "alloc_kb": 2784
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1677.79,
-              "serialize_us": 1211.7,
-              "alloc_kb": 1872
+              "parse_us": 1906.42,
+              "serialize_us": 1288.73,
+              "alloc_kb": 1744
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 3737.75,
-              "serialize_us": 742.59,
-              "alloc_kb": 4784
+              "parse_us": 3691.92,
+              "serialize_us": 827.99,
+              "alloc_kb": 4704
             },
             {
               "library": "nlohmann",
-              "parse_us": 11191.25,
-              "serialize_us": 1578.17,
-              "alloc_kb": 3072
+              "parse_us": 14039.71,
+              "serialize_us": 1957.83,
+              "alloc_kb": 3280
             }
           ]
         },
@@ -714,38 +714,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 879.0,
-              "serialize_us": 257.09,
+              "parse_us": 1000.69,
+              "serialize_us": 227.74,
               "alloc_kb": 368
             },
             {
               "library": "simdjson",
-              "parse_us": 1199.92,
-              "serialize_us": 6790.56,
+              "parse_us": 1518.25,
+              "serialize_us": 6388.92,
               "alloc_kb": 7072
             },
             {
               "library": "yyjson",
-              "parse_us": 1965.32,
-              "serialize_us": 1515.19,
+              "parse_us": 1732.47,
+              "serialize_us": 1578.29,
               "alloc_kb": 3952
             },
             {
               "library": "RapidJSON",
-              "parse_us": 9594.24,
-              "serialize_us": 10096.67,
-              "alloc_kb": 3968
+              "parse_us": 10168.69,
+              "serialize_us": 8135.31,
+              "alloc_kb": 3936
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 4296.94,
-              "serialize_us": 1260.18,
+              "parse_us": 3814.18,
+              "serialize_us": 1008.59,
               "alloc_kb": 8176
             },
             {
               "library": "nlohmann",
-              "parse_us": 18033.69,
-              "serialize_us": 16473.84,
+              "parse_us": 20428.19,
+              "serialize_us": 14887.17,
               "alloc_kb": 5264
             }
           ]
@@ -755,39 +755,39 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 6120.51,
-              "serialize_us": 3030.88,
+              "parse_us": 5667.26,
+              "serialize_us": 2601.57,
               "alloc_kb": 7072
             },
             {
               "library": "simdjson",
-              "parse_us": 7201.15,
-              "serialize_us": 18290.47,
+              "parse_us": 7947.36,
+              "serialize_us": 17444.42,
               "alloc_kb": 23568
             },
             {
               "library": "yyjson",
-              "parse_us": 9365.89,
-              "serialize_us": 4269.71,
+              "parse_us": 7855.87,
+              "serialize_us": 3977.35,
               "alloc_kb": 17344
             },
             {
               "library": "RapidJSON",
-              "parse_us": 16468.83,
-              "serialize_us": 13215.26,
-              "alloc_kb": 27360
+              "parse_us": 19903.78,
+              "serialize_us": 17171.24,
+              "alloc_kb": 29760
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 42497.78,
-              "serialize_us": 10698.16,
-              "alloc_kb": 40240
+              "parse_us": 50187.68,
+              "serialize_us": 13645.16,
+              "alloc_kb": 40336
             },
             {
               "library": "nlohmann",
-              "parse_us": 60294.98,
-              "serialize_us": 16311.3,
-              "alloc_kb": 26752
+              "parse_us": 82780.78,
+              "serialize_us": 22917.77,
+              "alloc_kb": 26864
             }
           ]
         }
@@ -798,8 +798,8 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.23,
-              "serialize_us": 0.06,
+              "parse_us": 0.74,
+              "serialize_us": 0.16,
               "alloc_kb": 64
             },
             {
@@ -810,20 +810,20 @@
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.07,
+              "parse_us": 0.08,
               "serialize_us": 0.08,
-              "alloc_kb": 32
+              "alloc_kb": 48
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 0.82,
-              "serialize_us": 0.68,
-              "alloc_kb": 80
+              "parse_us": 0.84,
+              "serialize_us": 0.7,
+              "alloc_kb": 96
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.31,
-              "serialize_us": 0.38,
+              "parse_us": 0.34,
+              "serialize_us": 0.36,
               "alloc_kb": 16
             }
           ]
@@ -833,32 +833,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.64,
-              "serialize_us": 0.08,
+              "parse_us": 0.69,
+              "serialize_us": 0.09,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.3,
+              "parse_us": 0.32,
               "serialize_us": 0.08,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.23,
-              "serialize_us": 0.09,
+              "parse_us": 0.24,
+              "serialize_us": 0.1,
               "alloc_kb": 16
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.76,
-              "serialize_us": 1.16,
+              "parse_us": 1.95,
+              "serialize_us": 1.29,
               "alloc_kb": 16
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.56,
-              "serialize_us": 0.45,
+              "parse_us": 0.6,
+              "serialize_us": 0.49,
               "alloc_kb": 0
             }
           ]
@@ -868,32 +868,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.64,
-              "serialize_us": 0.25,
+              "parse_us": 1.77,
+              "serialize_us": 0.27,
               "alloc_kb": 32
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.97,
-              "serialize_us": 0.24,
+              "parse_us": 1.01,
+              "serialize_us": 0.26,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.87,
-              "serialize_us": 1.06,
+              "parse_us": 0.95,
+              "serialize_us": 1.16,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 5.53,
-              "serialize_us": 3.9,
+              "parse_us": 5.56,
+              "serialize_us": 4.08,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 1.68,
-              "serialize_us": 1.52,
+              "parse_us": 1.78,
+              "serialize_us": 1.63,
               "alloc_kb": 0
             }
           ]
@@ -903,32 +903,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 72.6,
-              "serialize_us": 6.25,
+              "parse_us": 74.92,
+              "serialize_us": 6.23,
               "alloc_kb": 16
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 29.89,
-              "serialize_us": 6.18,
+              "parse_us": 30.69,
+              "serialize_us": 6.14,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 26.15,
-              "serialize_us": 11.24,
+              "parse_us": 26.09,
+              "serialize_us": 10.34,
               "alloc_kb": 16
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 194.32,
-              "serialize_us": 132.82,
+              "parse_us": 198.22,
+              "serialize_us": 138.76,
               "alloc_kb": 112
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 46.1,
-              "serialize_us": 83.45,
+              "parse_us": 47.21,
+              "serialize_us": 96.75,
               "alloc_kb": 0
             }
           ]
@@ -938,32 +938,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 418.18,
-              "serialize_us": 13.45,
-              "alloc_kb": 448
+              "parse_us": 445.93,
+              "serialize_us": 16.46,
+              "alloc_kb": 432
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 56.83,
-              "serialize_us": 13.5,
-              "alloc_kb": 16
+              "parse_us": 60.89,
+              "serialize_us": 14.47,
+              "alloc_kb": 32
             },
             {
               "library": "glaze-struct",
-              "parse_us": 63.72,
-              "serialize_us": 16.07,
+              "parse_us": 83.04,
+              "serialize_us": 49.23,
               "alloc_kb": 48
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 307.27,
-              "serialize_us": 187.26,
+              "parse_us": 373.63,
+              "serialize_us": 298.08,
               "alloc_kb": 64
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 113.24,
-              "serialize_us": 84.93,
+              "parse_us": 131.26,
+              "serialize_us": 85.42,
               "alloc_kb": 32
             }
           ]
@@ -973,32 +973,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.33,
+              "parse_us": 0.34,
               "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.14,
+              "parse_us": 0.13,
               "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
               "parse_us": 0.1,
-              "serialize_us": 0.1,
+              "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.17,
-              "serialize_us": 0.81,
+              "parse_us": 1.18,
+              "serialize_us": 0.86,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.33,
-              "serialize_us": 0.33,
+              "parse_us": 0.35,
+              "serialize_us": 0.37,
               "alloc_kb": 0
             }
           ]
@@ -1008,32 +1008,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.34,
+              "parse_us": 0.37,
               "serialize_us": 0.09,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.16,
+              "parse_us": 0.17,
               "serialize_us": 0.09,
               "alloc_kb": 16
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.12,
+              "parse_us": 0.13,
               "serialize_us": 0.1,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.23,
-              "serialize_us": 0.96,
-              "alloc_kb": 0
+              "parse_us": 1.33,
+              "serialize_us": 1.05,
+              "alloc_kb": 16
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.39,
-              "serialize_us": 0.37,
+              "parse_us": 0.42,
+              "serialize_us": 0.39,
               "alloc_kb": 0
             }
           ]
@@ -1043,13 +1043,13 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 0.26,
-              "serialize_us": 0.07,
+              "parse_us": 0.28,
+              "serialize_us": 0.08,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.11,
+              "parse_us": 0.12,
               "serialize_us": 0.07,
               "alloc_kb": 0
             },
@@ -1061,14 +1061,14 @@
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 0.92,
-              "serialize_us": 0.71,
+              "parse_us": 0.97,
+              "serialize_us": 0.74,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
               "parse_us": 0.32,
-              "serialize_us": 0.31,
+              "serialize_us": 0.32,
               "alloc_kb": 0
             }
           ]
@@ -1078,32 +1078,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.54,
-              "serialize_us": 0.5,
+              "parse_us": 1.58,
+              "serialize_us": 0.53,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.53,
-              "serialize_us": 0.51,
+              "parse_us": 0.55,
+              "serialize_us": 0.52,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.58,
-              "serialize_us": 0.54,
+              "parse_us": 0.61,
+              "serialize_us": 0.56,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 5.44,
-              "serialize_us": 3.72,
+              "parse_us": 5.63,
+              "serialize_us": 3.88,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 1.05,
-              "serialize_us": 1.23,
+              "parse_us": 1.21,
+              "serialize_us": 1.3,
               "alloc_kb": 0
             }
           ]
@@ -1115,14 +1115,14 @@
           "results": [
             {
               "library": "qbuem-json (Go)",
-              "parse_us": 1.11,
-              "serialize_us": 0.58,
+              "parse_us": 1.6,
+              "serialize_us": 0.65,
               "alloc_kb": 0
             },
             {
               "library": "encoding/json (Go)",
-              "parse_us": 9.86,
-              "serialize_us": 7.75,
+              "parse_us": 13.65,
+              "serialize_us": 9.34,
               "alloc_kb": 0
             }
           ]
@@ -1136,26 +1136,26 @@
           "results": [
             {
               "library": "Python stdlib",
-              "parse_us": 34.92,
-              "serialize_us": 48.65,
+              "parse_us": 50.37,
+              "serialize_us": 72.15,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (ctypes)",
-              "parse_us": 11.03,
-              "serialize_us": 4.7,
+              "parse_us": 11.3,
+              "serialize_us": 12.6,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (nanobind)",
-              "parse_us": 5.57,
-              "serialize_us": 3.95,
+              "parse_us": 7.56,
+              "serialize_us": 6.09,
               "alloc_kb": 0
             },
             {
               "library": "orjson",
-              "parse_us": 12.76,
-              "serialize_us": 5.46,
+              "parse_us": 21.58,
+              "serialize_us": 11.97,
               "alloc_kb": 0
             }
           ]
@@ -1171,38 +1171,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 263.52,
-              "serialize_us": 104.79,
+              "parse_us": 262.52,
+              "serialize_us": 103.58,
               "alloc_kb": 360
             },
             {
               "library": "simdjson",
-              "parse_us": 335.29,
-              "serialize_us": 595.56,
+              "parse_us": 336.99,
+              "serialize_us": 579.2,
               "alloc_kb": 1728
             },
             {
               "library": "yyjson",
-              "parse_us": 461.95,
-              "serialize_us": 139.79,
+              "parse_us": 462.79,
+              "serialize_us": 140.77,
               "alloc_kb": 1368
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1373.16,
-              "serialize_us": 925.93,
+              "parse_us": 1475.9,
+              "serialize_us": 924.11,
               "alloc_kb": 1164
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 2117.67,
-              "serialize_us": 378.12,
-              "alloc_kb": 2340
+              "parse_us": 2102.33,
+              "serialize_us": 375.72,
+              "alloc_kb": 2336
             },
             {
               "library": "nlohmann",
-              "parse_us": 5907.15,
-              "serialize_us": 1577.72,
+              "parse_us": 5946.55,
+              "serialize_us": 1563.0,
               "alloc_kb": 2416
             }
           ]
@@ -1212,38 +1212,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1731.68,
-              "serialize_us": 505.53,
+              "parse_us": 1748.43,
+              "serialize_us": 507.94,
               "alloc_kb": 1876
             },
             {
               "library": "simdjson",
-              "parse_us": 2648.1,
-              "serialize_us": 7199.31,
+              "parse_us": 2643.72,
+              "serialize_us": 7186.26,
               "alloc_kb": 6324
             },
             {
               "library": "yyjson",
-              "parse_us": 1984.1,
-              "serialize_us": 2742.57,
+              "parse_us": 1995.2,
+              "serialize_us": 2746.04,
               "alloc_kb": 5136
             },
             {
               "library": "RapidJSON",
-              "parse_us": 4665.22,
-              "serialize_us": 6423.09,
+              "parse_us": 4669.88,
+              "serialize_us": 6421.98,
               "alloc_kb": 4360
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 7853.34,
-              "serialize_us": 3546.27,
+              "parse_us": 7850.07,
+              "serialize_us": 3525.7,
               "alloc_kb": 10800
             },
             {
               "library": "nlohmann",
-              "parse_us": 36245.57,
-              "serialize_us": 8688.83,
+              "parse_us": 36297.54,
+              "serialize_us": 8800.42,
               "alloc_kb": 5852
             }
           ]
@@ -1253,38 +1253,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 639.64,
-              "serialize_us": 241.89,
+              "parse_us": 641.34,
+              "serialize_us": 246.42,
               "alloc_kb": 796
             },
             {
               "library": "simdjson",
-              "parse_us": 801.67,
-              "serialize_us": 814.4,
+              "parse_us": 800.96,
+              "serialize_us": 795.09,
               "alloc_kb": 3544
             },
             {
               "library": "yyjson",
-              "parse_us": 1177.95,
-              "serialize_us": 242.82,
+              "parse_us": 1152.91,
+              "serialize_us": 240.1,
               "alloc_kb": 3004
             },
             {
               "library": "RapidJSON",
-              "parse_us": 1989.85,
-              "serialize_us": 996.2,
+              "parse_us": 1956.74,
+              "serialize_us": 994.73,
               "alloc_kb": 1784
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 3559.33,
-              "serialize_us": 817.84,
-              "alloc_kb": 4432
+              "parse_us": 3538.89,
+              "serialize_us": 809.54,
+              "alloc_kb": 4436
             },
             {
               "library": "nlohmann",
-              "parse_us": 10633.68,
-              "serialize_us": 1984.31,
+              "parse_us": 11027.77,
+              "serialize_us": 1941.31,
               "alloc_kb": 4240
             }
           ]
@@ -1294,38 +1294,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 661.35,
-              "serialize_us": 260.44,
+              "parse_us": 659.25,
+              "serialize_us": 254.88,
               "alloc_kb": 456
             },
             {
               "library": "simdjson",
-              "parse_us": 1334.9,
-              "serialize_us": 4876.34,
+              "parse_us": 1349.58,
+              "serialize_us": 4863.53,
               "alloc_kb": 7120
             },
             {
               "library": "yyjson",
-              "parse_us": 2051.0,
-              "serialize_us": 882.74,
+              "parse_us": 2019.01,
+              "serialize_us": 882.87,
               "alloc_kb": 4168
             },
             {
               "library": "RapidJSON",
-              "parse_us": 7770.82,
-              "serialize_us": 5633.36,
+              "parse_us": 7851.43,
+              "serialize_us": 5662.44,
               "alloc_kb": 4124
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 4356.06,
-              "serialize_us": 1335.29,
+              "parse_us": 4321.99,
+              "serialize_us": 1323.64,
               "alloc_kb": 5632
             },
             {
               "library": "nlohmann",
-              "parse_us": 25139.13,
-              "serialize_us": 8438.98,
+              "parse_us": 25361.46,
+              "serialize_us": 8338.38,
               "alloc_kb": 6120
             }
           ]
@@ -1335,38 +1335,38 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 5786.34,
-              "serialize_us": 2161.76,
+              "parse_us": 5790.74,
+              "serialize_us": 2167.14,
               "alloc_kb": 7160
             },
             {
               "library": "simdjson",
-              "parse_us": 7304.29,
-              "serialize_us": 12560.25,
+              "parse_us": 7318.76,
+              "serialize_us": 12401.36,
               "alloc_kb": 23616
             },
             {
               "library": "yyjson",
-              "parse_us": 5597.2,
-              "serialize_us": 3504.12,
+              "parse_us": 5587.25,
+              "serialize_us": 3499.28,
               "alloc_kb": 17548
             },
             {
               "library": "RapidJSON",
-              "parse_us": 18457.29,
-              "serialize_us": 13430.35,
+              "parse_us": 18369.83,
+              "serialize_us": 13512.14,
               "alloc_kb": 18000
             },
             {
               "library": "Glaze DOM",
-              "parse_us": 50220.17,
-              "serialize_us": 32368.39,
+              "parse_us": 51044.52,
+              "serialize_us": 31754.0,
               "alloc_kb": 59632
             },
             {
               "library": "nlohmann",
-              "parse_us": 143074.31,
-              "serialize_us": 40191.88,
+              "parse_us": 141139.65,
+              "serialize_us": 44939.48,
               "alloc_kb": 34040
             }
           ]
@@ -1379,7 +1379,7 @@
             {
               "library": "qbuem-json (DOM)",
               "parse_us": 0.3,
-              "serialize_us": 0.06,
+              "serialize_us": 0.05,
               "alloc_kb": 128
             },
             {
@@ -1391,18 +1391,18 @@
             {
               "library": "glaze-struct",
               "parse_us": 0.12,
-              "serialize_us": 0.09,
+              "serialize_us": 0.1,
               "alloc_kb": 64
             },
             {
               "library": "nlohmann-struct",
               "parse_us": 1.17,
-              "serialize_us": 0.72,
+              "serialize_us": 0.71,
               "alloc_kb": 4
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.39,
+              "parse_us": 0.53,
               "serialize_us": 0.32,
               "alloc_kb": 0
             }
@@ -1425,20 +1425,20 @@
             },
             {
               "library": "glaze-struct",
-              "parse_us": 0.28,
+              "parse_us": 0.27,
               "serialize_us": 0.11,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 2.28,
-              "serialize_us": 1.34,
+              "parse_us": 2.26,
+              "serialize_us": 1.17,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
               "parse_us": 0.72,
-              "serialize_us": 0.52,
+              "serialize_us": 0.53,
               "alloc_kb": 0
             }
           ]
@@ -1448,31 +1448,31 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.94,
+              "parse_us": 1.95,
               "serialize_us": 0.3,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 1.02,
-              "serialize_us": 0.29,
+              "parse_us": 1.06,
+              "serialize_us": 0.3,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
               "parse_us": 0.99,
-              "serialize_us": 0.39,
+              "serialize_us": 0.38,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 7.18,
-              "serialize_us": 4.01,
+              "parse_us": 7.49,
+              "serialize_us": 4.08,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 2.4,
+              "parse_us": 2.27,
               "serialize_us": 1.61,
               "alloc_kb": 0
             }
@@ -1483,32 +1483,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 83.73,
-              "serialize_us": 7.64,
+              "parse_us": 81.74,
+              "serialize_us": 7.7,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 26.59,
-              "serialize_us": 7.51,
+              "parse_us": 26.8,
+              "serialize_us": 10.56,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 32.73,
-              "serialize_us": 8.42,
+              "parse_us": 32.91,
+              "serialize_us": 8.3,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 236.41,
-              "serialize_us": 138.39,
+              "parse_us": 233.8,
+              "serialize_us": 139.12,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 78.92,
-              "serialize_us": 52.51,
+              "parse_us": 79.09,
+              "serialize_us": 52.38,
               "alloc_kb": 0
             }
           ]
@@ -1518,32 +1518,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 444.7,
-              "serialize_us": 16.68,
+              "parse_us": 445.2,
+              "serialize_us": 16.58,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 86.6,
-              "serialize_us": 16.32,
+              "parse_us": 84.7,
+              "serialize_us": 16.38,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
-              "parse_us": 74.52,
-              "serialize_us": 18.09,
-              "alloc_kb": 64
+              "parse_us": 76.36,
+              "serialize_us": 18.45,
+              "alloc_kb": 68
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 444.05,
-              "serialize_us": 248.75,
+              "parse_us": 451.74,
+              "serialize_us": 246.33,
               "alloc_kb": 20
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 144.06,
-              "serialize_us": 80.47,
+              "parse_us": 146.91,
+              "serialize_us": 76.73,
               "alloc_kb": 0
             }
           ]
@@ -1566,19 +1566,19 @@
             {
               "library": "glaze-struct",
               "parse_us": 0.12,
-              "serialize_us": 0.09,
+              "serialize_us": 0.1,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.57,
-              "serialize_us": 0.9,
+              "parse_us": 1.73,
+              "serialize_us": 0.88,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
               "parse_us": 0.44,
-              "serialize_us": 0.37,
+              "serialize_us": 0.38,
               "alloc_kb": 0
             }
           ]
@@ -1606,13 +1606,13 @@
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.92,
-              "serialize_us": 1.05,
+              "parse_us": 1.79,
+              "serialize_us": 1.13,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.53,
+              "parse_us": 0.54,
               "serialize_us": 0.41,
               "alloc_kb": 0
             }
@@ -1641,14 +1641,14 @@
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 1.3,
-              "serialize_us": 0.75,
+              "parse_us": 1.32,
+              "serialize_us": 0.84,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
-              "parse_us": 0.39,
-              "serialize_us": 0.32,
+              "parse_us": 0.4,
+              "serialize_us": 0.33,
               "alloc_kb": 0
             }
           ]
@@ -1658,32 +1658,32 @@
           "results": [
             {
               "library": "qbuem-json (DOM)",
-              "parse_us": 1.76,
+              "parse_us": 1.75,
               "serialize_us": 0.45,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (Nexus)",
-              "parse_us": 0.45,
-              "serialize_us": 0.43,
+              "parse_us": 0.47,
+              "serialize_us": 0.44,
               "alloc_kb": 0
             },
             {
               "library": "glaze-struct",
               "parse_us": 0.58,
-              "serialize_us": 0.43,
+              "serialize_us": 0.47,
               "alloc_kb": 0
             },
             {
               "library": "nlohmann-struct",
-              "parse_us": 7.19,
-              "serialize_us": 4.39,
+              "parse_us": 7.34,
+              "serialize_us": 4.17,
               "alloc_kb": 0
             },
             {
               "library": "rapidjson-struct",
               "parse_us": 1.47,
-              "serialize_us": 1.83,
+              "serialize_us": 1.81,
               "alloc_kb": 0
             }
           ]
@@ -1696,13 +1696,13 @@
             {
               "library": "qbuem-json (Go)",
               "parse_us": 1.39,
-              "serialize_us": 0.64,
+              "serialize_us": 0.65,
               "alloc_kb": 0
             },
             {
               "library": "encoding/json (Go)",
-              "parse_us": 11.6,
-              "serialize_us": 10.35,
+              "parse_us": 11.69,
+              "serialize_us": 10.51,
               "alloc_kb": 0
             }
           ]
@@ -1716,26 +1716,26 @@
           "results": [
             {
               "library": "Python stdlib",
-              "parse_us": 51.11,
-              "serialize_us": 68.59,
+              "parse_us": 50.85,
+              "serialize_us": 68.56,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (ctypes)",
-              "parse_us": 59.67,
-              "serialize_us": 6.5,
+              "parse_us": 59.61,
+              "serialize_us": 6.85,
               "alloc_kb": 0
             },
             {
               "library": "qbuem-json (nanobind)",
-              "parse_us": 7.75,
-              "serialize_us": 4.79,
+              "parse_us": 7.74,
+              "serialize_us": 4.74,
               "alloc_kb": 0
             },
             {
               "library": "orjson",
-              "parse_us": 15.95,
-              "serialize_us": 5.52,
+              "parse_us": 15.89,
+              "serialize_us": 5.51,
               "alloc_kb": 0
             }
           ]
