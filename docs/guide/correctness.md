@@ -187,6 +187,47 @@ request (the `conformance` job in [ci.yml](https://github.com/qbuem/qbuem-json/b
 
 ---
 
+## JSON Schema validation (interop)
+
+qbuem-json **does not ship a JSON Schema validator**, and that is a deliberate
+scope decision, not a gap:
+
+- **For known C++ shapes, you don't need one.** `QBUEM_JSON_FIELDS` + `read<T>()`
+  / `fuse<T>` give you *compile-time* structural validation: a missing or
+  mistyped field is already a typed parse error. That is stronger and faster than
+  a runtime schema check, with zero schema document to maintain.
+
+  ```cpp
+  struct CreateUser { std::string name; int age; };
+  QBUEM_JSON_FIELDS(CreateUser, name, age)
+
+  auto r = qbuem::read<CreateUser>(body);   // wrong type / missing field → r is an error
+  if (!r) return reject(r.error());          // no JSON Schema needed
+  ```
+
+- **For dynamic JSON against an *external* schema** (OpenAPI 3.1, the MCP default
+  dialect, etc.), validate at the trust boundary with a dedicated, fully
+  Draft-2020-12-compliant library — [jsoncons
+  `jsonschema`](https://github.com/danielaparker/jsoncons),
+  [blaze](https://github.com/sourcemeta/blaze), or
+  [valijson](https://github.com/tristanpenman/valijson) — then hand the accepted
+  payload to qbuem-json for fast parsing / mapping:
+
+  ```cpp
+  // 1) validate untrusted text against the schema (dedicated lib, once, at the edge)
+  if (!schema_validator.is_valid(untrusted_text)) return reject();
+  // 2) parse the now-trusted bytes with qbuem-json (fast path)
+  auto doc = qbuem::read<RequestDto>(untrusted_text);
+  ```
+
+A single-header JSON parser and a Draft-2020-12 schema engine (with `$ref`
+resolution, recursive schemas, and format/pattern validators) are different
+tools; keeping them separate keeps this library single-header, zero-dependency,
+and fast, while letting you pair it with a best-in-class validator when you
+genuinely need runtime schema enforcement.
+
+---
+
 ## Memory safety — sanitizers
 
 Sanitizer CI runs on every push and pull request to `main` when `include/`,
