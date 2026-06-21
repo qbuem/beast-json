@@ -119,3 +119,30 @@ TEST(ApplyPatch, FailedOpThrows) {
                                         std::string_view("not-an-array")),
                qbuem::parse_error);
 }
+
+TEST(Diff, ToVariantAppendsAndMatchesStringForm) {
+  // string_view overload: appends the patch onto the caller's buffer.
+  std::string buf = "P:";
+  qbuem::diff_to(buf, std::string_view("{\"a\":1}"), std::string_view("{\"a\":2}"));
+  EXPECT_EQ(buf, "P:[{\"op\":\"replace\",\"path\":\"/a\",\"value\":2}]");
+
+  // Value overload over an already-parsed pair matches the string-returning form.
+  qbuem::Document fd, td;
+  qbuem::Value f = qbuem::parse(fd, "{\"a\":1,\"b\":2}");
+  qbuem::Value t = qbuem::parse(td, "{\"a\":1,\"c\":3}");
+  std::string vbuf;
+  qbuem::diff_to(vbuf, f, t);
+  EXPECT_EQ(vbuf, qbuem::diff(f, t));
+}
+
+TEST(ApplyPatch, ToVariantAppendsToBuffer) {
+  std::string buf = "<<";
+  qbuem::apply_patch_to(buf, std::string_view("{\"a\":1}"),
+                        std::string_view(R"([{"op":"add","path":"/b","value":2}])"));
+  EXPECT_EQ(buf, "<<{\"a\":1,\"b\":2}");
+  // Failure path still throws, even with a pre-filled buffer.
+  std::string b2 = "x";
+  EXPECT_THROW(qbuem::apply_patch_to(b2, std::string_view("{\"a\":1}"),
+                                     std::string_view(R"([{"op":"remove","path":"/nope"}])")),
+               std::runtime_error);
+}

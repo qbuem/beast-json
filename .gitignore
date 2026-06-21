@@ -86,6 +86,22 @@ fuzz/*.profraw
 fuzz/*.profdata
 fuzz/coverage_report/
 fuzz/corpus_fuzz_*/
+# Locally-grown libFuzzer corpus (SHA1-named entries). The curated named seeds
+# below stay tracked; new named seeds need `git add -f`.
+fuzz/corpus/*
+!fuzz/corpus/false
+!fuzz/corpus/float_val
+!fuzz/corpus/mixed
+!fuzz/corpus/ndjson-null-doc-regression
+!fuzz/corpus/nested_array
+!fuzz/corpus/nested_object
+!fuzz/corpus/null
+!fuzz/corpus/simple_array
+!fuzz/corpus/simple_object
+!fuzz/corpus/simple_string
+!fuzz/corpus/true
+!fuzz/corpus/unicode_string
+!fuzz/corpus/zero
 crash-*
 oom-*
 leak-*

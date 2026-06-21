@@ -109,3 +109,14 @@ TEST_F(JsonPath, OutOfRangeIndexRejectedNotWrapped) {
   // A large-but-representable index simply doesn't match.
   EXPECT_TRUE(qbuem::query(root, "$.nums[1000000000]").empty());
 }
+
+TEST_F(JsonPath, JsonpathAliasMatchesQuery) {
+  // qbuem::jsonpath is an exact alias for qbuem::query (the RFC 9535 spelling).
+  auto a = qbuem::jsonpath(root, "$.store.book[*].author");
+  auto b = qbuem::query(root, "$.store.book[*].author");
+  ASSERT_EQ(a.size(), b.size());
+  ASSERT_EQ(a.size(), 3u);
+  for (size_t i = 0; i < a.size(); ++i)
+    EXPECT_EQ(a[i].as<std::string_view>(), b[i].as<std::string_view>());
+  EXPECT_THROW((void)qbuem::jsonpath(root, "store.x"), qbuem::parse_error);
+}

@@ -50,3 +50,15 @@ TEST(Canonical, ArraysPreserveOrderAndScalarsRoundTrip) {
 TEST(Canonical, InvalidInputThrows) {
   EXPECT_THROW((void)qbuem::canonicalize("{\"a\":}"), qbuem::parse_error);
 }
+
+TEST(Canonical, ToVariantAppendsToBuffer) {
+  // canonicalize_to APPENDS to the caller's buffer (reuses its content), and
+  // produces the same bytes the string-returning overload would.
+  std::string buf = "PREFIX:";
+  qbuem::canonicalize_to(buf, "{ \"b\":1, \"a\":2 }");
+  EXPECT_EQ(buf, "PREFIX:{\"a\":2,\"b\":1}");
+
+  std::string fresh;
+  qbuem::canonicalize_to(fresh, "{\"x\":1.50}");
+  EXPECT_EQ(fresh, qbuem::canonicalize("{\"x\":1.50}"));
+}
