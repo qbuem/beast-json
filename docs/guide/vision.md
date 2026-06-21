@@ -38,17 +38,21 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 ## Tier 3 — Longer-term
 
 - ✅ **JSON diff / patch generation** — `qbuem::diff` + a complete functional RFC 6902 `apply_patch` (real-time state sync) *(v1.11.0)*.
-- ⬜ **JSON Schema** (Draft-7 → 2020-12 subset) validation — OpenAPI / MCP alignment.
-- ⬜ **Schemaless On-Demand lazy cursor** — parse only the values you touch.
-- ⬜ **Chunked / incremental (socket) parsing** — resumable feeding from a partial buffer.
-- 🚧 **Packaging** — `find_package(qbuem_json CONFIG)` fixed, Conan recipe + vcpkg port shipped, CI-verified *(v1.11.1)*; registry submission (ConanCenter / vcpkg) is the remaining step.
-- ⬜ **C++26 P2996 reflection backend** — macro-free registration as an *opt-in fast-lane* once stable
-  compilers ship (the macro stays the portable default).
+- ✅ **Packaging + conformance** — `find_package(qbuem_json CONFIG)`, Conan recipe + vcpkg port *(v1.11.1)*, and a full [JSONTestSuite conformance run](/guide/correctness#jsontestsuite-conformance) (283/283 mandatory cases under ASan+UBSan).
+- ❌ **JSON Schema** validation — **declined**: not differentiated (jsoncons / blaze / valijson already do it well), an L–XL subset would bloat the single header, and known C++ shapes get *compile-time* validation from `fuse<T>` already. We [document interop](/guide/correctness#json-schema-validation-interop) instead.
+- ❌ **Schemaless On-Demand lazy cursor** — **declined**: a simdjson parity-chase; the flat-tape DOM + `fuse` already cover our cases, and the iterator-invalidation semantics are high regression risk.
+- ⏸️ **Chunked / incremental (socket) parsing** — **deferred**: WebSocket frames and framed CBOR are already message-delimited, so a full message arrives before parse.
+- ⏸️ **C++26 P2996 reflection backend** — **gated** to stable compilers (~2028): macro-free registration as an *opt-in fast-lane* (the macro stays the portable default).
+
+The curated roadmap is **complete as of v1.13.0** — Tier 1, Tier 2, and the subset
+of Tier 3 that fits the library's identity are shipped; everything else above is a
+conscious decline/defer/gate. Further work is demand-driven, not roadmap-driven.
 
 ## Declined
 
 Speculative or niche items we are intentionally **not** pursuing (would fail the guiding rules):
 coroutine/async parsing, intra-document multithreading, constexpr JSON parsing; JMESPath / JSONata /
-jq embedding (JSONPath covers the query need); BSON, Amazon Ion, Apache Arrow/columnar,
-FlatBuffers/Cap'n Proto; and the old vision's "Protocol Shifting (SBE/FIX)", "IDL Inference", and
-"Nexus Codegen". (SVE, language bindings, and `std::pmr` from the old vision are **already shipped**.)
+jq embedding (JSONPath — now with filters — covers the query need); BSON, Amazon Ion, Apache
+Arrow/columnar, FlatBuffers/Cap'n Proto; and the old vision's "Protocol Shifting (SBE/FIX)", "IDL
+Inference", and "Nexus Codegen". (SVE, language bindings, and `std::pmr` from the old vision are
+**already shipped**.)

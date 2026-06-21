@@ -55,14 +55,33 @@ differentiators where few competitors play.
 
 ## Tier 3 — Longer-term / heavier
 
-| # | Feature | Why | Effort |
-|---|---------|-----|--------|
-| 10 | **JSON Schema (Draft-7 → 2020-12 subset)** validation | Strongest *external* demand (OpenAPI 3.1/3.2, MCP default dialect) but heaviest; ship a subset or document blaze/jsoncons interop. | **L–XL** |
-| 11 | **Structural diff / patch generation** (compute a minimal 6902 patch between two docs) | Natural extension of our existing 6902; powers real-time **game state sync** (our use case). | **M–L** |
-| 12 | **Schemaless On-Demand lazy cursor** (parse only what you touch) | simdjson's headline model; our `fuse` already covers the *known-schema* case, this is the schemaless gap. Subtle iterator-invalidation semantics. | **L** |
-| 13 | **Chunked / incremental (socket) parsing** — resumable `write_some`-style feeding | Parse straight off a socket without full buffering; pairs with framed CBOR. | **M** |
-| 14 | **Packaging**: vcpkg + Conan registry entries; explicit **JSONTestSuite** conformance badge | Adoption + credibility; we are single-header + fuzzed already, this is the last mile. | **S** |
-| 15 | **C++26 P2996 reflection backend** (opt-in, `#ifdef __cpp_reflection`) | Macro-free registration as an *additive fast-lane* (Glaze's dual-mode). **Not** a baseline — no stable compiler until ~2028; keep the macro as the portable default. | **L** |
+| # | Feature | Why | Effort | Status |
+|---|---------|-----|--------|--------|
+| 10 | ~~**JSON Schema (Draft-7 → 2020-12 subset)** validation~~ | Strongest *external* demand (OpenAPI 3.1/3.2, MCP default dialect) but heaviest. | **L–XL** | ❌ **DECLINED** (2026-06-21) — see below |
+| 11 | ✅ **Structural diff / patch generation** *(v1.11.0, `qbuem::diff` + functional RFC 6902 `apply_patch`)* | Natural extension of our existing 6902; powers real-time **game state sync** (our use case). | **M–L** | done |
+| 12 | ❌ **Schemaless On-Demand lazy cursor** — **DECLINED** | simdjson parity-chase; our flat-tape DOM + `fuse` already cover the known-schema case, and the iterator-invalidation semantics are a high regression-risk surface for a benefit our use case doesn't need. | — | declined |
+| 13 | ⏸️ **Chunked / incremental (socket) parsing** — **DEFERRED** | WebSocket frames and framed CBOR are already message-delimited, so a whole message arrives before parse — the incremental need is largely already met. Revisit only if a real streaming workload appears. | **M** | deferred |
+| 14 | ✅ **Packaging** *(v1.11.1 vcpkg + Conan)* + **JSONTestSuite conformance** *(283/283 mandatory, ASan+UBSan CI)* | Adoption + credibility; we are single-header + fuzzed already, this was the last mile. | **S** | done |
+| 15 | ⏸️ **C++26 P2996 reflection backend** (opt-in, `#ifdef __cpp_reflection`) — **GATED** | Macro-free registration as an *additive fast-lane* (Glaze's dual-mode). **Not** a baseline — no stable compiler until ~2028; keep the macro as the portable default. | **L** | gated to ~2028 |
+
+### #10 JSON Schema — DECLINED (build) / document interop instead
+
+Validating against an external JSON Schema is a runtime concern, and three things
+make shipping our own validator a poor fit:
+
+1. **Not differentiated** — jsoncons (`jsonschema`), blaze, and valijson already
+   do this well. A partial Draft-2020-12 subset would *copy for parity* (rule #2)
+   while inviting "looks like Schema but isn't" frustration.
+2. **Over-engineering risk** — even a subset is L–XL (`$ref` resolution,
+   recursive schemas, format/pattern validators) and would noticeably bloat the
+   single header (rule #3).
+3. **Our use case doesn't need it** — for known C++ shapes, `fuse<T>` /
+   `QBUEM_JSON_FIELDS` give *compile-time* structural validation: a missing or
+   mistyped field is already a parse error, stronger than a runtime schema check.
+
+→ Instead we **document interop**: validate dynamic/untrusted JSON at the trust
+boundary with a dedicated library, then parse with qbuem-json for speed. See the
+[Correctness guide → Schema validation](https://qbuem.com/qbuem-json/guide/correctness#json-schema-validation-interop).
 
 ## Defer / Decline (low ROI or speculative)
 
@@ -80,8 +99,18 @@ differentiators where few competitors play.
   cross-language) where we already lead.
 - **Tier 2 = "feature parity + reach."** JSONPath + SAX close the last big functional gaps;
   WASM + MessagePack + runtime dispatch extend reach without diluting the core.
-- **Tier 3 = "depth bets."** Schema and the On-Demand cursor are large; take them on once the
-  Tier 1/2 base is broad. P2996 is the future, gated and additive — never the baseline.
+- **Tier 3 = "depth bets."** Shipped the two that fit our identity (structural diff/patch +
+  packaging/conformance). Declined the rest after curation: JSON Schema (not differentiated,
+  over-engineering risk — document interop instead), the On-Demand lazy cursor (simdjson
+  parity-chase), and incremental socket parsing (deferred — framing already covers it). P2996
+  is the future, gated and additive — never the baseline.
+
+## Status (2026-06-21): curated roadmap complete
+
+Tier 1 + Tier 2 + the curated subset of Tier 3 are shipped through **v1.13.0**. Every remaining
+candidate is consciously **declined / deferred / gated** above (not forgotten). The library is
+feature-complete for its identity — *fastest + safest single-header C++20 JSON, dual-engine, with
+a cross-language binary (CBOR) story*. Further work is demand-driven, not roadmap-driven.
 
 ### Sources
 RFC 9535 JSONPath (Feb 2024) · RFC 8785 JCS · RFC 8949 §4.2 deterministic CBOR · JSON Schema
