@@ -78,6 +78,9 @@ add_qbuem_gtest(test_canonical)
 add_qbuem_gtest(test_jsonpath)
 add_qbuem_gtest(test_sax)
 add_qbuem_gtest(test_diff)
+# JSONTestSuite conformance — skips unless QBUEM_JSONTESTSUITE_DIR points at a
+# checkout of the corpus (CI clones it at a pinned commit; see conformance job).
+add_qbuem_gtest(test_jsontestsuite)
 
 # ── New: dom API type coverage and round-trip fidelity ────────────────────
 add_qbuem_gtest(test_dom_types)

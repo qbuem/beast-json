@@ -54,7 +54,8 @@ reproduce locally.
 | AddressSanitizer (ASan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | UndefinedBehaviorSanitizer (UBSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | ThreadSanitizer (TSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
-| Fuzz testing | ✅ | 11 libFuzzer targets · **64.02% branch coverage** |
+| Fuzz testing | ✅ | 16 libFuzzer targets · **64.02% branch coverage** |
+| JSONTestSuite conformance | ✅ CI | **283/283** mandatory cases (95 accept · 188 reject) under ASan+UBSan |
 | IEEE 754 round-trip | ✅ | All 64-bit doubles; parsing: `eisel_lemire_f64` (~98.8 %) → `russ_cox_uscale_f64` (~1.2 %) → `strtod` (subnormals); serialization: Schubfach / `qj_nc::f64_to_dec` |
 | CodeQL static analysis | ✅ CI weekly | security-extended query suite |
 | Multi-platform CI | ✅ [10 configs](https://github.com/qbuem/qbuem-json/blob/main/.github/workflows/ci.yml) | GCC 13/14 · Clang 18 · Apple Clang · x86_64 · aarch64 · Apple Silicon |
@@ -130,6 +131,59 @@ JSON and are accepted. Resolution is deterministic but engine-specific: the DOM
 (`operator[]`, `read<T>`) is **first-wins**; Nexus (`fuse<T>`) is **last-wins**
 (matching JavaScript / Python / Go). Reject or canonicalize upstream if duplicate
 keys are security-relevant.
+
+---
+
+## JSONTestSuite conformance
+
+Beyond the hand-written cases above, qbuem-json is run against the full
+[**JSONTestSuite**](https://github.com/nst/JSONTestSuite) corpus — Nicolas
+Seriot's *"Parsing JSON is a Minefield"* set, the de-facto adversarial benchmark
+every serious JSON parser is measured against (318 files probing number edges,
+UTF-8 traps, structural limits, and whitespace corner cases).
+
+The corpus splits cases by required behaviour, and `parse_strict()` is **100% on
+both mandatory categories**:
+
+| Category | Meaning | Result |
+|:---|:---|:---|
+| `y_` | **Must accept** — well-formed JSON | **95 / 95** ✅ |
+| `n_` | **Must reject** — malformed JSON | **188 / 188** ✅ |
+| `i_` | Implementation-defined — either outcome is RFC-legal | 35, profiled below |
+
+Passing all 188 `n_` cases is the load-bearing result: it means the strict
+parser never *accepts* invalid JSON, the dangerous direction when the input is
+untrusted. The run executes under **ASan + UBSan**, so the 318 adversarial
+inputs simultaneously prove memory safety.
+
+### Implementation-defined profile
+
+The 35 `i_` cases have no single correct answer, so we **freeze our documented
+choices** as a regression guard (`tests/test_jsontestsuite.cpp`) — a code change
+that flips any one of them fails CI and must be reviewed deliberately. The theme
+is coherent:
+
+| We **accept** (21) | We **reject** (14) |
+|:---|:---|
+| Numeric overflow / underflow → ±inf / 0 per IEEE 754 (`1e400`, huge exponents, oversized ints) | Every **malformed UTF-8/UTF-16 byte** sequence — invalid, overlong, truncated, lone continuation, ISO-Latin-1, UTF-16 without BOM |
+| Lone / inverted `\uXXXX` surrogate *escapes* (decoded to U+FFFD) | A leading UTF-8 BOM |
+| Nesting up to the parser's depth cap (`i_structure_500_nested_arrays`) | |
+
+In short: **strict on encoding-level validity, lenient on `\u`-escape surrogate
+pairing and numeric magnitude.**
+
+### Running it yourself
+
+The corpus is not vendored (it carries its own licence and would bloat the
+repo); `test_jsontestsuite` skips unless you point it at a checkout:
+
+```bash
+git clone https://github.com/nst/JSONTestSuite.git
+QBUEM_JSONTESTSUITE_DIR=$PWD/JSONTestSuite ctest --test-dir build -R JSONTestSuite
+```
+
+CI fetches it at a pinned commit and runs the suite on every push and pull
+request (the `conformance` job in [ci.yml](https://github.com/qbuem/qbuem-json/blob/main/.github/workflows/ci.yml)).
 
 ---
 

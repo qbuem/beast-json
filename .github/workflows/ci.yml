@@ -172,3 +172,40 @@ jobs:
       run: |
         ctest -C ${{ matrix.build_type }} --output-on-failure --timeout 180 \
           || ctest -C ${{ matrix.build_type }} --output-on-failure --timeout 180 --rerun-failed
+
+  # ── JSONTestSuite conformance ─────────────────────────────────────────────
+  # Runs the canonical "Parsing JSON is a Minefield" corpus (nst/JSONTestSuite,
+  # pinned commit) through parse_strict, under ASan+UBSan so the 318 adversarial
+  # inputs also prove memory safety. The corpus is fetched here, not vendored;
+  # test_jsontestsuite skips when QBUEM_JSONTESTSUITE_DIR is unset (every other job).
+  conformance:
+    name: JSONTestSuite conformance (ASan+UBSan)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Install Clang 18
+      run: wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 18
+
+    - name: Fetch JSONTestSuite corpus (pinned)
+      run: |
+        git clone --filter=blob:none --no-checkout https://github.com/nst/JSONTestSuite.git "$RUNNER_TEMP/JSONTestSuite"
+        git -C "$RUNNER_TEMP/JSONTestSuite" checkout 1ef36fa01286573e846ac449e8683f8833c5b26a
+        echo "QBUEM_JSONTESTSUITE_DIR=$RUNNER_TEMP/JSONTestSuite" >> "$GITHUB_ENV"
+
+    - name: Configure (ASan+UBSan)
+      env:
+        CC: clang-18
+        CXX: clang++-18
+      run: >
+        cmake -B build-conformance
+        -DCMAKE_BUILD_TYPE=Debug
+        -DQBUEM_JSON_BUILD_TESTS=ON
+        -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
+        -DQBUEM_JSON_SANITIZE=ON
+
+    - name: Build conformance test
+      run: cmake --build build-conformance --target test_jsontestsuite -j2
+
+    - name: Run conformance (95 y_ accept · 188 n_ reject · 35 i_ profile)
+      run: ./build-conformance/tests/test_jsontestsuite --gtest_color=yes
