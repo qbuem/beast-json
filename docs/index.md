@@ -26,8 +26,8 @@ features:
     details: "Flat tape DOM — no tree nodes, no pointer chasing. String views point directly into the input buffer. One contiguous array."
 
   - icon: 🔷
-    title: "Modern C++20 API"
-    details: "Concepts-based interface. No legacy SFINAE. Optional struct mapping via a single QBUEM_JSON_FIELDS macro."
+    title: "Macro-Free Struct Mapping"
+    details: "Concepts-based C++20 API. Plain aggregate structs serialize to JSON and CBOR with zero registration (field names via reflection) — ideal for backend DTOs. Add QBUEM_JSON_FIELDS only for renames, skip, or the fuse fast path."
 
   - icon: 🚀
     title: "Nexus Fusion Engine"
@@ -35,7 +35,7 @@ features:
 
   - icon: 🔒
     title: "RFC Compliant & Hardened"
-    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 521 tests · ASan, UBSan, TSan run on every commit · 11 libFuzzer targets."
+    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 100% JSONTestSuite conformance. 672 tests · ASan, UBSan, TSan run on every commit · 17 libFuzzer targets."
 
   - icon: 📦
     title: "Single Header · Apache 2.0"
