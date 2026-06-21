@@ -449,6 +449,14 @@ Canonical JSON: qbuem::canonicalize(json) returns a deterministic serialization 
 qbuem::canonicalize(R"({ "b":1, "a":2 })");  // {"a":2,"b":1}
 ```
 
+JSONPath (RFC 9535 structural selectors): qbuem::query(root, path) returns all matching Values in document order. Supports root $, member (.name / ['name']), array index incl. negative, wildcard (.* / [*]), recursive descent (..), slices [start:end:step], unions. Filters [?...] are not yet supported (throw). Malformed query throws parse_error.
+
+```cpp
+qbuem::query(root, "$.store.book[*].author");  // every author
+qbuem::query(root, "$..price");                // every price (recursive descent)
+qbuem::query(root, "$.nums[1:4]");             // slice
+```
+
 Parse failures throw qbuem::parse_error (derives from std::runtime_error). It carries offset() (0-based byte), and line()/column() (1-based); what() reads "<reason> at line L column C (byte offset N)". For binary/CBOR errors line()/column() are 0. qbuem::format_error(e, source) renders the failing line with a caret under the column (pass the same buffer you parsed):
 
 ```cpp

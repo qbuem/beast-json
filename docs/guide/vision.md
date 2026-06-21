@@ -27,9 +27,9 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 - ✅ **NDJSON / JSON Lines** streaming — `read_lines` / `write_lines`, bounded memory *(v1.6.0)*.
 - ✅ **Canonical JSON** — `qbuem::canonicalize`, deterministic bytes for hashing/signing (RFC 8785-style); CBOR is canonical by construction *(v1.7.0)*.
 
-## Tier 2 — Mid-term (v1.4–1.5)
+## Tier 2 — Mid-term
 
-- ⬜ **JSONPath (RFC 9535)** — standardized query with filters, normalized paths, CTS conformance.
+- 🚧 **JSONPath (RFC 9535)** — structural selectors (root, member, index, wildcard, recursive descent, slice, union) shipped *(v1.8.0)*; filter expressions planned.
 - ⬜ **MessagePack codec** — second binary target reusing the CBOR field reflection.
 - ⬜ **SAX / event / pull API** — bounded-memory huge-document handling and transcoding.
 - ⬜ **WebAssembly build + npm package** — run the parser (and CBOR) in the browser.

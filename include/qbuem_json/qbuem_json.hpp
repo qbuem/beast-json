@@ -1,6 +1,13 @@
 /**
- * @brief qbuem-json v1.7.0 - High-Performance C++20 JSON Parser
- * @version 1.7.0
+ * @brief qbuem-json v1.8.0 - High-Performance C++20 JSON Parser
+ * @version 1.8.0
+ *
+ * v1.8.0: JSONPath query (roadmap Tier 2, RFC 9535 structural selectors).
+ *         qbuem::query(root, "$.store.book[-1].title") returns every Value a
+ *         query selects, in document order. Supports root, member access,
+ *         array index (incl. negative), wildcard, recursive descent (..),
+ *         array slices (start:end:step), and unions. Filter expressions
+ *         ([?...]) are rejected (planned). The query parser is fuzzed.
  *
  * v1.7.0: Canonical JSON (roadmap Tier 1, final). qbuem::canonicalize(json)
  *         returns a deterministic serialization — object keys sorted, no
@@ -10500,6 +10507,257 @@ inline void canon_emit_(const json::Value &v, ::std::string &out) {
   out.reserve(json.size());
   canon_emit_(root, out);
   return out;
+}
+
+// ── JSONPath (RFC 9535 — structural selectors) ───────────────────────────────
+// qbuem::query(root, "$.store.book[0].title") returns every Value the query
+// selects, in document order.  Supported selectors: root `$`, member access
+// (`.name` / `['name']` / `["name"]`), array index incl. negative (`[0]`,
+// `[-1]`), wildcard (`.*` / `[*]`), recursive descent (`..`), array slices
+// (`[start:end:step]`), and unions (`[0, 2, 'k']`).  Filter expressions
+// (`[?...]`) are not (yet) supported — a query containing one throws.
+//
+// A syntactically malformed query throws qbuem::parse_error; a valid query that
+// matches nothing returns an empty vector.  Returned Values view into the same
+// document as `root`, so that document must outlive them.
+namespace jsonpath_detail {
+
+struct JpSelector {
+  enum class Kind { Name, Wildcard, Index, Slice };
+  Kind kind;
+  ::std::string name;                  // Kind::Name
+  int64_t index = 0;                   // Kind::Index
+  int64_t s_start = 0, s_end = 0, s_step = 1; // Kind::Slice
+  bool has_start = false, has_end = false;
+};
+struct JpSegment {
+  bool descendant = false;             // leading `..`
+  ::std::vector<JpSelector> selectors; // union of ≥1
+};
+
+struct JpParser {
+  const char *p;
+  const char *begin;
+  const char *end;
+
+  [[noreturn]] void fail(const char *msg) const {
+    ::qbuem::json::throw_parse_error(
+        msg, p, ::std::string_view(begin, static_cast<size_t>(end - begin)));
+  }
+  void ws() { while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) ++p; }
+
+  // Parse a quoted name selector ('...' or "..."), with the JSON-ish escapes the
+  // RFC allows.  Returns the decoded name.
+  ::std::string parse_quoted(char q) {
+    ::std::string out;
+    ++p; // opening quote
+    while (p < end && *p != q) {
+      char c = *p++;
+      if (c == '\\') {
+        if (p >= end) fail("JSONPath: unterminated escape");
+        char e = *p++;
+        switch (e) {
+          case 'n': out += '\n'; break;
+          case 't': out += '\t'; break;
+          case 'r': out += '\r'; break;
+          case 'b': out += '\b'; break;
+          case 'f': out += '\f'; break;
+          case '/': out += '/'; break;
+          case '\\': out += '\\'; break;
+          case '\'': out += '\''; break;
+          case '"': out += '"'; break;
+          default: out += e; break; // lenient (incl. \uXXXX left as-is is out of scope)
+        }
+      } else {
+        out += c;
+      }
+    }
+    if (p >= end) fail("JSONPath: unterminated string");
+    ++p; // closing quote
+    return out;
+  }
+
+  // Parse an optionally-signed integer; returns it and whether any digit was read.
+  bool parse_int(int64_t &out) {
+    ws();
+    const char *s = p;
+    bool neg = false;
+    if (p < end && (*p == '-' || *p == '+')) { neg = (*p == '-'); ++p; }
+    int64_t v = 0; bool any = false;
+    while (p < end && *p >= '0' && *p <= '9') { v = v * 10 + (*p - '0'); ++p; any = true; }
+    if (!any) { p = s; return false; }
+    out = neg ? -v : v;
+    return true;
+  }
+
+  // Parse one selector inside `[...]` (already past `[`, positioned at selector).
+  JpSelector parse_bracket_selector() {
+    ws();
+    if (p >= end) fail("JSONPath: unexpected end of selector");
+    if (*p == '?') fail("JSONPath: filter selectors ([?...]) are not supported");
+    if (*p == '*') { ++p; return {JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false}; }
+    if (*p == '\'' || *p == '"') {
+      JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_quoted(*p); return s;
+    }
+    // index or slice: [int] [: [int] [: [int]]]
+    JpSelector s;
+    int64_t a;
+    bool has_a = parse_int(a);
+    ws();
+    if (p < end && *p == ':') {
+      s.kind = JpSelector::Kind::Slice;
+      s.has_start = has_a; if (has_a) s.s_start = a;
+      ++p; // ':'
+      int64_t b;
+      if (parse_int(b)) { s.has_end = true; s.s_end = b; }
+      ws();
+      if (p < end && *p == ':') {
+        ++p;
+        int64_t st;
+        if (parse_int(st)) s.s_step = st;
+      }
+      return s;
+    }
+    if (!has_a) fail("JSONPath: expected name, index, slice, or '*'");
+    s.kind = JpSelector::Kind::Index; s.index = a; return s;
+  }
+
+  ::std::vector<JpSegment> parse() {
+    ::std::vector<JpSegment> segs;
+    ws();
+    if (p >= end || *p != '$') fail("JSONPath: query must start with '$'");
+    ++p;
+    while (true) {
+      ws();
+      if (p >= end) break;
+      JpSegment seg;
+      if (*p == '.' && p + 1 < end && p[1] == '.') {
+        seg.descendant = true;
+        p += 2;
+        // `..` may be followed by a name, `*`, or `[selectors]`.
+        if (p < end && *p == '[') {
+          ++p;
+          parse_bracket_list(seg);
+        } else if (p < end && *p == '*') {
+          ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false});
+        } else {
+          JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
+          if (s.name.empty()) fail("JSONPath: expected member name after '..'");
+          seg.selectors.push_back(std::move(s));
+        }
+      } else if (*p == '.') {
+        ++p;
+        if (p < end && *p == '*') { ++p; seg.selectors.push_back({JpSelector::Kind::Wildcard, {}, 0, 0, 0, 1, false, false}); }
+        else {
+          JpSelector s; s.kind = JpSelector::Kind::Name; s.name = parse_member_name();
+          if (s.name.empty()) fail("JSONPath: expected member name after '.'");
+          seg.selectors.push_back(std::move(s));
+        }
+      } else if (*p == '[') {
+        ++p;
+        parse_bracket_list(seg);
+      } else {
+        fail("JSONPath: expected '.', '..', or '[' ");
+      }
+      segs.push_back(std::move(seg));
+    }
+    return segs;
+  }
+
+  // Parse a comma-separated selector list, consuming the closing `]`.
+  void parse_bracket_list(JpSegment &seg) {
+    while (true) {
+      seg.selectors.push_back(parse_bracket_selector());
+      ws();
+      if (p < end && *p == ',') { ++p; continue; }
+      if (p < end && *p == ']') { ++p; return; }
+      fail("JSONPath: expected ',' or ']' in selector list");
+    }
+  }
+
+  // Dotted member name (unquoted): a run of name chars.
+  ::std::string parse_member_name() {
+    const char *s = p;
+    while (p < end) {
+      char c = *p;
+      if (c == '.' || c == '[' || c == ']' || c == ' ' || c == '\t' ||
+          c == '\n' || c == '\r' || c == ',')
+        break;
+      ++p;
+    }
+    return ::std::string(s, static_cast<size_t>(p - s));
+  }
+};
+
+inline void jp_collect_descendants(const Value &v, ::std::vector<Value> &out) {
+  out.push_back(v);
+  if (v.is_object()) {
+    for (const auto &[k, val] : v.items()) { (void)k; jp_collect_descendants(val, out); }
+  } else if (v.is_array()) {
+    for (const auto &e : v.elements()) jp_collect_descendants(e, out);
+  }
+}
+
+inline void jp_apply_selector(const Value &v, const JpSelector &s,
+                              ::std::vector<Value> &out) {
+  using K = JpSelector::Kind;
+  if (s.kind == K::Name) {
+    if (v.is_object()) { Value m = v[std::string_view(s.name)]; if (m.is_valid()) out.push_back(m); }
+  } else if (s.kind == K::Wildcard) {
+    if (v.is_object()) { for (const auto &[k, val] : v.items()) { (void)k; out.push_back(val); } }
+    else if (v.is_array()) { for (const auto &e : v.elements()) out.push_back(e); }
+  } else if (s.kind == K::Index) {
+    if (v.is_array()) {
+      const int64_t n = static_cast<int64_t>(v.size());
+      int64_t i = s.index < 0 ? n + s.index : s.index;
+      if (i >= 0 && i < n) { Value e = v[static_cast<size_t>(i)]; if (e.is_valid()) out.push_back(e); }
+    }
+  } else { // Slice
+    if (!v.is_array()) return;
+    const int64_t n = static_cast<int64_t>(v.size());
+    const int64_t step = s.s_step;
+    if (step == 0) return; // RFC: step 0 selects nothing
+    auto norm = [n](int64_t i) { return i >= 0 ? i : n + i; };
+    if (step > 0) {
+      int64_t lo = s.has_start ? norm(s.s_start) : 0;
+      int64_t hi = s.has_end ? norm(s.s_end) : n;
+      lo = lo < 0 ? 0 : (lo > n ? n : lo);
+      hi = hi < 0 ? 0 : (hi > n ? n : hi);
+      for (int64_t i = lo; i < hi; i += step) { Value e = v[static_cast<size_t>(i)]; if (e.is_valid()) out.push_back(e); }
+    } else {
+      int64_t up = s.has_start ? norm(s.s_start) : n - 1;
+      int64_t lo = s.has_end ? norm(s.s_end) : -n - 1;
+      up = up < -1 ? -1 : (up > n - 1 ? n - 1 : up);
+      lo = lo < -1 ? -1 : (lo > n - 1 ? n - 1 : lo);
+      for (int64_t i = up; i > lo; i += step) { Value e = v[static_cast<size_t>(i)]; if (e.is_valid()) out.push_back(e); }
+    }
+  }
+}
+
+} // namespace jsonpath_detail
+
+[[nodiscard]] inline ::std::vector<Value> query(const Value &root,
+                                                ::std::string_view path) {
+  using namespace jsonpath_detail;
+  JpParser parser{path.data(), path.data(), path.data() + path.size()};
+  const ::std::vector<JpSegment> segs = parser.parse();
+  ::std::vector<Value> nodes;
+  if (root.is_valid()) nodes.push_back(root);
+  for (const JpSegment &seg : segs) {
+    ::std::vector<Value> next;
+    for (const Value &node : nodes) {
+      if (seg.descendant) {
+        ::std::vector<Value> desc;
+        jp_collect_descendants(node, desc);
+        for (const Value &d : desc)
+          for (const JpSelector &s : seg.selectors) jp_apply_selector(d, s, next);
+      } else {
+        for (const JpSelector &s : seg.selectors) jp_apply_selector(node, s, next);
+      }
+    }
+    nodes = std::move(next);
+  }
+  return nodes;
 }
 
 // ── NDJSON / JSON Lines ──────────────────────────────────────────────────────
