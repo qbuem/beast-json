@@ -1,6 +1,16 @@
 /**
- * @brief qbuem-json v1.11.2 - High-Performance C++20 JSON Parser
- * @version 1.11.2
+ * @brief qbuem-json v1.12.0 - High-Performance C++20 JSON Parser
+ * @version 1.12.0
+ *
+ * v1.12.0: API hygiene (no behavior change). (1) The internal helpers behind
+ *          canonicalize / diff / apply_patch / query (canon_emit_, value_equal,
+ *          the p6902_* / diff_* helpers, the JSONPath parser, ndjson_blank_) now
+ *          live in qbuem::json::detail instead of leaking into the public
+ *          qbuem:: namespace. (2) Added buffer-reuse overloads canonicalize_to,
+ *          diff_to (Value + string_view), and apply_patch_to that APPEND into a
+ *          caller-owned std::string; the string-returning forms now delegate to
+ *          them. (3) Added qbuem::jsonpath() as an alias for query() (the RFC 9535
+ *          spelling). Public API is otherwise unchanged and source-compatible.
  *
  * v1.11.2: Correctness fixes from a full review. (1) value_equal (diff / patch
  *          `test`) now compares integers exactly — a double compare wrongly
@@ -10493,6 +10503,7 @@ template <typename T>::std::string to_json_str(const T &val) {
 // For in-toolchain hashing/dedup this is fully deterministic; for cross-impl
 // RFC 8785 signing, account for the two notes above.
 
+namespace json::detail {
 inline void canon_emit_(const json::Value &v, ::std::string &out) {
   if (v.is_object()) {
     ::std::vector<::std::pair<::std::string, json::Value>> items;
@@ -10531,17 +10542,24 @@ inline void canon_emit_(const json::Value &v, ::std::string &out) {
     out += "null";
   }
 }
+} // namespace json::detail
 
 // Parse `json` and return its canonical form. Uses STRICT parsing (RFC 8259 +
 // well-formed UTF-8) — a canonical form is only meaningful for valid input, and
 // the signing/hashing use case must reject malformed data rather than silently
 // canonicalize a best-effort interpretation. Throws qbuem::parse_error otherwise.
-[[nodiscard]] inline ::std::string canonicalize(::std::string_view json) {
+// canonicalize_to(buf, json) — APPEND the canonical form of `json` to `buf`,
+// reusing its existing capacity (the caller owns the buffer). Same strict parsing
+// and output as canonicalize(); throws qbuem::parse_error on malformed input.
+inline void canonicalize_to(::std::string &buf, ::std::string_view json) {
   Document doc;
   Value root = parse_strict(doc, json);
+  buf.reserve(buf.size() + json.size());
+  json::detail::canon_emit_(root, buf);
+}
+[[nodiscard]] inline ::std::string canonicalize(::std::string_view json) {
   ::std::string out;
-  out.reserve(json.size());
-  canon_emit_(root, out);
+  canonicalize_to(out, json);
   return out;
 }
 
@@ -10572,6 +10590,9 @@ struct sax_handler {
 };
 
 // Walk `v`, dispatching events to `h`.  Returns false iff a handler aborted.
+// Recursion depth is bounded: `v` comes from the tape parser, which rejects input
+// nested deeper than kMaxDepth (1024), so this walk cannot overflow the stack on
+// adversarial input — the depth cap is enforced at parse time, not here.
 template <typename H>
 bool visit(const Value &v, H &h) {
   if (v.is_object()) {
@@ -10620,6 +10641,8 @@ bool sax_parse(::std::string_view json, H &h) {
 // is purely functional — each op parses the current document and rebuilds it with
 // the edit applied, so multi-op patches, array-index removal, pointer-token
 // unescaping, and whole-document replacement all behave correctly.
+
+namespace json::detail {
 
 inline bool value_equal(const Value &a, const Value &b); // defined below (diff)
 
@@ -10789,7 +10812,7 @@ p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
   const ::std::string path = op_obj["path"] | "";
   if (op.empty() || (!path.empty() && path[0] != '/')) return ::std::nullopt;
   Document doc;
-  Value root = parse(doc, doc_json);
+  Value root = ::qbuem::parse(doc, doc_json);
   const auto toks = p6902_tokens_(path);
   if (op == "add" || op == "replace") {
     Value val = op_obj["value"];
@@ -10808,7 +10831,7 @@ p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
       auto removed = p6902_edit_(root, p6902_tokens_(from), 0, 1, "");
       if (!removed) return ::std::nullopt;
       Document d2;
-      Value r2 = parse(d2, *removed);
+      Value r2 = ::qbuem::parse(d2, *removed);
       return p6902_edit_(r2, toks, 0, 0, *src);
     }
     return p6902_edit_(root, toks, 0, 0, *src);
@@ -10818,30 +10841,47 @@ p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
     auto cur = p6902_value_at_(root, path);
     if (!cur || !val.is_valid()) return ::std::nullopt;
     Document da, db;
-    Value a = parse(da, *cur);
+    Value a = ::qbuem::parse(da, *cur);
     if (!value_equal(a, val)) return ::std::nullopt;
     return ::std::string(doc_json); // test passes — document unchanged
   }
   return ::std::nullopt; // unknown op
 }
+} // namespace json::detail
 
-// Apply a whole RFC 6902 patch to `doc_json`. Returns the patched document.
-// Throws qbuem::parse_error on malformed JSON; throws std::runtime_error if any
-// op fails (per RFC 6902, a patch is all-or-nothing).
-[[nodiscard]] inline ::std::string apply_patch(::std::string_view doc_json,
-                                               ::std::string_view patch_json) {
+// Apply a whole RFC 6902 patch to `doc_json`. Throws qbuem::parse_error on
+// malformed JSON; throws std::runtime_error if any op fails (per RFC 6902, a
+// patch is all-or-nothing).
+//
+// Complexity: O(ops × docsize) — the functional applier reparses and rebuilds
+// the whole document once per op, so a P-op patch over an N-byte document is
+// O(P·N). This trades speed for correctness (multi-op patches, array-index
+// removal, and pointer unescaping all round-trip); for a one-shot edit of a huge
+// document, prefer the in-place Value::patch().
+//
+// apply_patch_to(buf, doc, patch) APPENDS the patched document to `buf` (the
+// caller owns the buffer); apply_patch() is the convenience that returns a fresh
+// string.
+inline void apply_patch_to(::std::string &buf, ::std::string_view doc_json,
+                           ::std::string_view patch_json) {
   Document pdoc;
   Value patch = parse(pdoc, patch_json);
   if (!patch.is_array())
     throw ::std::runtime_error("apply_patch: patch must be a JSON array");
   ::std::string cur(doc_json);
   for (const Value &op : patch.elements()) {
-    auto next = p6902_apply_one_(cur, op);
+    auto next = json::detail::p6902_apply_one_(cur, op);
     if (!next)
       throw ::std::runtime_error("apply_patch: operation failed (bad path or op)");
     cur = ::std::move(*next); // settle: the next op sees this op's effect
   }
-  return cur;
+  buf += cur;
+}
+[[nodiscard]] inline ::std::string apply_patch(::std::string_view doc_json,
+                                               ::std::string_view patch_json) {
+  ::std::string out;
+  apply_patch_to(out, doc_json, patch_json);
+  return out;
 }
 
 // ── JSON diff (RFC 6902 patch generation) ────────────────────────────────────
@@ -10855,6 +10895,7 @@ p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
 // a raw byte match (the common case — both docs escape keys the same way); the
 // slow path compares decoded keys so two spellings of the same key (e.g. "a" vs
 // "a") are treated as equal.
+namespace json::detail {
 inline ::std::optional<Value> find_by_decoded_key_(const Value &obj,
                                                    ::std::string_view raw_key) {
   if (auto m = obj.find(raw_key)) return m;
@@ -10959,23 +11000,37 @@ inline void diff_emit_(const Value &from, const Value &to,
     diff_op_value_(out, first, "replace", path, to);
   }
 }
+} // namespace json::detail
 
-// Returns an RFC 6902 patch (JSON array string) taking parsed `from` to `to`.
-[[nodiscard]] inline ::std::string diff(const Value &from, const Value &to) {
-  ::std::string out = "[";
+// diff_to(buf, from, to) — APPEND the RFC 6902 patch (a JSON array) taking
+// parsed `from` to `to` onto `buf`, reusing its capacity (the caller owns the
+// buffer). diff() is the convenience that returns a fresh string.
+inline void diff_to(::std::string &buf, const Value &from, const Value &to) {
+  buf += '[';
   bool first = true;
-  diff_emit_(from, to, ::std::string(), out, first);
-  out += ']';
-  return out;
+  json::detail::diff_emit_(from, to, ::std::string(), buf, first);
+  buf += ']';
 }
-
-// Parse both JSON strings and diff them. Throws on invalid input.
-[[nodiscard]] inline ::std::string diff(::std::string_view from_json,
-                                        ::std::string_view to_json) {
+// Parse both JSON strings, then diff them onto `buf`. Throws on invalid input.
+inline void diff_to(::std::string &buf, ::std::string_view from_json,
+                    ::std::string_view to_json) {
   Document fdoc, tdoc;
   Value f = parse(fdoc, from_json);
   Value t = parse(tdoc, to_json);
-  return diff(f, t);
+  diff_to(buf, f, t);
+}
+// Returns an RFC 6902 patch (JSON array string) taking parsed `from` to `to`.
+[[nodiscard]] inline ::std::string diff(const Value &from, const Value &to) {
+  ::std::string out;
+  diff_to(out, from, to);
+  return out;
+}
+// Parse both JSON strings and diff them. Throws on invalid input.
+[[nodiscard]] inline ::std::string diff(::std::string_view from_json,
+                                        ::std::string_view to_json) {
+  ::std::string out;
+  diff_to(out, from_json, to_json);
+  return out;
 }
 
 // ── JSONPath (RFC 9535 — structural selectors) ───────────────────────────────
@@ -10989,7 +11044,7 @@ inline void diff_emit_(const Value &from, const Value &to,
 // A syntactically malformed query throws qbuem::parse_error; a valid query that
 // matches nothing returns an empty vector.  Returned Values view into the same
 // document as `root`, so that document must outlive them.
-namespace jsonpath_detail {
+namespace json::detail::jsonpath {
 
 struct JpSelector {
   enum class Kind { Name, Wildcard, Index, Slice };
@@ -11160,6 +11215,9 @@ struct JpParser {
   }
 };
 
+// Recursion is bounded by the parser's kMaxDepth (1024) — `v` views a parsed
+// tape, which cannot be nested deeper than the parser allowed, so `$..` over
+// adversarial input can't overflow the stack.
 inline void jp_collect_descendants(const Value &v, ::std::vector<Value> &out) {
   out.push_back(v);
   if (v.is_object()) {
@@ -11205,11 +11263,11 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
   }
 }
 
-} // namespace jsonpath_detail
+} // namespace json::detail::jsonpath
 
 [[nodiscard]] inline ::std::vector<Value> query(const Value &root,
                                                 ::std::string_view path) {
-  using namespace jsonpath_detail;
+  using namespace json::detail::jsonpath;
   JpParser parser{path.data(), path.data(), path.data() + path.size()};
   const ::std::vector<JpSegment> segs = parser.parse();
   ::std::vector<Value> nodes;
@@ -11231,6 +11289,16 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
   return nodes;
 }
 
+// jsonpath(root, path) — the RFC 9535 spelling, an exact alias for query(root,
+// path). Returns every Value the path selects, in document order; the Values view
+// into the same document as `root`, which must outlive them. (There is no
+// string-input overload: it would parse into a temporary Document and return
+// dangling views — parse the text yourself, then call jsonpath/query.)
+[[nodiscard]] inline ::std::vector<Value> jsonpath(const Value &root,
+                                                   ::std::string_view path) {
+  return query(root, path);
+}
+
 // ── NDJSON / JSON Lines ──────────────────────────────────────────────────────
 // Newline-delimited JSON: one JSON value per line (jsonlines.org / ndjson-spec).
 // The dominant format for logs, ML datasets, and streamed LLM output. Records
@@ -11240,11 +11308,13 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
 // relative to that record.
 
 // True for a line that is empty or only ASCII whitespace.
+namespace json::detail {
 inline bool ndjson_blank_(::std::string_view s) noexcept {
   for (char c : s)
     if (static_cast<unsigned char>(c) > ' ') return false;
   return true;
 }
+} // namespace json::detail
 
 // read_lines<T>(text, fn) — invoke fn(T&&) for each record, in order. fn may be
 // any callable taking a T by value/rvalue. Bounded memory: one Document and one
@@ -11259,7 +11329,7 @@ void read_lines(::std::string_view text, F &&fn) {
     ::std::size_t stop = (nl == ::std::string_view::npos) ? n : nl;
     ::std::string_view line = text.substr(pos, stop - pos);
     if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
-    if (!ndjson_blank_(line)) {
+    if (!json::detail::ndjson_blank_(line)) {
       Value root = json::parse_reuse(doc, line);
       T obj{};
       json::detail::from_json(root, obj);
