@@ -58,9 +58,40 @@ User u = qbuem::fuse<User>(json_str);
 
 ---
 
+## ✨ Macro-Free Mapping (Aggregate Reflection)
+
+*(v1.14.0+, GCC/Clang)* For a **plain aggregate** — a struct with public members, no
+user-declared constructors, and no base classes — you don't need any macro at all.
+`qbuem::write` / `read` and `cbor::encode` / `decode` reflect the fields (and recover
+their **names**, used as JSON keys) automatically:
+
+```cpp
+struct CreateUserReq {            // no QBUEM_JSON_FIELDS needed
+    std::string        name;
+    int                age;
+    std::optional<int> referrer;
+};
+
+std::string j = qbuem::write(CreateUserReq{"Ada", 30, std::nullopt});
+// {"name":"Ada","age":30,"referrer":null}
+CreateUserReq r = qbuem::read<CreateUserReq>(body);   // request DTO, zero boilerplate
+std::string bin = qbuem::cbor::encode(r);             // same fields → CBOR
+```
+
+This is built for backends with many request/response DTOs: define the struct, serialize
+it. Nested aggregates, `std::optional`, and STL containers all work.
+
+| Detail | Behaviour |
+|:---|:---|
+| **Precedence** | A `QBUEM_JSON_FIELDS` / `from_qbuem_json` registration, if present, **always wins** — reflection is a fallback, so this is purely additive. |
+| **When to use the macro instead** | Field **renaming** (`(member, "jsonKey")`), **skip**, non-aggregates (private members / constructors), `> 32` fields, or the zero-tape **`fuse<T>`** fast path — all still require `QBUEM_JSON_FIELDS`. |
+| **Requirements** | Aggregate, default-constructible, ≤ 32 fields. Works for any linkage (incl. anonymous-namespace / function-local types) and non-`constexpr` members (`std::map`, …). |
+| **Why GCC/Clang only** | Field names are recovered from `__PRETTY_FUNCTION__`. The library is GCC/Clang-only by design, so this needs no MSVC fallback — the no-Windows scope *enables* the feature rather than limiting it. |
+
 ## 🏗️ Direct Struct Mapping with `QBUEM_JSON_FIELDS`
 
-For your own types, the `QBUEM_JSON_FIELDS` macro auto-generates optimized metadata used by both engines. It **must** be placed **outside** the struct definition, at namespace scope.
+For your own types — or whenever you need renaming, skip, the `fuse<T>` fast path, or
+more than 32 fields — the `QBUEM_JSON_FIELDS` macro auto-generates optimized metadata used by both engines. It **must** be placed **outside** the struct definition, at namespace scope.
 
 ```cpp
 struct Address {

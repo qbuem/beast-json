@@ -29,14 +29,14 @@
 
   <!-- Testing -->
   <p>
-    <a href="https://qbuem.com/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-663%20passing-brightgreen" alt="663 tests passing"></a>
-    <a href="https://qbuem.com/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-16%20libFuzzer%20targets-orange" alt="16 libFuzzer targets"></a>
+    <a href="https://qbuem.com/qbuem-json/guide/correctness"><img src="https://img.shields.io/badge/tests-672%20passing-brightgreen" alt="672 tests passing"></a>
+    <a href="https://qbuem.com/qbuem-json/guide/correctness#fuzz-testing"><img src="https://img.shields.io/badge/fuzz-17%20libFuzzer%20targets-orange" alt="17 libFuzzer targets"></a>
     <a href="https://qbuem.com/qbuem-json/guide/correctness#jsontestsuite-conformance"><img src="https://img.shields.io/badge/JSONTestSuite-100%25%20(283%2F283)-brightgreen" alt="JSONTestSuite 100% (283/283 mandatory cases)"></a>
   </p>
 
   <!-- Distribution -->
   <p>
-    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.13.0"><img src="https://img.shields.io/badge/version-v1.13.0-blue" alt="v1.13.0"></a>
+    <a href="https://github.com/qbuem/qbuem-json/releases/tag/v1.14.0"><img src="https://img.shields.io/badge/version-v1.14.0-blue" alt="v1.14.0"></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="Apache 2.0"></a>
     <a href="https://github.com/qbuem/qbuem-json/blob/main/include/qbuem_json/qbuem_json.hpp"><img src="https://img.shields.io/badge/header--only-single%20file-lightgrey" alt="header-only"></a>
     <img src="https://img.shields.io/badge/dependencies-zero-brightgreen" alt="zero dependencies">

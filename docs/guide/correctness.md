@@ -54,7 +54,7 @@ reproduce locally.
 | AddressSanitizer (ASan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | UndefinedBehaviorSanitizer (UBSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
 | ThreadSanitizer (TSan) | ✅ CI | [sanitizers.yml](https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml) |
-| Fuzz testing | ✅ | 16 libFuzzer targets · **64.02% branch coverage** |
+| Fuzz testing | ✅ | 17 libFuzzer targets · **64.02% branch coverage** |
 | JSONTestSuite conformance | ✅ CI | **283/283** mandatory cases (95 accept · 188 reject) under ASan+UBSan |
 | IEEE 754 round-trip | ✅ | All 64-bit doubles; parsing: `eisel_lemire_f64` (~98.8 %) → `russ_cox_uscale_f64` (~1.2 %) → `strtod` (subnormals); serialization: Schubfach / `qj_nc::f64_to_dec` |
 | CodeQL static analysis | ✅ CI weekly | security-extended query suite |

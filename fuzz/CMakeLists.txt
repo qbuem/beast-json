@@ -66,3 +66,4 @@ add_fuzz_target(fuzz_ndjson)     # NDJSON line splitter + sub-view parse safety
 add_fuzz_target(fuzz_jsonpath)   # JSONPath query parser + evaluator on untrusted input
 add_fuzz_target(fuzz_sax)        # SAX event visitor recursion + handler dispatch
 add_fuzz_target(fuzz_apply_patch) # RFC 6902 functional applier + diff generation
+add_fuzz_target(fuzz_reflect)    # Macro-free aggregate reflection: JSON read + CBOR decode safety
