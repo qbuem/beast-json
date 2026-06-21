@@ -126,3 +126,50 @@ TEST(Reflect, MacroRegistrationWinsOverReflection) {
   Registered b = qbuem::read<Registered>("{\"id\":7}");
   EXPECT_EQ(b.internalId, 7);
 }
+
+// ── read_strict: missing required (non-optional) field → parse_error ──────────
+namespace {
+struct StrictAddr { std::string city; int zip; };
+struct StrictReq {
+  int64_t id;
+  std::string email;
+  std::optional<std::string> nickname; // optional → absence OK
+  StrictAddr addr;                     // nested aggregate → required + deep-checked
+};
+} // namespace
+
+TEST(Reflect, ReadStrictAcceptsCompleteAndOptionalAbsent) {
+  StrictReq r = qbuem::read_strict<StrictReq>(
+      R"({"id":1,"email":"a@b.c","addr":{"city":"X","zip":9}})");
+  EXPECT_EQ(r.id, 1);
+  EXPECT_EQ(r.email, "a@b.c");
+  EXPECT_FALSE(r.nickname.has_value()); // optional absent is fine
+  EXPECT_EQ(r.addr.zip, 9);
+  // optional present is carried
+  StrictReq r2 = qbuem::read_strict<StrictReq>(
+      R"({"id":1,"email":"a@b.c","nickname":"q","addr":{"city":"X","zip":9}})");
+  ASSERT_TRUE(r2.nickname.has_value());
+  EXPECT_EQ(*r2.nickname, "q");
+}
+
+TEST(Reflect, ReadStrictThrowsOnMissingRequired) {
+  // missing top-level required field
+  EXPECT_THROW((void)qbuem::read_strict<StrictReq>(R"({"id":1,"addr":{"city":"X","zip":9}})"),
+               qbuem::parse_error);
+  // missing nested required field (deep enforcement)
+  EXPECT_THROW((void)qbuem::read_strict<StrictReq>(R"({"id":1,"email":"a@b.c","addr":{"city":"X"}})"),
+               qbuem::parse_error);
+  // missing the whole required nested object
+  EXPECT_THROW((void)qbuem::read_strict<StrictReq>(R"({"id":1,"email":"a@b.c"})"),
+               qbuem::parse_error);
+  // a non-object top level is rejected
+  EXPECT_THROW((void)qbuem::read_strict<StrictReq>("42"), qbuem::parse_error);
+}
+
+TEST(Reflect, ReadStrictDoesNotChangeLenientRead) {
+  // read<T> stays lenient — a missing required field silently defaults.
+  StrictReq r = qbuem::read<StrictReq>(R"({"id":5})");
+  EXPECT_EQ(r.id, 5);
+  EXPECT_EQ(r.email, "");
+  EXPECT_EQ(r.addr.zip, 0);
+}

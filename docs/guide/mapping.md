@@ -88,6 +88,49 @@ it. Nested aggregates, `std::optional`, and STL containers all work.
 | **Requirements** | Aggregate, default-constructible, ≤ 32 fields. Works for any linkage (incl. anonymous-namespace / function-local types) and non-`constexpr` members (`std::map`, …). |
 | **Why GCC/Clang only** | Field names are recovered from `__PRETTY_FUNCTION__`. The library is GCC/Clang-only by design, so this needs no MSVC fallback — the no-Windows scope *enables* the feature rather than limiting it. |
 
+## ✅ Validating request DTOs
+
+At an API boundary you parse untrusted JSON into a DTO and then must validate it.
+qbuem-json splits this into two layers — it owns the part that can't be done after
+the fact, and leaves business rules to a couple of explicit lines.
+
+**Required fields — `read_strict<T>` *(v1.15.0+)*.** Plain `read<T>` is lenient: a
+missing field is silently left default-constructed, so after deserializing you
+can't tell whether `age == 0` means "they sent 0" or "they sent nothing". That
+gap can't be closed in handler code. `read_strict<T>` closes it — a missing
+**required** field throws `qbuem::parse_error`. A field is required unless it is a
+`std::optional`; the check nests through aggregates and present optionals:
+
+```cpp
+struct Addr { std::string city; int zip; };
+struct CreateUserReq {
+    std::string             email;      // required
+    int                     age;        // required
+    std::optional<std::string> referrer; // optional — absence is fine
+    Addr                    addr;       // required, and nested-checked
+};
+
+auto req = qbuem::read_strict<CreateUserReq>(body);  // throws if email/age/addr.* absent
+```
+
+`read_strict<T>` is reflection-driven, so it applies to plain aggregates (not
+`QBUEM_JSON_FIELDS`-registered structs). It does not descend into list/map
+elements.
+
+**Value rules — keep them in the handler.** Range, length, format, and enum
+checks are deliberately *not* a library feature: they belong next to the handler
+where the precise error message lives, they're two lines, and a constraint
+language tends to balloon (regex, cross-field rules, error aggregation, i18n). If
+you want that, reach for a dedicated validator (reflect-cpp, a JSON Schema
+library). The idiomatic pattern:
+
+```cpp
+auto req = qbuem::read_strict<CreateUserReq>(body);
+if (req.age < 0 || req.age > 150)      return bad_request("age out of range");
+if (req.email.find('@') == npos)       return bad_request("email malformed");
+// ... use req
+```
+
 ## 🏗️ Direct Struct Mapping with `QBUEM_JSON_FIELDS`
 
 For your own types — or whenever you need renaming, skip, the `fuse<T>` fast path, or

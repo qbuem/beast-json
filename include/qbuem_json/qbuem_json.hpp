@@ -1,6 +1,16 @@
 /**
- * @brief qbuem-json v1.14.0 - High-Performance C++20 JSON Parser
- * @version 1.14.0
+ * @brief qbuem-json v1.15.0 - High-Performance C++20 JSON Parser
+ * @version 1.15.0
+ *
+ * v1.15.0: qbuem::read_strict<T> — strict deserialization for reflectable
+ *          aggregates. Unlike read<T> (which silently default-constructs absent
+ *          fields), read_strict throws qbuem::parse_error when a REQUIRED field
+ *          is missing. A field is required unless it is a std::optional; the
+ *          check nests through aggregates and present optionals (nested DTOs are
+ *          validated) but not into list/map elements. Closes the "can't tell
+ *          absent from default after the fact" gap for backend request DTOs.
+ *          Value-rule validation (range/length/format) stays in handler code by
+ *          design — see the mapping guide. Additive; read<T> is unchanged.
  *
  * v1.14.0: Macro-free aggregate reflection (GCC/Clang). A plain aggregate struct
  *          now serializes/deserializes with NO QBUEM_JSON_FIELDS registration —
@@ -8722,6 +8732,39 @@ template <typename T> void from_json(const Value &v, T &out) {
   }
 }
 
+// Strict deserialization (drives qbuem::read_strict). Identical to from_json
+// except that a *missing required field* — a non-std::optional member of a
+// reflectable aggregate that is absent from the input — throws parse_error
+// instead of being left default-constructed. Recurses through the object
+// structure (aggregates and present optionals) so nested DTOs are checked too;
+// container elements (vector/map values, array items) fall back to plain
+// from_json, so a "required" field inside a list element is not enforced.
+template <typename T> void from_json_strict(const Value &v, T &out) {
+  if constexpr (ReflectableAggregate<T>) {
+    if (!v.is_object())
+      throw ::qbuem::json::parse_error("read_strict: expected a JSON object", 0);
+    refl::for_each_field(out, [&](::std::string_view _nm, auto &_f) {
+      Value _m = v[_nm];
+      if (_m.is_valid()) {
+        from_json_strict(_m, _f);
+      } else if constexpr (!JsonDetailOptional<::std::remove_cvref_t<decltype(_f)>>) {
+        throw ::qbuem::json::parse_error(
+            ::std::string("read_strict: missing required field '") +
+                ::std::string(_nm) + "'",
+            0);
+      }
+    });
+  } else if constexpr (JsonDetailOptional<T>) {
+    if (!v.is_null()) {
+      typename T::value_type _tmp{};
+      from_json_strict(v, _tmp);
+      out = ::std::move(_tmp);
+    }
+  } else {
+    from_json(v, out); // scalar / string / container leaf — no required concept
+  }
+}
+
 // ── to_json_str — concept-dispatched serialization ───────────────────────────
 
 template <typename T> std::string to_json_str(const T &in) {
@@ -10622,6 +10665,26 @@ template <typename T> [[nodiscard]] T read(::std::string_view json) {
   Value root = json::parse_reuse(doc, json);
   T obj{};
   ::qbuem::json::detail::from_json(root, obj);
+  return obj;
+}
+
+// read_strict<T> — like read<T>, but a missing REQUIRED field throws
+// qbuem::parse_error instead of silently leaving it default-constructed. For a
+// reflectable aggregate, a member is "required" unless it is a std::optional;
+// model optional request fields as std::optional<U>. Checks nest through
+// aggregates and present optionals (so nested DTOs are validated); it does not
+// reach into list/map elements. For renamed/registered structs use read<T> plus
+// an explicit check — strict mode is reflection-driven.
+//   auto req = qbuem::read_strict<CreateUserReq>(body); // throws if "email" absent
+template <typename T> [[nodiscard]] T read_strict(::std::string_view json) {
+  static_assert(::qbuem::json::detail::ReflectableAggregate<T>,
+                "qbuem::read_strict<T> requires a reflectable aggregate (a plain "
+                "struct with no QBUEM_JSON_FIELDS). Use std::optional<U> for "
+                "optional fields; non-optional fields are required.");
+  Document doc;
+  Value root = json::parse_reuse(doc, json);
+  T obj{};
+  ::qbuem::json::detail::from_json_strict(root, obj);
   return obj;
 }
 
