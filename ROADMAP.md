@@ -2,7 +2,39 @@
 
 > Status: **accepted** (2026-06-21). Built from a survey of the 2024–2026 JSON-library landscape
 > (simdjson, yyjson, Glaze, reflect-cpp, jsoncons, serde, Boost.JSON) and current standards.
-> Execution is **sequential: Tier 1 → 2 → 3.**
+> The curated Tier 1→2→3 is **shipped through v1.13.0**; subsequent work follows the Direction below.
+
+## Direction (2026-06-21): the JSON/CBOR layer for a high-performance C++ SaaS backend
+
+The north star is **not** the game (that was a stack-validation throwaway) and **not** broad
+Windows-OSS adoption. It is to be the serialization layer for a **C++ SaaS backend running on
+Linux**, talking to a web (JS/TS) front end. Every prioritization below is judged against that.
+
+What this locks in:
+
+- **Windows / MSVC is a permanent non-goal**, not a gap. The server is Linux; nothing in the
+  target stack runs C++ on Windows. For a solo maintainer, MSVC support is a *perpetual* tax
+  (separate SIMD intrinsics, reflection-trick divergence, a Windows CI matrix, per-feature
+  re-verification) with **zero** use-case value. Flip condition: a native Windows **C++** client
+  (a web front end never triggers it). Until then, "GCC/Clang-only" is a deliberate advantage —
+  it *enables* the macro-free reflection below that MSVC would block.
+- **Optimize for:** known-schema DTO (de)serialization throughput (`fuse<T>`), untrusted-input
+  safety at the API boundary (already a strength), low per-DTO boilerplate across a large API
+  surface, and web-client interop (CBOR + WASM).
+
+Post-v1.13.0 priorities (demand-driven, SaaS-backend lens):
+
+| P | Item | Why it fits the SaaS-backend goal |
+|---|------|-----------------------------------|
+| **P0** | **Macro-free aggregate reflection** (additive; macro stays as fallback) | A SaaS has *many* request/response DTOs; per-type `QBUEM_JSON_FIELDS` is the main friction. GCC/Clang-only makes `__PRETTY_FUNCTION__`-based field-name extraction viable **today** (no waiting for C++26 P2996). Closes the #1 ergonomic gap vs Glaze/reflect-cpp. **PoC-gated**: first prove names extract on both GCC and Clang. |
+| **P1** | **Inline field validation** (scoped: range / length / required / enum) | SaaS input validation is a recurring need *beyond* the structural typing `fuse<T>` already gives. NOT full JSON Schema (declined) — a tight, curated constraint set à la serde/reflect-cpp. Guard hard against ballooning into a constraint-DSL. |
+| **P1** | **Honest head-to-head benchmarks + repositioning** | Measure vs simdjson/yyjson/Glaze (harness exists); publish wins *and* losses. Re-point the public copy from "games / HFT tick data" → "C++ SaaS backend JSON/CBOR layer". |
+| **P2** | **ConanCenter / vcpkg registry submission** | Recipes exist and are CI-verified; submitting lowers adoption friction if external use is wanted. |
+
+Re-confirmed declines under the SaaS lens: full JSON Schema validator (interop documented; the
+P1 inline validation is the SaaS-appropriate slice, a *different* thing), schemaless lazy cursor
+(DTOs are known-schema → `fuse` covers it), incremental socket parse (HTTP bodies are
+Content-Length-framed). Windows (above).
 
 ## Guiding principles
 
