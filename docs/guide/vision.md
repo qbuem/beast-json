@@ -20,11 +20,11 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 - **Integration** — `std::pmr` support; language bindings (Python/nanobind, Rust, Go); single-header,
   zero-dependency; continuously fuzzed + ASan/UBSan/TSan across x86-64 / aarch64 / Apple Silicon.
 
-## Tier 1 — Next (v1.3)
+## Tier 1
 
-- ⬜ **Rich error context** — line/column + JSON-Pointer path + a caret snippet (today: byte offset).
-- ⬜ **serde-style field attributes** — enum⇄string, rename/alias, skip, default (C++20, zero hot-path cost).
-- ⬜ **NDJSON / JSON Lines** streaming — multi-GB in bounded memory (logs, ML, LLM output).
+- ✅ **Rich error context** — `parse_error` exposes line/column + `format_error()` caret rendering *(v1.3.0)*.
+- ✅ **serde-style field attributes** — enum (integer default + `QBUEM_JSON_ENUM` value names) *(v1.4.0)*, field rename `(member, "jsonKey")` + skip-by-omission *(v1.5.0)*, default-on-absent (built in).
+- ✅ **NDJSON / JSON Lines** streaming — `read_lines` / `write_lines`, bounded memory *(v1.6.0)*.
 - ⬜ **Deterministic / canonical CBOR** + **JSON Canonicalization (RFC 8785 / JCS)** — reproducible bytes for signing & hashing.
 
 ## Tier 2 — Mid-term (v1.4–1.5)

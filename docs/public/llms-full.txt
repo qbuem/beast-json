@@ -435,6 +435,14 @@ if (root["count"].is_int()) {
 int id = root["id"] | -1;
 ```
 
+NDJSON / JSON Lines (one JSON value per line; logs, ML, LLM output): qbuem::read_lines<T>(text, fn) decodes one record at a time reusing a single Document (bounded memory); a vector-returning overload collects them. qbuem::write_lines(buf, range) serializes a range as NDJSON. Blank lines skipped, CRLF trimmed, final newline optional.
+
+```cpp
+qbuem::read_lines<LogEntry>(text, [](LogEntry&& e){ index(e); });  // streaming, constant memory
+std::vector<LogEntry> all = qbuem::read_lines<LogEntry>(text);     // collect
+std::string out = qbuem::write_lines(all);                          // serialize a range
+```
+
 Parse failures throw qbuem::parse_error (derives from std::runtime_error). It carries offset() (0-based byte), and line()/column() (1-based); what() reads "<reason> at line L column C (byte offset N)". For binary/CBOR errors line()/column() are 0. qbuem::format_error(e, source) renders the failing line with a caret under the column (pass the same buffer you parsed):
 
 ```cpp

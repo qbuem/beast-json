@@ -1,6 +1,13 @@
 /**
- * @brief qbuem-json v1.5.0 - High-Performance C++20 JSON Parser
- * @version 1.5.0
+ * @brief qbuem-json v1.6.0 - High-Performance C++20 JSON Parser
+ * @version 1.6.0
+ *
+ * v1.6.0: NDJSON / JSON Lines (roadmap Tier 1). qbuem::read_lines<T>(text, fn)
+ *         decodes one JSON value per line, reusing a single Document so a
+ *         multi-GB stream is processed in bounded memory; a vector-returning
+ *         overload collects them. qbuem::write_lines(buf, range) serializes a
+ *         range as NDJSON. Blank lines are skipped, CRLF trimmed, and the final
+ *         line need not be newline-terminated.
  *
  * v1.5.0: Field rename (roadmap Tier 1). A field in QBUEM_JSON_FIELDS may now be
  *         written `(member, "jsonKey")` to map it to a different wire key
@@ -10404,6 +10411,70 @@ template <typename T> void from_json(const Value &v, T &out) {
 
 template <typename T>::std::string to_json_str(const T &val) {
   return ::qbuem::json::detail::to_json_str(val);
+}
+
+// ── NDJSON / JSON Lines ──────────────────────────────────────────────────────
+// Newline-delimited JSON: one JSON value per line (jsonlines.org / ndjson-spec).
+// The dominant format for logs, ML datasets, and streamed LLM output. Records
+// are decoded one at a time, so a multi-GB document is processed in bounded
+// memory. Blank lines are skipped; a trailing '\r' (CRLF) is trimmed. A record
+// that fails to parse throws qbuem::parse_error whose line()/column() are
+// relative to that record.
+
+// True for a line that is empty or only ASCII whitespace.
+inline bool ndjson_blank_(::std::string_view s) noexcept {
+  for (char c : s)
+    if (static_cast<unsigned char>(c) > ' ') return false;
+  return true;
+}
+
+// read_lines<T>(text, fn) — invoke fn(T&&) for each record, in order. fn may be
+// any callable taking a T by value/rvalue. Bounded memory: one Document and one
+// T are reused across the whole stream.
+template <typename T, typename F>
+void read_lines(::std::string_view text, F &&fn) {
+  Document doc; // reused across lines (no per-record tape allocation)
+  ::std::size_t pos = 0;
+  const ::std::size_t n = text.size();
+  while (pos < n) {
+    ::std::size_t nl = text.find('\n', pos);
+    ::std::size_t stop = (nl == ::std::string_view::npos) ? n : nl;
+    ::std::string_view line = text.substr(pos, stop - pos);
+    if (!line.empty() && line.back() == '\r') line.remove_suffix(1);
+    if (!ndjson_blank_(line)) {
+      Value root = json::parse_reuse(doc, line);
+      T obj{};
+      json::detail::from_json(root, obj);
+      fn(static_cast<T &&>(obj));
+    }
+    pos = (nl == ::std::string_view::npos) ? n : nl + 1;
+  }
+}
+
+// read_lines<T>(text) — collect every record into a vector.
+template <typename T>
+[[nodiscard]] ::std::vector<T> read_lines(::std::string_view text) {
+  ::std::vector<T> out;
+  read_lines<T>(text, [&](T &&v) { out.push_back(static_cast<T &&>(v)); });
+  return out;
+}
+
+// write_lines(buf, range) — append each element of `range` as one NDJSON record
+// (compact JSON + '\n') to buf, reusing its capacity. range is any iterable of a
+// serializable T.
+template <typename Range>
+void write_lines(::std::string &buf, const Range &range) {
+  for (const auto &item : range) {
+    ::qbuem::json::detail::append_json(buf, item);
+    buf += '\n';
+  }
+}
+
+template <typename Range>
+[[nodiscard]] ::std::string write_lines(const Range &range) {
+  ::std::string buf;
+  write_lines(buf, range);
+  return buf;
 }
 
 // ── CBOR binary serialization (RFC 8949) ─────────────────────────────────────

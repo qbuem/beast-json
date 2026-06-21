@@ -79,6 +79,34 @@ buf.clear();
 
 ---
 
+## 📜 NDJSON / JSON Lines
+
+[NDJSON](https://jsonlines.org/) (newline-delimited JSON — one value per line) is
+the standard for logs, ML datasets, and streamed LLM output. `read_lines<T>`
+decodes **one record at a time, reusing a single document**, so a multi-GB file
+is processed in bounded memory:
+
+```cpp
+// Streaming callback — constant memory regardless of file size
+qbuem::read_lines<LogEntry>(text, [](LogEntry&& e) {
+    index(e);
+});
+
+// Or collect them all
+std::vector<LogEntry> all = qbuem::read_lines<LogEntry>(text);
+
+// Write a range back out as NDJSON (compact value + '\n' per element)
+std::string out = qbuem::write_lines(all);
+qbuem::write_lines(buf, all);   // append into a reusable buffer
+```
+
+Each line may be any JSON value (object, array, scalar). Blank lines are skipped,
+`\r\n` is handled, and the final line need not end in a newline. A record that
+fails to parse throws `qbuem::parse_error` whose `line()`/`column()` are relative
+to that record.
+
+---
+
 ## 🚀 Quick Start
 
 ```cpp
