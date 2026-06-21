@@ -1,0 +1,73 @@
+name: Packaging
+
+# Verifies the library is consumable the way packagers ship it: a CMake
+# install + downstream find_package, and a Conan create (recipe + test_package).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'ports/**'
+      - 'include/qbuem_json/qbuem_json.hpp'
+      - '.github/workflows/packaging.yml'
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'conanfile.py'
+      - 'test_package/**'
+      - 'ports/**'
+      - 'include/qbuem_json/qbuem_json.hpp'
+      - '.github/workflows/packaging.yml'
+  workflow_dispatch:
+
+jobs:
+  cmake-install:
+    name: CMake install + find_package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install + export
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_INSTALL_PREFIX="$PWD/_install" \
+            -DQBUEM_JSON_BUILD_TESTS=OFF \
+            -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
+          cmake --install build
+      - name: Consume via find_package
+        run: |
+          mkdir -p consumer && cd consumer
+          cat > CMakeLists.txt <<'EOF'
+          cmake_minimum_required(VERSION 3.14)
+          project(consumer CXX)
+          find_package(qbuem_json CONFIG REQUIRED)
+          add_executable(app main.cpp)
+          target_link_libraries(app PRIVATE qbuem_json::qbuem_json)
+          target_compile_features(app PRIVATE cxx_std_20)
+          EOF
+          cat > main.cpp <<'EOF'
+          #include <qbuem_json/qbuem_json.hpp>
+          #include <cstdio>
+          int main(){ auto j = qbuem::canonicalize(std::string_view("{\"b\":1,\"a\":2}")); std::printf("%s\n", j.c_str()); return j == "{\"a\":2,\"b\":1}" ? 0 : 1; }
+          EOF
+          cmake -S . -B build -DCMAKE_PREFIX_PATH="$GITHUB_WORKSPACE/_install"
+          cmake --build build
+          ./build/app
+
+  conan:
+    name: Conan create
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Conan
+        run: pip install "conan>=2.0"
+      - name: conan create
+        run: |
+          conan profile detect --force
+          conan create . -s compiler.cppstd=20 --build=missing

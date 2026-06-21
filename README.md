@@ -6,6 +6,16 @@
     <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml/badge.svg" alt="Sanitizers (ASan · UBSan · TSan)"></a>
     <a href="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml/badge.svg" alt="Benchmark CI"></a>
     <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL"></a>
+    <a href="https://github.com/qbuem/qbuem-json/actions/workflows/packaging.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/packaging.yml/badge.svg" alt="Packaging (CMake · Conan)"></a>
+  </p>
+
+  <!-- Distribution -->
+  <p>
+    <img src="https://img.shields.io/badge/header--only-single%20file-blue" alt="single-header">
+    <img src="https://img.shields.io/badge/CMake-find__package-064F8C" alt="CMake find_package">
+    <img src="https://img.shields.io/badge/Conan-recipe-6699cb" alt="Conan recipe">
+    <img src="https://img.shields.io/badge/vcpkg-overlay%20port-2596be" alt="vcpkg port">
+    <img src="https://img.shields.io/badge/WASM-browser%20%26%20Node-654ff0" alt="WebAssembly">
   </p>
 
   <!-- Compliance & Standards -->

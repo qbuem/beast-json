@@ -61,7 +61,29 @@ cmake --install build --prefix /usr/local
 After install, link in your CMakeLists:
 
 ```cmake
-find_package(qbuem_json REQUIRED)
+find_package(qbuem_json CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
+```
+
+### Option D: Package managers
+
+**Conan** — a recipe ships in the repo (`conanfile.py`):
+
+```bash
+conan create . -s compiler.cppstd=20      # build & test the package locally
+# in your conanfile: requires = "qbuem-json/1.11.1"
+```
+
+**vcpkg** — an overlay port ships under `ports/qbuem-json/`:
+
+```bash
+vcpkg install qbuem-json --overlay-ports=ports
+```
+
+Both expose the same target as CMake, so consuming code is identical:
+
+```cmake
+find_package(qbuem_json CONFIG REQUIRED)
 target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
 ```
 

@@ -41,7 +41,7 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 - ⬜ **JSON Schema** (Draft-7 → 2020-12 subset) validation — OpenAPI / MCP alignment.
 - ⬜ **Schemaless On-Demand lazy cursor** — parse only the values you touch.
 - ⬜ **Chunked / incremental (socket) parsing** — resumable feeding from a partial buffer.
-- ⬜ **Packaging** — vcpkg + Conan registry; explicit JSONTestSuite conformance badge.
+- 🚧 **Packaging** — `find_package(qbuem_json CONFIG)` fixed, Conan recipe + vcpkg port shipped, CI-verified *(v1.11.1)*; registry submission (ConanCenter / vcpkg) is the remaining step.
 - ⬜ **C++26 P2996 reflection backend** — macro-free registration as an *opt-in fast-lane* once stable
   compilers ship (the macro stays the portable default).
 
