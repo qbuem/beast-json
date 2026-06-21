@@ -3,7 +3,7 @@
 > qbuem-json is a high-performance, header-only C++20 JSON library with dual-engine architecture.
 > GitHub: https://github.com/qbuem/qbuem-json
 > Docs: https://qbuem.com/qbuem-json/
-> Version: 1.0.8 · License: Apache 2.0
+> Version: 1.15.0 · License: Apache 2.0
 
 ---
 
@@ -44,7 +44,7 @@ include(FetchContent)
 FetchContent_Declare(
     qbuem_json
     GIT_REPOSITORY https://github.com/qbuem/qbuem-json
-    GIT_TAG        v1.0.8
+    GIT_TAG        v1.15.0
 )
 FetchContent_MakeAvailable(qbuem_json)
 target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
@@ -553,7 +553,7 @@ CBOR codec (Apple Silicon, 16-entity × 7-int message, reused buffer): encode ~5
 - IEEE 754 round-trip: `parse(serialize(x)) == x` for all finite doubles
 - Three-stage float parsing: Eisel-Lemire (~98.8%) → Russ Cox Unrounded Scaling (~1.2%) → strtod (subnormals <0.01%)
 - Float serialization: Schubfach (Giulietti 2020) — shortest decimal, no trailing zeros
-- 672 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
+- 675 passing tests; CBOR decoder is bounds-checked and safe on untrusted input
 - 17 libFuzzer targets (including dedicated CBOR and reflection fuzzers)
 - ASan, UBSan, TSan on every commit
 

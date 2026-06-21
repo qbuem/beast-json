@@ -28,7 +28,9 @@ The two engines handle different shapes of work. DOM is the right choice when th
 - Schubfach dtoa for shortest round-trip float serialization
 - yy-itoa for integer serialization without division
 - Russ Cox algorithm for decimal-to-double parsing
-- JSON Pointer (RFC 6901) and JSON Patch (RFC 6902)
-- Language bindings for Python and Go
+- JSON Pointer (RFC 6901), JSON Patch / diff (RFC 6902), JSONPath (RFC 9535, incl. filter selectors)
+- CBOR (RFC 8949) binary codec from the same struct registration — cross-language
+- Macro-free struct mapping for plain aggregates; `read_strict` for required-field enforcement
+- Language bindings for Python, Go, Rust, C, and WebAssembly
 
 [Getting Started](/guide/getting-started) has the install step and first example.

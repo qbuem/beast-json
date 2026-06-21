@@ -123,30 +123,32 @@ void handle_request(std::string_view body, HttpResponse& resp) {
 
 ---
 
-### Embedded & IoT
+### Embedded & constrained devices
 
-On microcontrollers or systems without a reliable heap, use `std::pmr` to parse directly into a stack-allocated buffer — **no heap involved at all**:
+On constrained devices, hold one long-lived `Document` (or use the zero-tape
+`fuse<T>`) so the steady state never touches the heap — the tape arena is allocated
+once and refilled on every packet:
 
 ```cpp
-#include <memory_resource>
+void sensor_loop() {
+    qbuem::Document doc;                 // one reusable arena for the lifetime
+    for (std::string_view pkt : packets()) {
+        qbuem::Value root = qbuem::parse(doc, pkt);   // refills the same arena
 
-void handle_sensor_packet(std::string_view json) {
-    // 16 KB lives entirely on the stack
-    alignas(std::max_align_t) std::byte buf[16 * 1024];
-    std::pmr::monotonic_buffer_resource pool(buf, sizeof(buf));
+        float temp   = root["temp"].as<double>();
+        int   sensor = root["id"].as<int64_t>();
+        bool  alarm  = root["alarm"] | false;
 
-    auto doc  = qbuem::json::parse(json, &pool);
-    auto root = doc.root();
-
-    float  temp   = root["temp"].as<double>();
-    int    sensor = root["id"].as<int64_t>();
-    bool   alarm  = root["alarm"] | false;
-
-    publish_reading(sensor, temp, alarm);
-} // buf goes out of scope — nothing to free, no allocator lock
+        publish_reading(sensor, temp, alarm);
+        // `root`'s values view `pkt` + `doc`'s tape — finish before the next parse.
+    }
+}
 ```
 
-Suitable for hard real-time constraints where heap latency is non-deterministic. Combine with `doc.reserve()` if the stack buffer must be sized precisely.
+For a fixed packet schema, `qbuem::fuse<SensorReading>(pkt)` skips the tape
+entirely (no document arena at all) — the lowest-latency, lowest-footprint path.
+Heap traffic in both patterns is zero in steady state, which is what hard
+real-time constraints need.
 
 ---
 

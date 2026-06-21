@@ -5,7 +5,7 @@
   <a href="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/sanitizers.yml/badge.svg" alt="Sanitizers (ASan · UBSan · TSan)" /></a>
   <a href="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/benchmark.yml/badge.svg" alt="Benchmark CI" /></a>
   <a href="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml"><img src="https://github.com/qbuem/qbuem-json/actions/workflows/codeql.yml/badge.svg" alt="CodeQL" /></a>
-  <img src="https://img.shields.io/badge/tests-521%20passing-brightgreen" alt="521 tests passing" />
+  <img src="https://img.shields.io/badge/tests-675%20passing-brightgreen" alt="675 tests passing" />
   <img src="https://img.shields.io/badge/fuzz-17%20libFuzzer%20targets-orange" alt="17 libFuzzer targets" />
   <img src="https://img.shields.io/badge/RFC%208259-compliant-brightgreen" alt="RFC 8259" />
   <img src="https://img.shields.io/badge/RFC%206901-JSON%20Pointer-brightgreen" alt="RFC 6901" />
@@ -16,7 +16,7 @@
 <!-- Summary stats -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.75rem; background: linear-gradient(135deg, #f0f4ff, #e8f0ff); border: 1px solid #c0d0ff; border-radius: 12px; padding: 1.25rem 1.5rem; margin: 0 0 2rem; text-align: center;">
   <div>
-    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">521</div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">675</div>
     <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">tests passing</div>
   </div>
   <div>
@@ -32,7 +32,7 @@
     <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">sanitizers</div>
   </div>
   <div>
-    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">11</div>
+    <div style="font-size: 1.9rem; font-weight: 800; color: #1e2e5c; line-height: 1.1;">17</div>
     <div style="font-size: 0.78rem; color: #555; margin-top: 0.2rem;">fuzz targets</div>
   </div>
 </div>
@@ -47,7 +47,7 @@ reproduce locally.
 
 | Signal | Status | Details |
 |:---|:---:|:---|
-| Total tests | **521** | 20 test files, 5,556 lines |
+| Total tests | **675** | 29 test files, ~7,700 lines |
 | RFC 8259 compliance tests | **73** | 23 accept · 24 reject · 8 impl-defined · 3 roundtrip · 3 API |
 | RFC 6901 JSON Pointer | ✅ | Pointer navigation + edge cases |
 | RFC 6902 JSON Patch | ✅ | add / remove / replace / move / copy / test ops, transactional rollback |
@@ -268,22 +268,29 @@ ctest --test-dir build_tsan --output-on-failure
 
 ## Fuzz testing
 
-Eleven [libFuzzer](https://llvm.org/docs/LibFuzzer.html) targets are maintained
-in `fuzz/`, providing exhaustive coverage of both core parsing and high-level structural mapping:
+Seventeen [libFuzzer](https://llvm.org/docs/LibFuzzer.html) targets are maintained
+in `fuzz/`, providing exhaustive coverage of core parsing, struct mapping, and
+every higher-level surface (CBOR, JSONPath, NDJSON, SAX, diff/patch, reflection):
 
 | Target | Input | Functionality Tested |
 |:---|:---|:---|
 | `fuzz_dom` | Arbitrary bytes | DOM parser — crash/hang on malformed input |
-| `fuzz_parse` | Arbitrary bytes | Nexus/struct-mapping path — type safety under adversarial data |
+| `fuzz_parse` | Arbitrary bytes | High-level `parse()` + full accessor surface |
 | `fuzz_rfc8259` | Arbitrary bytes | Strict parser — RFC 8259 acceptance/rejection consistency |
 | `fuzz_float` | Arbitrary bytes | Three-stage float parsing (Eisel-Lemire, Russ Cox) |
-| `fuzz_direct` | Arbitrary bytes | High-performance DirectParser (Zero-Tape) |
-| `fuzz_nexus` | Arbitrary bytes | Structural Nexus Fusion mapping |
-| `fuzz_api_stress` | Arbitrary bytes | mutation, SafeValue, and runtime API safety |
-| `fuzz_diff` | Arbitrary bytes | Differential testing vs `nlohmann/json` reference |
-| `fuzz_pmr.cpp` | Arbitrary bytes | Memory safety with `std::pmr` polymorphic allocators |
-| `fuzz_patch.cpp` | Arbitrary bytes | RFC 6902 (JSON Patch) exhaustive testing |
-| `fuzz_roundtrip.cpp` | Arbitrary bytes | Parse → Serialize → Re-parse identity validation |
+| `fuzz_direct` | Arbitrary bytes | DirectParser & key mapping (zero-tape) |
+| `fuzz_nexus` | Arbitrary bytes | Nexus Fusion struct mapping |
+| `fuzz_api_stress` | Arbitrary bytes | DOM mutation, SafeValue, runtime API safety |
+| `fuzz_roundtrip` | Arbitrary bytes | Parse → serialize → re-parse identity |
+| `fuzz_diff` | Arbitrary bytes | Differential testing vs `nlohmann/json` |
+| `fuzz_pmr` | Arbitrary bytes | Memory safety with `std::pmr` allocators |
+| `fuzz_patch` | Arbitrary bytes | JSON Pointer & in-place mutation |
+| `fuzz_cbor` | Arbitrary bytes | CBOR codec — decode hostile bytes + round-trip |
+| `fuzz_ndjson` | Arbitrary bytes | NDJSON line splitter + sub-view parse safety |
+| `fuzz_jsonpath` | Arbitrary bytes | JSONPath (RFC 9535) parser + evaluator, incl. filters |
+| `fuzz_sax` | Arbitrary bytes | SAX event visitor recursion + handler dispatch |
+| `fuzz_apply_patch` | Arbitrary bytes | RFC 6902 functional applier + diff generation |
+| `fuzz_reflect` | Arbitrary bytes | Macro-free aggregate reflection: JSON read + CBOR decode |
 
 ### Coverage Results
 
@@ -394,8 +401,8 @@ cmake --build build -j$(nproc)
 ctest --test-dir build --output-on-failure
 
 # Expected output:
-# 521/521 Test #521: StringEdge.SpecialKeyNames .......... Passed  0.00 sec
-# 100% tests passed, 0 tests failed out of 521
+# 675/675 Test #675: StringEdge.SpecialKeyNames .......... Passed  0.00 sec
+# 100% tests passed, 0 tests failed out of 675
 ```
 
 The test suite takes under 1 second on any modern machine.

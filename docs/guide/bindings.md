@@ -8,7 +8,7 @@
 
 | Language | Binding Type | Maturity | Primary Use Case |
 | :--- | :--- | :--- | :--- |
-| **C++ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;** | Native (Header-only) | Production | System programming, HFT, Games |
+| **C++ &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;** | Native (Header-only) | Production | Backend services, low-latency systems, DTO (de)serialization |
 | **C** | Shared Library (ABI) | Production | FFI Foundation, C Applications |
 | **Python** | `nanobind` / `ctypes` | Beta | Data Science, Rapid Prototyping |
 | **Rust** | `cxx` Bridge | Beta | Safe systems programming |

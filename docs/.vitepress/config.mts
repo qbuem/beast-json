@@ -103,7 +103,7 @@ export default withMermaid(
 
             // Open Graph
             ['meta', { property: 'og:title', content: 'qbuem-json — Feel the Power of Ultimate JSON Speed' }],
-            ['meta', { property: 'og:description', content: 'qbuem-json: small changes, big future. Bleeding-edge C++20 JSON library with AVX-512 SIMD acceleration, zero-allocation design, and single-header simplicity. Up to 2.7 GB/s parsing, 8.1 GB/s serialization.' }],
+            ['meta', { property: 'og:description', content: 'qbuem-json: small changes, big future. Bleeding-edge C++20 JSON library with AVX-512 SIMD acceleration, zero-allocation design, and single-header simplicity. Up to 2.9 GB/s parsing, 7.2 GB/s serialization.' }],
             ['meta', { property: 'og:image', content: 'https://qbuem.com/qbuem-json/banner.png' }],
             ['meta', { property: 'og:image:width', content: '989' }],
             ['meta', { property: 'og:image:height', content: '232' }],

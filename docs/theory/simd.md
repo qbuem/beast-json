@@ -259,7 +259,7 @@ NEON has no `VCOMPRESSB` equivalent. qbuem-json uses a `VBSL`-based gather with 
 | ARM NEON | 128-bit Q | ~4 bytes/cycle | ~12 GB/s |
 | Scalar reference | 8-bit GPR | ~1 byte/cycle | ~3 GB/s |
 
-End-to-end parse throughput (2.7 GB/s) is below the Stage-1 ceiling because memory bandwidth and Stage-2 tape generation are the bottleneck for large documents.
+End-to-end parse throughput (up to ~2.9 GB/s on x86_64, ~2.5 on Apple Silicon) is below the Stage-1 ceiling because memory bandwidth and Stage-2 tape generation are the bottleneck for large documents.
 
 ---
 

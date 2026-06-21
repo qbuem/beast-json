@@ -1,6 +1,6 @@
 # API Reference
 
-A complete reference for all public APIs in qbuem-json v1.0.8.
+A complete reference for all public APIs in qbuem-json v1.15.0.
 
 > [!TIP]
 > Looking for auto-generated class/struct documentation? The **[Doxygen Reference](/qbuem-json/api/reference/index.html)** is rebuilt automatically whenever `qbuem_json.hpp` changes and deployed to Pages alongside this guide.

@@ -35,7 +35,7 @@ features:
 
   - icon: 🔒
     title: "RFC Compliant & Hardened"
-    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 100% JSONTestSuite conformance. 672 tests · ASan, UBSan, TSan run on every commit · 17 libFuzzer targets."
+    details: "RFC 6901 JSON Pointer. RFC 6902 JSON Patch with transactional rollback. 100% JSONTestSuite conformance. 675 tests · ASan, UBSan, TSan run on every commit · 17 libFuzzer targets."
 
   - icon: 📦
     title: "Single Header · Apache 2.0"
@@ -88,7 +88,7 @@ features:
 
 ## Why qbuem-json?
 
-**qbuem-json** was built for production systems where latency and allocation count — HFT tick data, real-time game state, large-scale data pipelines. Every design decision is measurable: benchmarks run on CI across three architectures, 521 automated tests guard correctness, and the library ships as a single header with zero dependencies.
+**qbuem-json** is the JSON/CBOR serialization layer for high-performance C++ backends on Linux — parsing request bodies into typed DTOs, serializing responses, and exchanging compact binary with a web client, all where latency and allocation count. Every design decision is measurable: benchmarks run on CI across three architectures, 675 automated tests guard correctness, and the library ships as a single header with zero dependencies.
 
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem; margin: 2rem 0;">
 
@@ -184,7 +184,7 @@ Choose the DOM engine when key names are dynamic or unknown at compile time. Swi
 include(FetchContent)
 FetchContent_Declare(qbuem_json
     GIT_REPOSITORY https://github.com/qbuem/qbuem-json.git
-    GIT_TAG        v1.0.8
+    GIT_TAG        v1.15.0
 )
 FetchContent_MakeAvailable(qbuem_json)
 target_link_libraries(my_target PRIVATE qbuem_json::qbuem_json)
@@ -209,7 +209,7 @@ to CI you can inspect:
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin: 1.5rem 0 2rem;">
 
 <div style="background: #f0f4ff; border: 1px solid rgba(30,46,92,0.15); border-radius: 10px; padding: 1.1rem;">
-  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">521 tests · 20 files</div>
+  <div style="font-weight: 700; color: #1e2e5c; margin-bottom: 0.4rem;">675 tests · 29 files</div>
   <div style="color: rgba(30,46,92,0.7); font-size: 0.86rem; line-height: 1.55;">5,556 lines of C++ tests covering DOM, Nexus, STL mapping, error handling, Unicode, and edge cases.  <a href="/qbuem-json/guide/correctness">Details →</a></div>
 </div>
 
