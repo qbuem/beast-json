@@ -141,6 +141,42 @@ It emits the same ADL surface as `QBUEM_JSON_FIELDS` (DOM `read`/`write`, Nexus 
 - The parentheses around the two type arguments are required; they are what lets multi-parameter templates (`(Pair<A, B>)`) pass through the preprocessor. A bare `QBUEM_JSON_FIELDS(Pair<int, std::string>, …)` does **not** compile because the preprocessor splits on the comma inside `<…>` — wrap multi-param instantiations in a `using` alias, or use `QBUEM_JSON_FIELDS_TPL`.
 :::
 
+### Enums {#enums}
+
+Any `enum` / `enum class` works out of the box, serializing as its **underlying
+integer** across every engine (DOM, `fuse`, CBOR):
+
+```cpp
+enum class Dir { North, East, South, West };
+struct Mob { int id; Dir facing; };
+QBUEM_JSON_FIELDS(Mob, id, facing)
+
+qbuem::write(Mob{7, Dir::West});   // {"id":7,"facing":3}
+```
+
+To serialize an enum as its **value name** instead, register it once with
+`QBUEM_JSON_ENUM` (at the enum's namespace scope, like `QBUEM_JSON_FIELDS`):
+
+```cpp
+enum class Color { Red, Green, Blue };
+QBUEM_JSON_ENUM(Color, Red, Green, Blue)
+
+qbuem::write(Color::Green);                 // "Green"
+qbuem::read<Color>("\"Blue\"");             // Color::Blue
+qbuem::cbor::encode(Color::Red);            // CBOR text "Red"
+```
+
+It round-trips by name across JSON, `fuse`, and CBOR. On read, an unknown name
+leaves the field at its default (DOM) or throws `qbuem::parse_error` (CBOR /
+strict `fuse`). The names are the C++ enumerator identifiers; for custom wire
+strings, define the two ADL hooks yourself (`qbuem_enum_to_string(E)` and
+`qbuem_enum_from_string(std::string_view, E&)`).
+
+> [!NOTE] Default values are automatic
+> When a registered field's key is **absent** from the input object, qbuem-json
+> leaves that field at its default — no annotation needed. So a missing `"facing"`
+> keeps whatever the struct's default-initialized `Dir` is.
+
 ---
 
 ## ✏️ Mutating Parsed JSON

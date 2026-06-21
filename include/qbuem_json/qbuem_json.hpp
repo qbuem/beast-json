@@ -1,6 +1,13 @@
 /**
- * @brief qbuem-json v1.3.0 - High-Performance C++20 JSON Parser
- * @version 1.3.0
+ * @brief qbuem-json v1.4.0 - High-Performance C++20 JSON Parser
+ * @version 1.4.0
+ *
+ * v1.4.0: Enum support (roadmap Tier 1). Any enum/enum class now serializes out
+ *         of the box as its underlying integer across every engine (DOM, fuse,
+ *         CBOR). Opt into a string representation with QBUEM_JSON_ENUM(E, A, B,
+ *         …): the value round-trips as its enumerator name (JSON string / CBOR
+ *         text). Absent object keys already leave a field at its default, so
+ *         "default value on read" needs no annotation.
  *
  * v1.3.0: Rich parse-error context (roadmap Tier 1). parse_error now carries
  *         line() and column() (1-based) in addition to offset(), and what()
@@ -8304,6 +8311,21 @@ concept HasNexusPulseH = requires(uint64_t h, ::std::string_view key,
   nexus_pulse_h(h, key, p, end, t);
 };
 
+// ── Enum support ─────────────────────────────────────────────────────────────
+// Any `enum`/`enum class` serializes out of the box as its underlying integer.
+// Opt into a string representation with QBUEM_JSON_ENUM(E, A, B, ...): it
+// generates ADL hooks `qbuem_enum_to_string(E)` / `qbuem_enum_from_string(sv, E&)`
+// in the enum's namespace, and then the value round-trips as its name across
+// every engine (DOM, fuse, CBOR).  Detection is by ADL (same mechanism as
+// QBUEM_JSON_FIELDS), so the macro is invoked at the enum's namespace scope.
+template <typename E>
+concept JsonDetailStringEnum =
+    std::is_enum_v<E> &&
+    requires(E e, ::std::string_view s, E &er) {
+      { qbuem_enum_to_string(e) } -> ::std::convertible_to<::std::string_view>;
+      qbuem_enum_from_string(s, er);
+    };
+
 // ── Forward declarations
 
 template <typename T> void from_json(const Value &v, T &out);
@@ -8371,6 +8393,13 @@ template <typename T> void from_json(const Value &v, T &out) {
     // nothing — null is null
   } else if constexpr (JsonDetailBool<T>) {
     out = v.as<bool>();
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>) {
+      T tmp{};
+      if (qbuem_enum_from_string(v.template as<std::string_view>(), tmp)) out = tmp;
+    } else {
+      out = static_cast<T>(v.template as<std::underlying_type_t<T>>());
+    }
   } else if constexpr (JsonDetailArith<T>) {
     out = v.as<T>();
   } else if constexpr (std::is_same_v<T, std::string>) {
@@ -8431,6 +8460,11 @@ template <typename T> std::string to_json_str(const T &in) {
     return "null";
   } else if constexpr (JsonDetailBool<T>) {
     return in ? "true" : "false";
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>)
+      return to_json_str(std::string_view(qbuem_enum_to_string(in)));
+    else
+      return to_json_str(static_cast<std::underlying_type_t<T>>(in));
   } else if constexpr (std::is_integral_v<T>) {
     char buf[24];
     char *p;
@@ -8611,6 +8645,11 @@ template <typename W, typename T> void append_json(W &out, const T &in) {
     json_write(out, "null", 4);
   } else if constexpr (JsonDetailBool<T>) {
     if (in) json_write(out, "true", 4); else json_write(out, "false", 5);
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>)
+      append_json(out, std::string_view(qbuem_enum_to_string(in)));
+    else
+      append_json(out, static_cast<std::underlying_type_t<T>>(in));
   } else if constexpr (std::is_integral_v<T>) {
     char buf[24];
     char *ep;
@@ -8832,6 +8871,11 @@ template <typename W, typename T> void append_cbor(W &out, const T &in) {
     json_put(out, static_cast<char>(0xf6)); // null
   } else if constexpr (JsonDetailBool<T>) {
     json_put(out, static_cast<char>(in ? 0xf5 : 0xf4)); // true / false
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>)
+      append_cbor(out, std::string_view(qbuem_enum_to_string(in)));  // text
+    else
+      append_cbor(out, static_cast<std::underlying_type_t<T>>(in));   // integer
   } else if constexpr (std::is_integral_v<T>) {
     if constexpr (std::is_unsigned_v<T>) {
       cbor_head(out, 0, static_cast<uint64_t>(in));
@@ -9132,6 +9176,17 @@ template <typename T> void from_cbor(CborReader &cr, T &out) {
     cr.read_null();
   } else if constexpr (JsonDetailBool<T>) {
     out = cr.read_bool();
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>) {
+      T tmp{};
+      if (!qbuem_enum_from_string(cr.read_text(), tmp))
+        cr.fail("CBOR: unknown enum string");
+      out = tmp;
+    } else {
+      std::underlying_type_t<T> u{};
+      from_cbor(cr, u);
+      out = static_cast<T>(u);
+    }
   } else if constexpr (std::is_integral_v<T>) {
     uint8_t mt; uint64_t arg = cr.read_head(mt);
     if (mt == 0)      out = static_cast<T>(arg);               // unsigned: exact
@@ -9547,6 +9602,41 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
     if (_bindef) _cr.consume_break();                                          \
   }
 
+// ============================================================================
+// QBUEM_JSON_ENUM — serialize an enum as its value name (string) everywhere
+// ============================================================================
+//
+// Without this, an enum serializes as its underlying integer (works out of the
+// box). With it, the enum round-trips as the value name across every engine
+// (DOM, fuse, CBOR). Invoke at the enum's namespace scope (ADL), like
+// QBUEM_JSON_FIELDS:
+//
+//   enum class Color { Red, Green, Blue };
+//   QBUEM_JSON_ENUM(Color, Red, Green, Blue)
+//
+// Unknown strings: on read they leave the field unchanged (DOM) / throw
+// (CBOR / strict fuse). Names are the C++ enumerator identifiers; for custom
+// wire strings, write the two hooks by hand (qbuem_enum_to_string /
+// qbuem_enum_from_string).
+#define QBUEM_JSON_DETAIL_ENUM_TO(A)   case _qb_enum_t::A: return #A;
+#define QBUEM_JSON_DETAIL_ENUM_FROM(A)                                         \
+  if (_qb_s == ::std::string_view(#A)) { _qb_e = _qb_enum_t::A; return true; }
+
+#define QBUEM_JSON_ENUM(EnumType, ...)                                         \
+  inline ::std::string_view qbuem_enum_to_string(EnumType _qb_v) noexcept {    \
+    using _qb_enum_t = EnumType;                                              \
+    switch (_qb_v) {                                                          \
+      QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_ENUM_TO, __VA_ARGS__)                   \
+    }                                                                          \
+    return {};                                                                \
+  }                                                                            \
+  inline bool qbuem_enum_from_string(::std::string_view _qb_s,                 \
+                                     EnumType &_qb_e) noexcept {               \
+    using _qb_enum_t = EnumType;                                              \
+    QBUEM_FOR_EACH(QBUEM_JSON_DETAIL_ENUM_FROM, __VA_ARGS__)                   \
+    return false;                                                              \
+  }
+
 
 } // namespace json
 } // namespace qbuem
@@ -9945,6 +10035,18 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
     else {
       if (nexus_strict_mode()) nexus_type_error("boolean", p, end);
       else skip_direct(p, end);
+    }
+  } else if constexpr (std::is_enum_v<T>) {
+    if constexpr (JsonDetailStringEnum<T>) {
+      std::string tmp;
+      from_json_direct(p, end, tmp);  // reuse the std::string token reader
+      T e{};
+      if (qbuem_enum_from_string(tmp, e)) out = e;
+      else if (nexus_strict_mode()) nexus_type_error("enum", p, end);
+    } else {
+      std::underlying_type_t<T> u{};
+      from_json_direct(p, end, u);    // reuse the integer reader
+      out = static_cast<T>(u);
     }
   } else if constexpr (JsonDetailArith<T>) {
     while (p < end && (unsigned char)*p <= 32) ++p;

@@ -16,11 +16,17 @@
 #include <tuple>
 #include <vector>
 
+enum class CborTier : uint8_t { Free, Lite, Premium };   // integer enum
+enum class CborColor { Red, Green, Blue };               // string-mapped enum
+QBUEM_JSON_ENUM(CborColor, Red, Green, Blue)
+
 struct CborNested {
   int64_t id;
   std::string name;
+  CborTier tier;
+  CborColor color;
 };
-QBUEM_JSON_FIELDS(CborNested, id, name)
+QBUEM_JSON_FIELDS(CborNested, id, name, tier, color)
 
 struct CborFuzz {
   int64_t i;

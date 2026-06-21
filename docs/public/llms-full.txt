@@ -275,6 +275,15 @@ template <typename A, typename B> struct Pair { A a; B b; };
 QBUEM_JSON_FIELDS_TPL((typename A, typename B), (Pair<A, B>), a, b) // any Pair<A,B>
 ```
 
+Enums: any enum/enum class serializes as its underlying integer by default (DOM, fuse, CBOR). Register with QBUEM_JSON_ENUM to serialize as the value name instead; it round-trips by name across JSON and CBOR. Absent object keys leave a field at its default (no annotation needed).
+
+```cpp
+enum class Color { Red, Green, Blue };
+QBUEM_JSON_ENUM(Color, Red, Green, Blue)   // at the enum's namespace scope
+qbuem::write(Color::Green);                 // "Green"
+qbuem::read<Color>("\"Blue\"");             // Color::Blue
+```
+
 QBUEM_JSON_FIELDS_TPL has zero runtime overhead: the compiler instantiates the templates to the same machine code as a concrete QBUEM_JSON_FIELDS registration. Measured on a structurally-identical 7-field type, encode/decode/fuse latency matched within noise (<=0.5%) and the emitted JSON and CBOR bytes were byte-for-byte identical. It is a pure compile-time convenience.
 
 ---
