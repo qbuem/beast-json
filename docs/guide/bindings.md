@@ -13,6 +13,36 @@
 | **Python** | `nanobind` / `ctypes` | Beta | Data Science, Rapid Prototyping |
 | **Rust** | `cxx` Bridge | Beta | Safe systems programming |
 | **Go** | `cgo` Shim | Alpha | High-speed cloud services |
+| **WebAssembly** | Emscripten / Embind | Beta | Browser & Node (validate, canonicalize, JSONPath) |
+
+---
+
+## 🕸️ WebAssembly (browser & Node)
+
+`bindings/wasm/` compiles the engine to WebAssembly, exposing the operations
+JavaScript lacks natively — fast RFC 8259 validation, compact/pretty
+re-serialization, **RFC 8785-style canonicalization** (deterministic bytes for
+signing/hashing), and **RFC 9535 JSONPath** queries — all over plain JSON strings.
+
+```bash
+cd bindings/wasm
+./build.sh            # needs the Emscripten SDK → dist/qbuem_json.mjs + .wasm
+node test/smoke.mjs
+```
+
+```js
+import createQbuemJson from '@qbuem/json-wasm';
+const Q = await createQbuemJson();
+
+Q.validate('{"a":1}');                  // true
+Q.canonicalize('{"b":1,"a":1.50}');     // '{"a":1.5,"b":1}'
+Q.query('{"n":[10,20,30]}', '$.n[-1]'); // '[30]'   (JSON array string)
+```
+
+`minify` / `prettify` / `canonicalize` / `query` throw on invalid input;
+`validate` returns a boolean. Since the browser already has `JSON.parse`, the
+value here is **canonicalization** and **JSONPath** (plus a fast SIMD validator)
+without bundling several JS libraries.
 
 ---
 

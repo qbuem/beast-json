@@ -47,11 +47,11 @@ differentiators where few competitors play.
 
 | # | Feature | Why | Class | Effort |
 |---|---------|-----|-------|--------|
-| 5 | **JSONPath (RFC 9535)** — query, filters, normalized paths, CTS conformance | The biggest *query* completeness gap vs jsoncons/serde_json_path; first normative JSONPath (Feb 2024) → becoming table-stakes. | table-stakes | **L** |
-| 6 | **MessagePack codec** (reuse the same field reflection as CBOR) | Broadens binary reach into Redis/msgpack ecosystems; near-free given the CBOR machinery. | adjacent | **M** |
+| 5 | ✅ **JSONPath (RFC 9535)** — structural selectors shipped *(v1.8.0)*; filters planned | The biggest *query* completeness gap vs jsoncons/serde_json_path; first normative JSONPath (Feb 2024) → becoming table-stakes. | table-stakes | **L** |
+| 8 | ✅ **WASM build + npm package** *(v1.9.0, bindings/wasm)* | Amplifies the cross-language pitch into the *browser* — validate / canonicalize / JSONPath, the things JS lacks natively. | differentiator | **S–M** |
 | 7 | **SAX / event / pull API** over the existing tokenizer | Foundation for bounded-memory huge-doc handling + transcoding without a DOM. | foundation | **M** |
-| 8 | **WASM build + npm package** (header-only → cheap; ship scalar fallback) | Amplifies "CBOR decodes in any language" into the *browser* — directly serves the cross-language pitch. | differentiator | **S–M** |
 | 9 | **Runtime CPU dispatch** (one binary runs on any x86 level; we are `-march=native` static today) | Matters for prebuilt bindings / WASM / packaged distribution. simdjson's model. | infra | **M** |
+| ~~6~~ | ❌ **MessagePack codec** — **DECLINED** (2026-06-21 curation) | Duplicative of the shipped CBOR codec (both binary-JSON); a second parallel codec is maintenance cost without clear differentiation. CBOR already covers the cross-language binary need. | — | — |
 
 ## Tier 3 — Longer-term / heavier
 

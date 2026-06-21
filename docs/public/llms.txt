@@ -20,7 +20,7 @@ Minimum requirements: C++20, GCC 13+ or Clang 18+ or Apple Clang. Supported plat
 - [Object Mapping (Macros)](https://qbuem.com/qbuem-json/guide/mapping): QBUEM_JSON_FIELDS macro, nested structs, optional fields, STL type mappings
 - [Error Handling](https://qbuem.com/qbuem-json/guide/errors): ParseError, typed exceptions, safe vs. unsafe access patterns
 - [Custom Allocators](https://qbuem.com/qbuem-json/guide/allocators): Arena allocators, stack allocators, custom memory strategies
-- [Language Bindings](https://qbuem.com/qbuem-json/guide/bindings): C FFI, Python, Rust, Go bindings
+- [Language Bindings](https://qbuem.com/qbuem-json/guide/bindings): C FFI, Python, Rust, Go, and WebAssembly (browser/Node) bindings
 - [Low-Latency Patterns](https://qbuem.com/qbuem-json/guide/low-latency-patterns): HFT tick data patterns, pre-allocated documents, reuse strategies
 - [Correctness & Safety](https://qbuem.com/qbuem-json/guide/correctness): RFC 8259/6901/6902/8949 compliance, IEEE 754 round-trip, rich parse errors (line/column/caret), enum support, field rename/skip, NDJSON streaming, canonical JSON, JSONPath query (RFC 9535), 623 tests, sanitizers, fuzzing
 - [Benchmarks](https://qbuem.com/qbuem-json/guide/benchmarks): Live CI benchmark results vs. simdjson, yyjson, RapidJSON, nlohmann
