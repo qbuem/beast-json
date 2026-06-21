@@ -46,6 +46,29 @@ without bundling several JS libraries.
 
 ---
 
+## 📦 Portable vs. native builds (for distributing prebuilt bindings)
+
+qbuem-json picks its SIMD path **at compile time**, so a binary is tuned for the
+ISA it was built against. When you *recompile in your own project* (the normal
+header-only path), `-march=native` already gives the optimal kernel for that
+machine — nothing else to do.
+
+When you **distribute a prebuilt artifact** (a Python wheel, a Rust/Go shared
+lib), choose deliberately:
+
+| Goal | Build flags | Trade-off |
+|:---|:---|:---|
+| **Maximum speed**, known target | `-march=native` (or `-mavx2` / `-march=skylake-avx512`) | Fastest; **crashes** (illegal instruction) on a CPU lacking that ISA. |
+| **Maximum compatibility**, any x86-64 | `-mssse3` / baseline `x86-64` (SWAR fallback) | Runs everywhere; gives up wide-SIMD throughput. |
+| **Both** | Ship one artifact per ISA tier and select at install/load time | Most work; what manylinux wheels and distro packages do. |
+
+There is intentionally **no runtime CPU dispatch baked into the header** — for a
+header-only library the recompile path already yields optimal SIMD, and baking a
+multi-versioned dispatcher into the core hot path would add risk for a benefit
+only prebuilt artifacts see. Pick the build that matches how you ship.
+
+---
+
 ## 🛠 Usage Guides
 
 ### 1. Stable C API (`bindings/c/`)
