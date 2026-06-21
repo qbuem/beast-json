@@ -265,6 +265,14 @@ QBUEM_JSON_FIELDS(User, id)  // ✅
 
 Supports up to 32 fields. For more, use manual ADL hooks (`nexus_pulse`, `from_qbuem_json`, `to_qbuem_json`).
 
+Rename a field's wire key by writing it as `(member, "jsonKey")`; a bare name uses the member name. Skip a field by omitting it from the list (it is neither serialized nor read). Both work across DOM/fuse/CBOR.
+
+```cpp
+struct User { int64_t id; std::string user_name; int level; std::string secret; };
+QBUEM_JSON_FIELDS(User, (id, "userId"), (user_name, "userName"), level)  // secret omitted → skipped
+// {"userId":7,"userName":"neo","level":42}
+```
+
 Generic (template) types: register a class template once for ALL instantiations with `QBUEM_JSON_FIELDS_TPL`. Wrap the template-parameter list and the dependent type in parentheses, then list fields. Emits the same ADL surface (DOM read/write, fuse, FastWriter, CBOR) as function templates.
 
 ```cpp

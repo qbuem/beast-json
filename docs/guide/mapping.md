@@ -141,6 +141,40 @@ It emits the same ADL surface as `QBUEM_JSON_FIELDS` (DOM `read`/`write`, Nexus 
 - The parentheses around the two type arguments are required; they are what lets multi-parameter templates (`(Pair<A, B>)`) pass through the preprocessor. A bare `QBUEM_JSON_FIELDS(Pair<int, std::string>, …)` does **not** compile because the preprocessor splits on the comma inside `<…>` — wrap multi-param instantiations in a `using` alias, or use `QBUEM_JSON_FIELDS_TPL`.
 :::
 
+### Renaming & skipping fields {#rename-skip}
+
+By default a field's JSON/CBOR key is its C++ member name. To use a **different
+wire key**, write the field as `(member, "jsonKey")` — useful for snake_case C++
+↔ camelCase JSON, reserved words, or matching a third-party API:
+
+```cpp
+struct User {
+    int64_t     id;
+    std::string user_name;   // C++ snake_case
+    int         level;
+};
+QBUEM_JSON_FIELDS(User, (id, "userId"), (user_name, "userName"), level)
+
+qbuem::write(User{7, "neo", 42});
+// {"userId":7,"userName":"neo","level":42}
+```
+
+A bare field name behaves exactly as before, so renaming is opt-in per field and
+mixes freely with bare fields. Rename works across **DOM, `fuse`, and CBOR**, and
+composes with [`QBUEM_JSON_FIELDS_TPL`](#generic-template-types).
+
+**Skipping a field needs no syntax** — simply omit it from the list. A member
+that isn't registered is neither serialized nor read (and is left at its default
+on read). So computed/internal members just stay off the macro:
+
+```cpp
+struct Account {
+    std::string name;
+    std::string password_hash;  // not listed → never serialized or read
+};
+QBUEM_JSON_FIELDS(Account, name)
+```
+
 ### Enums {#enums}
 
 Any `enum` / `enum class` works out of the box, serializing as its **underlying

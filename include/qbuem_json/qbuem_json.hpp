@@ -1,6 +1,13 @@
 /**
- * @brief qbuem-json v1.4.0 - High-Performance C++20 JSON Parser
- * @version 1.4.0
+ * @brief qbuem-json v1.5.0 - High-Performance C++20 JSON Parser
+ * @version 1.5.0
+ *
+ * v1.5.0: Field rename (roadmap Tier 1). A field in QBUEM_JSON_FIELDS may now be
+ *         written `(member, "jsonKey")` to map it to a different wire key
+ *         (snake_case C++ ↔ camelCase JSON, reserved words, API interop); a bare
+ *         name behaves exactly as before. Skipping a field needs no syntax —
+ *         omit it from the list. Works across DOM, fuse, and CBOR, and composes
+ *         with QBUEM_JSON_FIELDS_TPL.
  *
  * v1.4.0: Enum support (roadmap Tier 1). Any enum/enum class now serializes out
  *         of the box as its underlying integer across every engine (DOM, fuse,
@@ -9364,21 +9371,57 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
   QBUEM_DETAIL_EXPAND(QBUEM_DETAIL_CONCAT2(                                    \
       QBUEM_DETAIL_FE_, QBUEM_DETAIL_COUNT(__VA_ARGS__))(fn, __VA_ARGS__))
 
+// ── Field spec normalization (rename) ────────────────────────────────────────
+// A field listed in QBUEM_JSON_FIELDS may be either a bare member name, which
+// uses its own identifier as the JSON/CBOR key, or `(member, "jsonKey")` to map
+// it to a different wire key (rename — e.g. snake_case C++ ↔ camelCase JSON, or a
+// reserved word).  The two helpers below extract the C++ member token and the
+// key string-literal from either form.  Skipping a field needs no syntax: omit
+// it from the list and it is neither serialized nor read.
+//
+//   QBUEM_FIELD_CPP(score)            → score        QBUEM_FIELD_KEY(score)            → "score"
+//   QBUEM_FIELD_CPP((score, "pts"))   → score        QBUEM_FIELD_KEY((score, "pts"))   → "pts"
+#define QBUEM_DETAIL_FIELD_FST(a, ...) a
+#define QBUEM_DETAIL_FIELD_SND(a, b) b
+// QBUEM_DETAIL_IS_PAREN(x): 1 if x is parenthesized, else 0.
+#define QBUEM_DETAIL_CHECK_N(x, n, ...) n
+#define QBUEM_DETAIL_CHECK(...) QBUEM_DETAIL_EXPAND(QBUEM_DETAIL_CHECK_N(__VA_ARGS__, 0,))
+#define QBUEM_DETAIL_PROBE_PAREN(...) ~, 1,
+#define QBUEM_DETAIL_IS_PAREN(x) QBUEM_DETAIL_CHECK(QBUEM_DETAIL_PROBE_PAREN x)
+#define QBUEM_DETAIL_IIF(cond) QBUEM_DETAIL_CONCAT2(QBUEM_DETAIL_IIF_, cond)
+#define QBUEM_DETAIL_IIF_0(t, f) f
+#define QBUEM_DETAIL_IIF_1(t, f) t
+
+#define QBUEM_FIELD_CPP(F)                                                     \
+  QBUEM_DETAIL_IIF(QBUEM_DETAIL_IS_PAREN(F))                                   \
+  (QBUEM_FIELD_CPP_P, QBUEM_FIELD_CPP_B)(F)
+#define QBUEM_FIELD_CPP_B(n) n
+#define QBUEM_FIELD_CPP_P(t) QBUEM_DETAIL_FIELD_FST t
+
+#define QBUEM_FIELD_KEY(F)                                                     \
+  QBUEM_DETAIL_IIF(QBUEM_DETAIL_IS_PAREN(F))                                   \
+  (QBUEM_FIELD_KEY_P, QBUEM_FIELD_KEY_B)(F)
+#define QBUEM_FIELD_KEY_B(n) #n
+#define QBUEM_FIELD_KEY_P(t) QBUEM_DETAIL_FIELD_SND t
+
 // ============================================================================
 // QBUEM_JSON_FIELDS — one-line struct serialization/deserialization
 // ============================================================================
 
 #define QBUEM_JSON_DETAIL_READ(f)                                              \
-  ::qbuem::json::detail::from_json_field(v, #f, obj.f);
+  ::qbuem::json::detail::from_json_field(v, QBUEM_FIELD_KEY(f),                \
+                                         obj.QBUEM_FIELD_CPP(f));
 #define QBUEM_JSON_DETAIL_WRITE(f)                                             \
-  ::qbuem::json::detail::to_json_field(v, #f, obj.f);
+  ::qbuem::json::detail::to_json_field(v, QBUEM_FIELD_KEY(f),                  \
+                                       obj.QBUEM_FIELD_CPP(f));
 #define QBUEM_JSON_DETAIL_PULSE(f)                                             \
-  case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
+  case ::qbuem::json::detail::fast_key_hash_ce(QBUEM_FIELD_KEY(f)):            \
     /* Verify the actual key bytes — the hash is collision-prone, so without  \
        this an untrusted key could be routed into the wrong field (spoofing / \
        type confusion).  One short compare per object key. */                 \
-    if (_key == ::std::string_view(#f, sizeof(#f) - 1))                        \
-      ::qbuem::json::detail::from_json_direct(p, end, obj.f);                  \
+    if (_key == ::std::string_view(QBUEM_FIELD_KEY(f),                        \
+                                   sizeof(QBUEM_FIELD_KEY(f)) - 1))            \
+      ::qbuem::json::detail::from_json_direct(p, end, obj.QBUEM_FIELD_CPP(f)); \
     else                                                                       \
       ::qbuem::json::detail::skip_direct(p, end);                              \
     break;
@@ -9386,28 +9429,29 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 // QBUEM_JSON_DETAIL_APPEND_FW — FastWriter path: zero std::string overhead
 #define QBUEM_JSON_DETAIL_APPEND_FW(f)                                         \
   {                                                                            \
-    static constexpr char _bj_kf[] = "\"" #f "\":";                           \
+    static constexpr char _bj_kf[] = "\"" QBUEM_FIELD_KEY(f) "\":";           \
     _bj_fw.write(_bj_kf, sizeof(_bj_kf) - 1);                                 \
   }                                                                            \
-  ::qbuem::json::detail::append_json(_bj_fw, obj.f);                          \
+  ::qbuem::json::detail::append_json(_bj_fw, obj.QBUEM_FIELD_CPP(f));         \
   _bj_fw.put(',');
 
 // QBUEM_JSON_DETAIL_APPEND_CBOR — one CBOR map entry: text key + value
 #define QBUEM_JSON_DETAIL_APPEND_CBOR(f)                                       \
   {                                                                            \
-    static constexpr auto _bck = ::qbuem::json::detail::make_cbor_key(#f);     \
+    static constexpr auto _bck =                                              \
+        ::qbuem::json::detail::make_cbor_key(QBUEM_FIELD_KEY(f));              \
     ::qbuem::json::detail::json_write(_bj_w, _bck.data(), _bck.size());        \
   }                                                                            \
-  ::qbuem::json::detail::append_cbor(_bj_w, obj.f);
+  ::qbuem::json::detail::append_cbor(_bj_w, obj.QBUEM_FIELD_CPP(f));
 
 // QBUEM_JSON_DETAIL_CBOR_READ — one switch case routing a CBOR map key to its
 // field.  The hash is collision-prone, so the key bytes are verified before the
 // field is filled (same spoofing defence as the JSON nexus_pulse path); an
 // unmatched key has its value skipped wholesale.
 #define QBUEM_JSON_DETAIL_CBOR_READ(f)                                         \
-  case ::qbuem::json::detail::fast_key_hash_ce(#f):                            \
-    if (::qbuem::json::detail::cbor_key_matches(_key, #f))                     \
-      ::qbuem::json::detail::from_cbor(_cr, obj.f);                            \
+  case ::qbuem::json::detail::fast_key_hash_ce(QBUEM_FIELD_KEY(f)):            \
+    if (::qbuem::json::detail::cbor_key_matches(_key, QBUEM_FIELD_KEY(f)))     \
+      ::qbuem::json::detail::from_cbor(_cr, obj.QBUEM_FIELD_CPP(f));           \
     else                                                                       \
       ::qbuem::json::detail::cbor_skip(_cr);                                   \
     break;
@@ -9422,9 +9466,9 @@ inline void to_json_field(Value &obj, const char *key, const T &val) {
 // correct, just without the fast path.
 #define QBUEM_JSON_DETAIL_CBOR_FAST(f)                                         \
   if (_bfast && (_bindef ? !_cr.peek_break() : (_bi < _bn)) &&                 \
-      _cr.peek_key_eq(#f)) {                                                   \
-    _cr.skip_short_key(sizeof(#f) - 1);                                        \
-    ::qbuem::json::detail::from_cbor(_cr, obj.f);                              \
+      _cr.peek_key_eq(QBUEM_FIELD_KEY(f))) {                                   \
+    _cr.skip_short_key(sizeof(QBUEM_FIELD_KEY(f)) - 1);                        \
+    ::qbuem::json::detail::from_cbor(_cr, obj.QBUEM_FIELD_CPP(f));             \
     ++_bi;                                                                     \
   } else {                                                                     \
     _bfast = false;                                                           \
