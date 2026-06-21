@@ -44,6 +44,12 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   } catch (const std::exception &) {
   }
 
+  // 1b. Strict read — required-field enforcement + nested recursion on hostile input.
+  try {
+    (void)qbuem::read_strict<RUser>(input);
+  } catch (const std::exception &) {
+  }
+
   // 2. Reflected CBOR decode of hostile bytes — bounds-checked reader.
   try {
     RUser u = qbuem::cbor::decode<RUser>(input);
