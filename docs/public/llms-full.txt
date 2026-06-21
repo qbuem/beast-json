@@ -418,6 +418,18 @@ if (root["count"].is_int()) {
 int id = root["id"] | -1;
 ```
 
+Parse failures throw qbuem::parse_error (derives from std::runtime_error). It carries offset() (0-based byte), and line()/column() (1-based); what() reads "<reason> at line L column C (byte offset N)". For binary/CBOR errors line()/column() are 0. qbuem::format_error(e, source) renders the failing line with a caret under the column (pass the same buffer you parsed):
+
+```cpp
+try { qbuem::read<Config>(json); }
+catch (const qbuem::parse_error& e) {
+    std::cerr << qbuem::format_error(e, json) << '\n';
+    // Invalid JSON at line 3 column 15 (byte offset 34)
+    //     "score": 3.5.7,
+    //                 ^
+}
+```
+
 ---
 
 ## Third-Party Types (ADL Hooks)

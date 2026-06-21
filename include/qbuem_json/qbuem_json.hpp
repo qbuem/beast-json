@@ -1,7 +1,13 @@
 /**
- * @brief qbuem-json v1.2.0 - High-Performance C++20 JSON Parser
- * @version 1.2.0
+ * @brief qbuem-json v1.3.0 - High-Performance C++20 JSON Parser
+ * @version 1.3.0
  *
+ * v1.3.0: Rich parse-error context (roadmap Tier 1). parse_error now carries
+ *         line() and column() (1-based) in addition to offset(), and what()
+ *         reads "… at line L column C (byte offset N)". New free function
+ *         qbuem::format_error(e, source) renders the failing line with a caret
+ *         under the column (Glaze/serde-style). Location is computed only on the
+ *         cold error path; binary/CBOR errors report line/column 0.
  * v1.2.0: QBUEM_JSON_FIELDS_TPL — register a CLASS TEMPLATE once and every
  *         instantiation gets the full ADL surface (DOM read/write, Nexus fuse,
  *         FastWriter, CBOR encode/decode) as function templates. Pass the
@@ -332,25 +338,58 @@ class SafeValue;
 // prematurely).  what() embeds the same offset for log-only callers.
 class parse_error : public ::std::runtime_error {
 public:
+  // Offset-only (line/column unknown — reported as 0). Kept for backward
+  // compatibility and for binary inputs (e.g. CBOR) where lines are meaningless.
   parse_error(const ::std::string &msg, ::std::size_t offset)
-      : ::std::runtime_error(msg), offset_(offset) {}
+      : ::std::runtime_error(msg), offset_(offset), line_(0), column_(0) {}
+  // Full source location.  line/column are 1-based.
+  parse_error(const ::std::string &msg, ::std::size_t offset,
+              ::std::size_t line, ::std::size_t column)
+      : ::std::runtime_error(msg), offset_(offset), line_(line),
+        column_(column) {}
+  // Byte offset of the failure within the input.
   ::std::size_t offset() const noexcept { return offset_; }
+  // 1-based line / column of the failure, or 0 if not available (binary input).
+  ::std::size_t line() const noexcept { return line_; }
+  ::std::size_t column() const noexcept { return column_; }
 
 private:
   ::std::size_t offset_;
+  ::std::size_t line_;
+  ::std::size_t column_;
 };
 
-// Build "<msg> at offset N" and throw parse_error.  failpos is clamped into the
-// input; a null failpos (no position available) reports the end of input.
+// 1-based (line, column) of byte `off` within `src`.  Column counts bytes (not
+// code points), which matches the offset and keeps the scan branch-light.  A
+// single forward pass — cold path (only runs when an error is being thrown).
+struct source_position {
+  ::std::size_t offset;
+  ::std::size_t line;
+  ::std::size_t column;
+};
+inline source_position compute_source_position(::std::string_view src,
+                                               ::std::size_t off) noexcept {
+  if (off > src.size()) off = src.size();
+  ::std::size_t line = 1, line_start = 0;
+  for (::std::size_t i = 0; i < off; ++i)
+    if (src[i] == '\n') { ++line; line_start = i + 1; }
+  return {off, line, off - line_start + 1};
+}
+
+// Build "<msg> at line L column C (byte N)" and throw parse_error with the full
+// location.  failpos is clamped into the input; a null failpos (no position
+// available) reports the end of input.
 [[noreturn]] inline void throw_parse_error(const char *msg, const char *failpos,
                                            ::std::string_view json) {
   ::std::size_t off = json.size();
   if (failpos && failpos >= json.data() &&
       failpos <= json.data() + json.size())
     off = static_cast<::std::size_t>(failpos - json.data());
-  char buf[96];
-  ::std::snprintf(buf, sizeof(buf), "%s at offset %zu", msg, off);
-  throw parse_error(buf, off);
+  const source_position loc = compute_source_position(json, off);
+  char buf[128];
+  ::std::snprintf(buf, sizeof(buf), "%s at line %zu column %zu (byte offset %zu)",
+                  msg, loc.line, loc.column, loc.offset);
+  throw parse_error(buf, loc.offset, loc.line, loc.column);
 }
 
 // Require C++20 for optimal constexpr, bit_cast, and concepts
@@ -7804,13 +7843,18 @@ namespace detail_ {
 [[noreturn]] inline void fail(const char *msg, const char *pos,
                               const char *begin) {
   const size_t off = static_cast<size_t>(pos - begin);
-  char buf[128];
-  std::snprintf(buf, sizeof(buf), "RFC 8259 violation at offset %zu: %s", off,
-                msg);
+  // The prefix [begin, begin+off) is exactly the input up to the failure, so its
+  // end position is the failure's line/column.
+  const ::qbuem::json::source_position loc =
+      ::qbuem::json::compute_source_position(::std::string_view(begin, off), off);
+  char buf[160];
+  std::snprintf(buf, sizeof(buf),
+                "RFC 8259 violation at line %zu column %zu (byte offset %zu): %s",
+                loc.line, loc.column, off, msg);
   // parse_error (derived from std::runtime_error) so strict-mode failures carry
-  // the same typed offset() as the relaxed parser; existing catch blocks for
-  // std::runtime_error / std::exception are unaffected.
-  throw ::qbuem::json::parse_error(buf, off);
+  // the same typed offset()/line()/column() as the relaxed parser; existing
+  // catch blocks for std::runtime_error / std::exception are unaffected.
+  throw ::qbuem::json::parse_error(buf, off, loc.line, loc.column);
 }
 
 struct Validator {
@@ -9538,7 +9582,63 @@ using Parser = json::Parser;
 using Document = json::DocumentView;
 using Value = json::Value;
 using SafeValue = json::SafeValue;
-using parse_error = json::parse_error; // thrown by parse*/read/fuse; has offset()
+using parse_error = json::parse_error; // thrown by parse*/read/fuse; offset()/line()/column()
+
+// format_error(e, source) — render a parse_error against its original source as a
+// human-readable, multi-line message: the failing line plus a caret under the
+// column. `source` must be the same buffer that was parsed; if the error carries
+// no line info (e.g. a binary/CBOR error) or `source` is empty, returns e.what().
+//
+//   try { qbuem::read<T>(json); }
+//   catch (const qbuem::parse_error& e) { std::cerr << qbuem::format_error(e, json) << '\n'; }
+//
+//   Invalid JSON at line 3 column 14 (byte 42)
+//     "score": 3.5.7,
+//                ^
+inline ::std::string format_error(const parse_error &e,
+                                  ::std::string_view source) {
+  ::std::string out = e.what();
+  const ::std::size_t line = e.line();
+  if (line == 0 || source.empty()) return out; // no positional context
+
+  // Locate the [start, stop) byte range of the offending line.
+  ::std::size_t start = 0;
+  for (::std::size_t cur = 1; cur < line; ++cur) {
+    const ::std::size_t nl = source.find('\n', start);
+    if (nl == ::std::string_view::npos) { start = source.size(); break; }
+    start = nl + 1;
+  }
+  ::std::size_t stop = source.find('\n', start);
+  if (stop == ::std::string_view::npos) stop = source.size();
+  if (stop > start && source[stop - 1] == '\r') --stop; // trim CR of CRLF
+  ::std::string_view text = source.substr(start, stop - start);
+
+  // 0-based caret column within the line; clamp into the (possibly windowed) line.
+  ::std::size_t caret = e.column() ? e.column() - 1 : 0;
+
+  // Window very long lines so a minified blob doesn't dump everything: keep ~100
+  // bytes around the caret, marking elision with a leading "…".
+  constexpr ::std::size_t kWindow = 100;
+  ::std::string prefix;
+  if (text.size() > kWindow && caret > 40) {
+    const ::std::size_t from = caret - 40;
+    text = text.substr(from, kWindow);
+    caret -= from;
+    prefix = "…";
+  } else if (text.size() > kWindow) {
+    text = text.substr(0, kWindow);
+  }
+  if (caret > text.size()) caret = text.size();
+
+  out += '\n';
+  out += "  ";
+  out += prefix;
+  out.append(text.data(), text.size());
+  out += "\n  ";
+  out.append(prefix.size() + caret, ' ');
+  out += '^';
+  return out;
+}
 
 namespace rfc8259 = json::rfc8259;
 
