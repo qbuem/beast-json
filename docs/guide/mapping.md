@@ -287,6 +287,36 @@ std::cout << root.dump() << "\n";
 // {"a":1,"b":99,"d":"new"}  ("c" was removed because it was null in the patch)
 ```
 
+### Diff & patch (RFC 6902) — `qbuem::diff` / `qbuem::apply_patch`
+
+`qbuem::diff(from, to)` computes the JSON Patch (RFC 6902) that turns one document
+into another — send **only the delta** for real-time state sync. `qbuem::apply_patch`
+applies a patch and returns the new document:
+
+```cpp
+std::string before = R"({"hp":100,"pos":[0,0],"buffs":["haste"]})";
+std::string after  = R"({"hp":80,"pos":[3,0],"buffs":["haste","shield"]})";
+
+std::string patch = qbuem::diff(before, after);
+// [{"op":"replace","path":"/hp","value":80},
+//  {"op":"replace","path":"/pos/0","value":3},
+//  {"op":"add","path":"/buffs/-","value":"shield"}]
+
+std::string result = qbuem::apply_patch(before, patch);   // == after
+```
+
+`apply_patch` is a **complete, functional** RFC 6902 implementation (`add`, `remove`,
+`replace`, `move`, `copy`, `test`): it rebuilds the document per op, so multi-op
+patches, array-index removal, JSON-Pointer `~0`/`~1` unescaping, and
+whole-document replacement all behave correctly. A failing op (bad path, failed
+`test`) throws — a patch is all-or-nothing. `apply_patch(A, diff(A, B))` always
+reproduces `B`.
+
+> Numbers compare by value (`1` == `1.0`) and strings by decoded text, so `diff`
+> never emits spurious ops for representation-only differences. The cross-language
+> story holds too: the generated patch is standard RFC 6902, so a JS/TS client can
+> apply it with any conformant library.
+
 ---
 
 ## 🔌 Advanced: ADL & Custom Hooks (Nexus Engine)

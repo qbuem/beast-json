@@ -1,6 +1,15 @@
 /**
- * @brief qbuem-json v1.10.0 - High-Performance C++20 JSON Parser
- * @version 1.10.0
+ * @brief qbuem-json v1.11.0 - High-Performance C++20 JSON Parser
+ * @version 1.11.0
+ *
+ * v1.11.0: JSON diff + a complete functional RFC 6902 applier (roadmap Tier 3).
+ *          qbuem::diff(from, to) computes the JSON Patch taking one document to
+ *          the other (real-time state sync); qbuem::apply_patch(doc, patch)
+ *          applies a patch and returns the result. The applier is functional
+ *          (rebuild per op), so multi-op patches, array-index removal, JSON
+ *          Pointer ~0/~1 unescaping, and whole-document replacement all behave
+ *          correctly — the cases the in-place overlay Value::patch() cannot.
+ *          Round-trip apply_patch(A, diff(A,B)) == B is verified + fuzzed.
  *
  * v1.10.0: SAX-style event visitor (roadmap Tier 2). qbuem::visit(value, handler)
  *          and sax_parse(json, handler) walk a document depth-first, emitting an
@@ -10588,6 +10597,354 @@ bool sax_parse(::std::string_view json, H &h) {
   Document doc;
   Value root = parse(doc, json);
   return visit(root, h);
+}
+
+// ── RFC 6902 JSON Patch — functional applier + diff generation ───────────────
+// qbuem::apply_patch(doc, patch) applies a JSON Patch and returns the new
+// document as a string; qbuem::diff(from, to) computes the patch that takes one
+// to the other. Unlike the in-place Value::patch() (overlay-based), this applier
+// is purely functional — each op parses the current document and rebuilds it with
+// the edit applied, so multi-op patches, array-index removal, pointer-token
+// unescaping, and whole-document replacement all behave correctly.
+
+inline bool value_equal(const Value &a, const Value &b); // defined below (diff)
+
+inline void p6902_push_(::std::string &out, bool &first, ::std::string_view j) {
+  if (!first) out += ',';
+  first = false;
+  out.append(j);
+}
+
+// Split a JSON Pointer (RFC 6901) into decoded reference tokens.
+inline ::std::vector<::std::string> p6902_tokens_(::std::string_view path) {
+  ::std::vector<::std::string> toks;
+  if (path.empty()) return toks; // whole document
+  ::std::size_t i = (path[0] == '/') ? 1 : 0;
+  ::std::string cur;
+  for (; i <= path.size(); ++i) {
+    if (i == path.size() || path[i] == '/') {
+      toks.push_back(cur);
+      cur.clear();
+    } else if (path[i] == '~' && i + 1 < path.size()) {
+      cur += (path[i + 1] == '0') ? '~' : (path[i + 1] == '1' ? '/' : path[i + 1]);
+      ++i;
+    } else {
+      cur += path[i];
+    }
+  }
+  return toks;
+}
+
+// op: 0=add, 1=remove, 2=replace.  Rebuild `v` to JSON with the node at
+// tokens[ti..] edited; `nv` is the new value's JSON (for add/replace).  Returns
+// nullopt if the path does not resolve (RFC 6902 failure).
+inline ::std::optional<::std::string>
+p6902_edit_(const Value &v, const ::std::vector<::std::string> &toks,
+            ::std::size_t ti, int op, ::std::string_view nv) {
+  if (ti == toks.size()) {
+    if (op == 1) return ::std::nullopt; // remove whole document — unsupported
+    return ::std::string(nv);           // add/replace whole document
+  }
+  const ::std::string &tok = toks[ti];
+  const bool last = (ti + 1 == toks.size());
+  if (v.is_object()) {
+    ::std::string out = "{";
+    bool first = true, found = false;
+    for (const auto &[rawk, child] : v.items()) {
+      if (::qbuem::json::detail::json_unescape(rawk) == tok) {
+        found = true;
+        if (last && op == 1) continue; // remove: drop this member
+        ::std::string mv;
+        if (last) {
+          mv.assign(nv); // add/replace existing key
+        } else {
+          auto sub = p6902_edit_(child, toks, ti + 1, op, nv);
+          if (!sub) return ::std::nullopt;
+          mv = ::std::move(*sub);
+        }
+        if (!first) out += ',';
+        first = false;
+        out += '"';
+        out.append(rawk);
+        out += "\":";
+        out += mv;
+      } else {
+        if (!first) out += ',';
+        first = false;
+        out += '"';
+        out.append(rawk);
+        out += "\":";
+        out += child.dump();
+      }
+    }
+    if (last && op == 0 && !found) { // add a new member
+      if (!first) out += ',';
+      first = false;
+      out += to_json_str(tok);
+      out += ':';
+      out.append(nv);
+      found = true;
+    }
+    if (!found) return ::std::nullopt; // replace/remove on a missing key, or
+                                       // descend into a missing parent
+    out += '}';
+    return out;
+  }
+  if (v.is_array()) {
+    const ::std::size_t n = v.size();
+    const bool dash = (tok == "-");
+    ::std::size_t idx = 0;
+    if (!dash) {
+      const char *b = tok.data(), *e = b + tok.size();
+      auto [p, ec] = ::std::from_chars(b, e, idx);
+      if (ec != ::std::errc{} || p != e) return ::std::nullopt;
+    }
+    ::std::string out = "[";
+    bool first = true;
+    if (!last) {
+      if (dash || idx >= n) return ::std::nullopt;
+      for (::std::size_t i = 0; i < n; ++i) {
+        if (i == idx) {
+          auto sub = p6902_edit_(v[i], toks, ti + 1, op, nv);
+          if (!sub) return ::std::nullopt;
+          p6902_push_(out, first, *sub);
+        } else {
+          p6902_push_(out, first, v[i].dump());
+        }
+      }
+    } else if (op == 0) { // add/insert
+      const ::std::size_t at = dash ? n : idx;
+      if (at > n) return ::std::nullopt;
+      for (::std::size_t i = 0; i < n; ++i) {
+        if (i == at) p6902_push_(out, first, nv);
+        p6902_push_(out, first, v[i].dump());
+      }
+      if (at == n) p6902_push_(out, first, nv);
+    } else { // remove / replace at index
+      if (dash || idx >= n) return ::std::nullopt;
+      for (::std::size_t i = 0; i < n; ++i) {
+        if (i == idx) {
+          if (op == 1) continue; // remove
+          p6902_push_(out, first, nv); // replace
+        } else {
+          p6902_push_(out, first, v[i].dump());
+        }
+      }
+    }
+    out += ']';
+    return out;
+  }
+  return ::std::nullopt; // cannot descend into a scalar
+}
+
+// Read the JSON of the value at `path` in already-parsed `root` (for move/copy/
+// test sources). nullopt if absent.
+inline ::std::optional<::std::string>
+p6902_value_at_(const Value &root, ::std::string_view path) {
+  Value v = root;
+  for (const auto &tok : p6902_tokens_(path)) {
+    if (v.is_object()) {
+      auto m = v.find(tok); // NB: matches raw key bytes
+      if (!m) {
+        // fall back to a decoded-key scan for escaped keys
+        bool hit = false;
+        for (const auto &[rk, cv] : v.items())
+          if (::qbuem::json::detail::json_unescape(rk) == tok) { v = cv; hit = true; break; }
+        if (!hit) return ::std::nullopt;
+      } else {
+        v = *m;
+      }
+    } else if (v.is_array()) {
+      ::std::size_t idx = 0;
+      const char *b = tok.data(), *e = b + tok.size();
+      auto [p, ec] = ::std::from_chars(b, e, idx);
+      if (ec != ::std::errc{} || p != e || idx >= v.size()) return ::std::nullopt;
+      v = v[idx];
+    } else {
+      return ::std::nullopt;
+    }
+  }
+  return v.dump();
+}
+
+// Apply one RFC 6902 op to `doc_json`, returning the new document JSON.
+inline ::std::optional<::std::string>
+p6902_apply_one_(::std::string_view doc_json, const Value &op_obj) {
+  if (!op_obj.is_object()) return ::std::nullopt;
+  const ::std::string op = op_obj["op"] | "";
+  const ::std::string path = op_obj["path"] | "";
+  if (op.empty() || (!path.empty() && path[0] != '/')) return ::std::nullopt;
+  Document doc;
+  Value root = parse(doc, doc_json);
+  const auto toks = p6902_tokens_(path);
+  if (op == "add" || op == "replace") {
+    Value val = op_obj["value"];
+    if (!val.is_valid()) return ::std::nullopt;
+    return p6902_edit_(root, toks, 0, op == "add" ? 0 : 2, val.dump());
+  }
+  if (op == "remove") {
+    return p6902_edit_(root, toks, 0, 1, "");
+  }
+  if (op == "copy" || op == "move") {
+    const ::std::string from = op_obj["from"] | "";
+    if (from.empty() && (op_obj["from"] | "x") == "x") return ::std::nullopt;
+    auto src = p6902_value_at_(root, from);
+    if (!src) return ::std::nullopt;
+    if (op == "move") {
+      auto removed = p6902_edit_(root, p6902_tokens_(from), 0, 1, "");
+      if (!removed) return ::std::nullopt;
+      Document d2;
+      Value r2 = parse(d2, *removed);
+      return p6902_edit_(r2, toks, 0, 0, *src);
+    }
+    return p6902_edit_(root, toks, 0, 0, *src);
+  }
+  if (op == "test") {
+    Value val = op_obj["value"];
+    auto cur = p6902_value_at_(root, path);
+    if (!cur || !val.is_valid()) return ::std::nullopt;
+    Document da, db;
+    Value a = parse(da, *cur);
+    if (!value_equal(a, val)) return ::std::nullopt;
+    return ::std::string(doc_json); // test passes — document unchanged
+  }
+  return ::std::nullopt; // unknown op
+}
+
+// Apply a whole RFC 6902 patch to `doc_json`. Returns the patched document.
+// Throws qbuem::parse_error on malformed JSON; throws std::runtime_error if any
+// op fails (per RFC 6902, a patch is all-or-nothing).
+[[nodiscard]] inline ::std::string apply_patch(::std::string_view doc_json,
+                                               ::std::string_view patch_json) {
+  Document pdoc;
+  Value patch = parse(pdoc, patch_json);
+  if (!patch.is_array())
+    throw ::std::runtime_error("apply_patch: patch must be a JSON array");
+  ::std::string cur(doc_json);
+  for (const Value &op : patch.elements()) {
+    auto next = p6902_apply_one_(cur, op);
+    if (!next)
+      throw ::std::runtime_error("apply_patch: operation failed (bad path or op)");
+    cur = ::std::move(*next); // settle: the next op sees this op's effect
+  }
+  return cur;
+}
+
+// ── JSON diff (RFC 6902 patch generation) ────────────────────────────────────
+// qbuem::diff(from, to) computes a JSON Patch (RFC 6902) that, applied to `from`,
+// yields `to` — for sending only the delta (real-time state sync). The inverse of
+// apply_patch. Numbers compare by value (1 == 1.0), strings by decoded text.
+// Arrays diff element-wise (a length decrease emits one whole-array replace).
+
+// Deep value equality: numbers by numeric value, strings by decoded text.
+inline bool value_equal(const Value &a, const Value &b) {
+  if (a.is_object() && b.is_object()) {
+    ::std::size_t na = 0, nb = 0;
+    for (const auto &[k, va] : a.items()) {
+      ++na;
+      auto ob = b.find(k);
+      if (!ob || !value_equal(va, *ob)) return false;
+    }
+    for (const auto &kv : b.items()) { (void)kv; ++nb; }
+    return na == nb;
+  }
+  if (a.is_array() && b.is_array()) {
+    if (a.size() != b.size()) return false;
+    for (::std::size_t i = 0; i < a.size(); ++i)
+      if (!value_equal(a[i], b[i])) return false;
+    return true;
+  }
+  if (a.is_string() && b.is_string()) return a.decoded() == b.decoded();
+  if (a.is_number() && b.is_number())
+    return a.template as<double>() == b.template as<double>();
+  if (a.is_bool() && b.is_bool())
+    return a.template as<bool>() == b.template as<bool>();
+  if (a.is_null() && b.is_null()) return true;
+  return false; // differing type
+}
+
+inline ::std::string diff_jptr_escape_(::std::string_view k) {
+  ::std::string s;
+  s.reserve(k.size());
+  for (char c : k) {
+    if (c == '~') s += "~0";
+    else if (c == '/') s += "~1";
+    else s += c;
+  }
+  return s;
+}
+inline void diff_op_(::std::string &out, bool &first, const char *op,
+                     const ::std::string &path) {
+  if (!first) out += ',';
+  first = false;
+  out += R"({"op":")";
+  out += op;
+  out += R"(","path":)";
+  out += to_json_str(path);
+  out += '}';
+}
+inline void diff_op_value_(::std::string &out, bool &first, const char *op,
+                           const ::std::string &path, const Value &v) {
+  if (!first) out += ',';
+  first = false;
+  out += R"({"op":")";
+  out += op;
+  out += R"(","path":)";
+  out += to_json_str(path);
+  out += R"(,"value":)";
+  out += v.dump();
+  out += '}';
+}
+inline void diff_emit_(const Value &from, const Value &to,
+                       const ::std::string &path, ::std::string &out,
+                       bool &first) {
+  if (value_equal(from, to)) return;
+  if (from.is_object() && to.is_object()) {
+    for (const auto &[k, fv] : from.items()) {
+      (void)fv;
+      if (!to.find(k))
+        diff_op_(out, first, "remove",
+                 path + "/" +
+                     diff_jptr_escape_(::qbuem::json::detail::json_unescape(k)));
+    }
+    for (const auto &[k, tv] : to.items()) {
+      const ::std::string p =
+          path + "/" + diff_jptr_escape_(::qbuem::json::detail::json_unescape(k));
+      auto fv = from.find(k);
+      if (!fv) diff_op_value_(out, first, "add", p, tv);
+      else diff_emit_(*fv, tv, p, out, first);
+    }
+  } else if (from.is_array() && to.is_array()) {
+    const ::std::size_t la = from.size(), lb = to.size();
+    if (lb < la) {
+      diff_op_value_(out, first, "replace", path, to); // shrink → whole-array
+    } else {
+      for (::std::size_t i = 0; i < la; ++i)
+        diff_emit_(from[i], to[i], path + "/" + ::std::to_string(i), out, first);
+      for (::std::size_t i = la; i < lb; ++i)
+        diff_op_value_(out, first, "add", path + "/-", to[i]);
+    }
+  } else {
+    diff_op_value_(out, first, "replace", path, to);
+  }
+}
+
+// Returns an RFC 6902 patch (JSON array string) taking parsed `from` to `to`.
+[[nodiscard]] inline ::std::string diff(const Value &from, const Value &to) {
+  ::std::string out = "[";
+  bool first = true;
+  diff_emit_(from, to, ::std::string(), out, first);
+  out += ']';
+  return out;
+}
+
+// Parse both JSON strings and diff them. Throws on invalid input.
+[[nodiscard]] inline ::std::string diff(::std::string_view from_json,
+                                        ::std::string_view to_json) {
+  Document fdoc, tdoc;
+  Value f = parse(fdoc, from_json);
+  Value t = parse(tdoc, to_json);
+  return diff(f, t);
 }
 
 // ── JSONPath (RFC 9535 — structural selectors) ───────────────────────────────
