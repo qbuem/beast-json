@@ -24,15 +24,16 @@ HIDE_IN_BODY_DOCS      = NO
 INTERNAL_DOCS          = NO
 
 # Input Related
-# The API reference is generated from the canonical header (always in sync) plus a
-# single small, purpose-built landing page (docs/api-mainpage.md). The old INPUT
-# pulled in three hand-written docs that had drifted out of date; those were
-# removed (their accurate replacements live in the VitePress guide/theory pages).
-INPUT                  = include/qbuem_json/qbuem_json.hpp docs/api-mainpage.md
-FILE_PATTERNS          = *.hpp *.h *.md
+# Header only. The API reference (and the @mainpage landing page) are generated
+# from the canonical header, so they always match the source. Do NOT add markdown
+# files here: a markdown mainpage is also processed as a "page", which leaves a
+# phantom Related-Pages (pages.html) link in the nav that 404s. Keep the landing
+# page as the header's @mainpage comment instead.
+INPUT                  = include/qbuem_json/qbuem_json.hpp
+FILE_PATTERNS          = *.hpp *.h
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       =
-USE_MDFILE_AS_MAINPAGE = docs/api-mainpage.md
+USE_MDFILE_AS_MAINPAGE =
 
 # HTML Related
 HTML_OUTPUT            = reference
