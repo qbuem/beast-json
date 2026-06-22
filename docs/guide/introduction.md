@@ -6,16 +6,15 @@ qbuem-json is a C++20 JSON library built around two parsing engines: a tape-base
 
 ## Two engines, one header
 
-**DOM engine (`qbuem::parse`)** builds a flat tape of nodes in a single pass. No pointer chasing, no tree allocation — the output is a contiguous array you can traverse or mutate. SIMD structural scanning (AVX-512 on x86, NEON on ARM) gets through the input at 64 bytes per cycle before the parser starts.
+**DOM engine (`qbuem::parse`)** builds a flat tape of nodes in a single pass. No pointer chasing, no tree allocation — the output is a contiguous array you can traverse or mutate. SIMD structural scanning (AVX-512 on x86, NEON on ARM) classifies 64 bytes at a time before the parser starts.
 
-**Nexus engine (`qbuem::fuse<T>`)** skips the tape entirely. It maps JSON keys directly to struct fields using compile-time FNV-1a hashes, writing each value into the struct as it's encountered. No intermediate representation, no second pass.
+**Nexus engine (`qbuem::fuse<T>`)** skips the tape entirely. It maps JSON keys directly to struct fields using compile-time key hashes — raw little-endian bytes for short keys, FNV-1a for long ones — writing each value into the struct as it's encountered. No intermediate representation, no second pass.
 
 ```cpp
 qbuem::Document doc;
-auto root = qbuem::parse(doc, json);    // DOM: tape → Value tree
+auto root = qbuem::parse(doc, json);    // DOM: tape → Value cursor
 
-User u;
-qbuem::fuse(u, json);                   // Nexus: stream → struct, no tape
+User u = qbuem::fuse<User>(json);       // Nexus: stream → struct, no tape
 ```
 
 The two engines handle different shapes of work. DOM is the right choice when the schema isn't known at compile time, or when you need to inspect, mutate, or partially traverse arbitrary JSON. Nexus is right when you have a fixed struct and want it filled as fast as possible.

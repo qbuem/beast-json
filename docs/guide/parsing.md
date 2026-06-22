@@ -329,9 +329,9 @@ auto root = qbuem::parse(doc, R"({
 // Runtime JSON Pointer
 std::string t = root.at("/store/book/0/title").as<std::string>(); // "C++ Primer"
 
-// Compile-time JSON Pointer (zero runtime overhead)
-using namespace qbuem::literals;
-auto title = root.at("/store/book/1/title"_jptr).as<std::string>(); // "Effective C++"
+// Compile-time JSON Pointer (zero runtime overhead) — the path is a
+// template argument, validated and tokenized at compile time.
+auto title = root.at<"/store/book/1/title">().as<std::string>(); // "Effective C++"
 ```
 
 JSON Pointer addresses **one** node. For multi-match queries (wildcards,

@@ -225,8 +225,14 @@ scope decision, not a gap:
   struct CreateUser { std::string name; int age; };
   QBUEM_JSON_FIELDS(CreateUser, name, age)
 
-  auto r = qbuem::read<CreateUser>(body);   // wrong type / missing field → r is an error
-  if (!r) return reject(r.error());          // no JSON Schema needed
+  try {
+      // read_strict additionally rejects a payload that omits a required
+      // (non-optional) field; plain read<T> tolerates missing fields.
+      CreateUser u = qbuem::read_strict<CreateUser>(body);
+      handle(u);                              // validated, fully typed
+  } catch (const std::exception& e) {
+      return reject(e.what());                // wrong type / missing field
+  }
   ```
 
 - **For dynamic JSON against an *external* schema** (OpenAPI 3.1, the MCP default

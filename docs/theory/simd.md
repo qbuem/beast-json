@@ -23,7 +23,7 @@ On a modern superscalar CPU, this produces:
 - One byte processed per iteration → unable to exploit instruction-level parallelism
 - Maximum throughput: ~1 byte/cycle → ~3 GB/s at 3 GHz
 
-qbuem-json's SIMD path achieves **64 bytes per cycle** on AVX-512 — a 64× improvement in classification throughput.
+qbuem-json's SIMD path classifies **64 bytes per instruction** on AVX-512 — it replaces 64 byte-at-a-time branches with a handful of branchless vector ops. The end-to-end throughput that buys is quantified in the table at the bottom of this page.
 
 ---
 
@@ -39,7 +39,7 @@ On Intel Ice Lake and later, `VMOVDQU64` has 1 cycle latency and can be pipeline
 
 ## Stage 1a: Parallel Structural Character Detection
 
-Instead of eight `if` branches, qbuem-json runs eight `VPCMPEQB` instructions. Each compares all 64 bytes against one target character and produces a 64-bit bitmask. For a 64-byte window, this produces a **64-bit integer** (`structural_mask`) identifying every structural character in **~8 cycles total**.
+Instead of one branch per byte, qbuem-json builds a small set of 64-bit masks with `_mm512_cmpeq_epi8_mask` — one for `"`, one for `\`, the four brackets `{ } [ ]` folded together, the separators `:` `,` — plus a single signed `_mm512_cmpgt_epi8_mask` (`> 0x20`) to find whitespace. Each instruction compares all 64 bytes at once and yields a `__mmask64`. OR-folding the bracket and quote masks gives a **64-bit integer** that marks every candidate structural position in a 64-byte window — a few vector instructions, no per-byte branch.
 
 ### What the mask looks like
 
@@ -93,9 +93,9 @@ The core insight: `in_string[i] = XOR of all unescaped quote bits from index 0 t
     </div>
     <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
     <div class="bd-group" style="max-width:520px;width:100%;">
-      <div class="bd-group__title">Step 3 — Prefix-XOR via CLMUL (4 cycles)</div>
+      <div class="bd-group__title">Step 3 — Prefix-XOR via a shift-XOR ladder</div>
       <div class="bd-group__body">
-        <div class="bd-box bd-box--teal">PCLMULQDQ real_quote_mask, 0xFFFF…<br><small>carryless multiply = prefix XOR</small></div>
+        <div class="bd-box bd-box--teal" style="font-family:var(--vp-font-family-mono);font-size:0.74rem;">x ^= x&lt;&lt;1; x ^= x&lt;&lt;2; x ^= x&lt;&lt;4;<br>x ^= x&lt;&lt;8; x ^= x&lt;&lt;16; x ^= x&lt;&lt;32;<br><small>six shifts + XORs = parallel prefix-XOR of the quote mask (<code>simd::prefix_xor</code>)</small></div>
         <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
         <div class="bd-box bd-box--brand">in_string_mask<br><small>bit[i] = XOR(real_quote_mask[0..i]) — 0=outside string, 1=inside</small></div>
       </div>
@@ -148,71 +148,59 @@ Byte 5 (`:` inside the string): `raw_struct=1` → `in_string=1` → `clean_stru
 
 ---
 
-## Stage 1c: Structural Byte Extraction (VCOMPRESSB)
+## Stage 1c: From Mask to Positions
 
-On Intel Ice Lake+, `VCOMPRESSB` packs the flagged bytes into a dense output in **one instruction**:
+There is **no byte-compaction instruction** in the hot path — qbuem-json does not use `VCOMPRESSB`. The 64-bit `clean_structural_mask` is turned into a list of offsets directly: a tight loop pulls the index of each set bit with `__builtin_ctzll`, writes the absolute source offset into a flat `positions[]` array, then clears that bit and repeats.
 
-<div class="bd-diagram">
-  <div class="bd-col">
-    <div class="bd-split" style="max-width:540px;width:100%;gap:1rem;">
-      <div class="bd-col">
-        <div class="bd-group__title" style="font-size:0.7rem;text-transform:uppercase;color:var(--vp-c-text-2);letter-spacing:.07em;margin-bottom:.35rem;">Before — zmm0 (64 bytes, sparse)</div>
-        <div class="bd-box" style="font-size:0.75rem;font-family:monospace;letter-spacing:0.05em;">{ · · · · · · · · · · · · · ·<br>· · · · · · · · · } · · · · ·</div>
-        <div class="bd-badge bd-badge--brand" style="margin-top:.35rem;">64 bytes total</div>
-      </div>
-      <div class="bd-col">
-        <div class="bd-group__title" style="font-size:0.7rem;text-transform:uppercase;color:var(--vp-c-text-2);letter-spacing:.07em;margin-bottom:.35rem;">After — zmm1 (dense structural bytes)</div>
-        <div class="bd-box bd-box--green" style="font-size:0.85rem;font-family:monospace;">{ }</div>
-        <div class="bd-badge bd-badge--green" style="margin-top:.35rem;">2 bytes — structural only</div>
-      </div>
-    </div>
-    <div class="bd-callout" style="max-width:540px;width:100%;margin:0.75rem 0 0;font-size:0.8rem;">
-      <strong>VCOMPRESSB zmm1 {k1}, zmm0</strong> — one instruction, ~3 cycles<br>
-      k1 = clean_structural_mask; set bits select which bytes to keep
-    </div>
-  </div>
-</div>
+```cpp
+uint32_t base = block_start_offset;
+while (structural) {
+    int bit = __builtin_ctzll(structural);   // index of next structural char
+    positions[count++] = base + bit;          // absolute source offset
+    structural &= structural - 1;             // clear lowest set bit
+}
+```
 
-Stage 2 now iterates a **tiny dense buffer** — only structural characters — rather than the full input.
+The product of Stage 1 is `Stage1Index.positions[]` — a dense array holding the byte offset of every structural token. Stage 2 walks **that array**, never the full input. (`ctzll` + `&= x-1` is the same bit-scan idiom you'll see again in Stage 2; here it builds the index, there it drives tape emission.)
 
 ---
 
-## Stage 2: Tape Generation via Bitset Iteration
+## Stage 2: Tape Generation
 
-Stage 2 uses `TZCNT` (trailing zero count) to iterate only the set bits in `clean_structural_mask`:
+Stage 2 (`parse_staged`) walks the `positions[]` array Stage 1 produced — each entry is the source offset of one structural token — and emits one `TapeNode` per token:
 
 <div class="bd-diagram">
   <div class="bd-col">
     <div class="bd-box bd-box--brand" style="max-width:400px;font-size:0.78rem;">
-      clean_structural_mask<br><small style="color:var(--vp-c-text-2);">e.g. 0b…0001001010010001</small>
+      Stage1Index.positions[]<br><small style="color:var(--vp-c-text-2);">e.g. [0, 1, 6, 7, 13, …]</small>
     </div>
     <div class="bd-arrow"><div class="bd-arrow__icon">↓</div></div>
     <div class="bd-split" style="width:100%;max-width:600px;gap:1rem;">
       <div class="bd-group">
-        <div class="bd-group__title">Per-structural-character loop</div>
+        <div class="bd-group__title">Per-token loop</div>
         <div class="bd-group__body">
           <div class="bd-steps">
-            <div class="bd-step"><div class="bd-step__num">1</div><div class="bd-step__body"><div class="bd-step__title">TZCNT</div><div class="bd-step__desc">Find index of next structural char (count trailing zeros — 1 cycle)</div></div></div>
-            <div class="bd-step"><div class="bd-step__num">2</div><div class="bd-step__body"><div class="bd-step__title">Load input[index]</div><div class="bd-step__desc">Read the structural character</div></div></div>
-            <div class="bd-step"><div class="bd-step__num">3</div><div class="bd-step__body"><div class="bd-step__title">switch(char)</div><div class="bd-step__desc">8-way dispatch — emit TapeNode</div></div></div>
-            <div class="bd-step"><div class="bd-step__num">4</div><div class="bd-step__body"><div class="bd-step__title">BLSR</div><div class="bd-step__desc">Clear lowest set bit → advance to next (1 cycle) → back to step 1</div></div></div>
+            <div class="bd-step"><div class="bd-step__num">1</div><div class="bd-step__body"><div class="bd-step__title">pos = positions[i]</div><div class="bd-step__desc">Next structural offset — one array read</div></div></div>
+            <div class="bd-step"><div class="bd-step__num">2</div><div class="bd-step__body"><div class="bd-step__title">Load input[pos]</div><div class="bd-step__desc">Read the structural character</div></div></div>
+            <div class="bd-step"><div class="bd-step__num">3</div><div class="bd-step__body"><div class="bd-step__title">dispatch via kActionLut</div><div class="bd-step__desc">256-entry action table → emit TapeNode</div></div></div>
+            <div class="bd-step"><div class="bd-step__num">4</div><div class="bd-step__body"><div class="bd-step__title">++i</div><div class="bd-step__desc">advance to the next token → back to step 1</div></div></div>
           </div>
         </div>
       </div>
       <div class="bd-group">
         <div class="bd-group__title">TapeNode emitted per case</div>
         <div class="bd-group__body">
-          <div class="bd-box bd-box--teal" style="font-size:0.75rem;">{ } [ ]<br><small>→ OBJ/ARR node + jump-patch</small></div>
-          <div class="bd-box bd-box--purple" style="font-size:0.75rem;">"<br><small>→ KEY or STRING string_view</small></div>
-          <div class="bd-box bd-box--green" style="font-size:0.75rem;">digit / -<br><small>→ UINT64 / INT64 / DOUBLE</small></div>
-          <div class="bd-box bd-box--orange" style="font-size:0.75rem;">t / f / n<br><small>→ BOOL_TRUE / FALSE / NULL</small></div>
+          <div class="bd-box bd-box--teal" style="font-size:0.75rem;">{ } [ ]<br><small>→ ObjectStart/End · ArrayStart/End</small></div>
+          <div class="bd-box bd-box--purple" style="font-size:0.75rem;">"<br><small>→ StringRaw (offset, length)</small></div>
+          <div class="bd-box bd-box--green" style="font-size:0.75rem;">digit / -<br><small>→ Integer / Double / NumberRaw</small></div>
+          <div class="bd-box bd-box--orange" style="font-size:0.75rem;">t / f / n<br><small>→ BooleanTrue / BooleanFalse / Null</small></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-The loop body executes **once per structural character**. In typical JSON, structural characters are 5–15% of the input — Stage 2 is extremely cache-efficient.
+The loop body executes **once per structural token**. In typical JSON, structural characters are 5–15% of the input — Stage 2 touches only that fraction.
 
 ---
 
@@ -233,21 +221,21 @@ On Apple Silicon and ARM64 servers, qbuem-json uses NEON 128-bit registers (16 b
         <div class="bd-pipe-arrow">→</div>
         <div class="bd-pipe-stage">
           <div class="bd-pipe-stage__label">Compare</div>
-          <div class="bd-pipe-stage__main">VCEQQ_U8 ×8</div>
-          <div class="bd-pipe-stage__note">vs each structural target</div>
+          <div class="bd-pipe-stage__main">vceqq_u8 / vcgtq_u8</div>
+          <div class="bd-pipe-stage__note">vs each structural target + whitespace</div>
         </div>
         <div class="bd-pipe-arrow">→</div>
         <div class="bd-pipe-stage">
-          <div class="bd-pipe-stage__label">Merge</div>
-          <div class="bd-pipe-stage__main">VORRQ_U8</div>
-          <div class="bd-pipe-stage__note">all 8 masks → one</div>
+          <div class="bd-pipe-stage__label">Reduce</div>
+          <div class="bd-pipe-stage__main">vorrq_u8 → neon_movemask</div>
+          <div class="bd-pipe-stage__note">merge masks, pack to a 16-bit bitmask</div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-NEON has no `VCOMPRESSB` equivalent. qbuem-json uses a `VBSL`-based gather with a compact scalar loop for Stage 2 on ARM — still far faster than a pure scalar parser.
+NEON has no single-instruction byte-compaction, so qbuem-json reduces each 16-byte compare result to a bitmask with `neon_movemask` (a weight-vector multiply plus a horizontal `vaddv` add), then feeds the same `ctzll`-style bit-scan as the x86 path. The `prefix_xor` shift-ladder is identical across both ISAs.
 
 ---
 
@@ -265,14 +253,15 @@ End-to-end parse throughput (up to ~2.9 GB/s on x86_64, ~2.5 on Apple Silicon) i
 
 ## Instruction Reference
 
-| Instruction | ISA | Operation | Latency |
-|:---|:---|:---|---:|
-| `VMOVDQU64` | AVX-512 | Load 64 bytes unaligned | 1 cycle |
-| `VPCMPEQB` | AVX-512 | Compare 64 bytes → 64-bit mask | 1 cycle |
-| `KORQ` | AVX-512 | OR two 64-bit k-registers | 1 cycle |
-| `PCLMULQDQ` | PCLMULQDQ | Carryless multiply (prefix XOR) | 4 cycles |
-| `VCOMPRESSB` | AVX-512 VBMI | Pack masked bytes to dense | 3 cycles |
-| `TZCNT` | BMI1 | Count trailing zeros | 3 cycles |
-| `BLSR` | BMI1 | Reset lowest set bit | 1 cycle |
-| `VLD1Q_U8` | NEON | Load 16 bytes | 1 cycle |
-| `VCEQQ_U8` | NEON | Compare 16 bytes | 1 cycle |
+These are the intrinsics and builtins the parser actually uses (no `PCLMULQDQ` and no `VCOMPRESSB` — the in-string mask is a shift-XOR ladder and extraction is a `ctzll` loop):
+
+| Intrinsic / builtin | ISA | Operation |
+|:---|:---|:---|
+| `_mm512_loadu_si512` | AVX-512F | Load 64 bytes unaligned into a ZMM register |
+| `_mm512_cmpeq_epi8_mask` | AVX-512BW | Compare 64 bytes for equality → `__mmask64` |
+| `_mm512_cmpgt_epi8_mask` | AVX-512BW | Signed compare → whitespace mask (`> 0x20`) |
+| `simd::prefix_xor` | portable | 6-step shift-XOR ladder → in-string mask |
+| `__builtin_ctzll` | BMI1 (`TZCNT`) | Index of the next set structural bit |
+| `x &= x - 1` | — | Clear lowest set bit, advance to the next |
+| `vld1q_u8` / `vceqq_u8` | NEON | Load / compare 16 bytes |
+| `neon_movemask` | NEON | Reduce a 16-byte compare result to a bitmask |

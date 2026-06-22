@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 interface ErrorScenario {
   id: string
@@ -63,9 +63,9 @@ const scenarios: ErrorScenario[] = [
     level: 'intermediate',
     input: '{ "big": 999999999999999999999 }',
     errorMark: '999999999999999999999',
-    stage: 'Stage 2 (Russ Cox number parser)',
-    message: 'qbuem::parse_error: integer overflow — value exceeds 2^56 at byte 9',
-    why: 'qbuem-json\'s INT64/UINT64 payload is 56 bits (the remaining bits after the 8-bit type tag). Values > 2^56-1 cannot be stored inline. The Russ Cox algorithm detects overflow during accumulation.',
+    stage: 'Extraction — .as<int64_t>()',
+    message: 'qbuem::Value::as<int64_t>: number out of range',
+    why: 'Parsing itself succeeds: the number is kept as an (offset, length) slice, not converted yet. The overflow is detected lazily when you call .as<int64_t>() — from_chars reports the value exceeds the int64 range (±9.2×10^18). Numbers are never stored inline, so the limit is the target type\'s range, not a tape-payload width.',
     fix: 'For very large integers, use a string representation and parse manually, or use .as<double>() accepting precision loss.',
     fixCode: '{ "big": "999999999999999999999" }  // store as string\n// or accept double precision:\nauto v = root["big"].as<double>();',
   },

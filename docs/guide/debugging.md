@@ -18,10 +18,10 @@ Understanding the data flow is the foundation of effective debugging. Every pars
       <div class="bd-group__title">Stage 1 — SIMD Structural Indexing</div>
       <div class="bd-group__body" style="align-items:flex-start;">
         <div class="bd-box bd-box--teal" style="max-width:100%;width:100%;text-align:left;">
-          Load 64 bytes/cycle → zmm0 (AVX-512)<br>
-          <small>8× VPCMPEQB → 64-bit structural_mask</small><br>
-          <small>PCLMULQDQ prefix-XOR → suppress chars in strings</small><br>
-          <small>Result: sparse bitset of structural positions</small>
+          Load 64 bytes → ZMM register (AVX-512)<br>
+          <small>cmpeq / cmpgt masks → 64-bit structural mask</small><br>
+          <small>prefix_xor shift-ladder → suppress chars in strings</small><br>
+          <small>Result: positions[] of structural offsets (via ctzll)</small>
         </div>
       </div>
     </div>
@@ -94,20 +94,21 @@ Click any node below to see its exact encoding:
 
 ### Type Tag Reference
 
-| Tag | Name | Payload meaning | Access |
+Each node is `{ uint32_t meta, uint32_t offset }` — `meta` packs `[type:8 | flags:8 | length:16]`, `offset` is a byte offset into the source. The type tag (`meta` bits 31–24) is the `TapeNodeType` enum value:
+
+| Tag | Name | What `offset`/`length` mean | Access |
 |:---|:---|:---|:---|
-| `0x01` | `OBJ_START` | Index of matching `OBJ_END` | `is_object()` |
-| `0x02` | `OBJ_END` | Index of matching `OBJ_START` | internal |
-| `0x03` | `ARR_START` | Index of matching `ARR_END` | `is_array()` |
-| `0x04` | `ARR_END` | Index of matching `ARR_START` | internal |
-| `0x05` | `KEY` | 48-bit ptr + 8-bit len into input buf | key matching |
-| `0x06` | `STRING` | 48-bit ptr + 8-bit len into input buf | `.as<string_view>()` |
-| `0x07` | `UINT64` | Unsigned value inline (≤ 2⁵⁶−1) | `.as<uint64_t>()` |
-| `0x08` | `INT64` | Signed value inline (sign-extended) | `.as<int64_t>()` |
-| `0x09` | `DOUBLE` | IEEE 754 bit-cast, no `strtod` | `.as<double>()` |
-| `0x0A` | `BOOL_TRUE` | Unused | `.as<bool>()` → true |
-| `0x0B` | `BOOL_FALSE` | Unused | `.as<bool>()` → false |
-| `0x0C` | `NULL_VAL` | Unused | `.is_null()` |
+| `0x00` | `Null` | — (tag only) | `is_null()` |
+| `0x01` | `BooleanTrue` | — (tag only) | `.as<bool>()` → true |
+| `0x02` | `BooleanFalse` | — (tag only) | `.as<bool>()` → false |
+| `0x03` | `Integer` | `(offset, length)` slice of the digits — parsed on demand | `.as<int64_t>()` |
+| `0x04` | `Double` | `(offset, length)` slice — parsed on demand (Eisel-Lemire) | `.as<double>()` |
+| `0x05` | `StringRaw` | `(offset, length)` slice into the input buffer | key match / `.as<string_view>()` |
+| `0x06` | `NumberRaw` | `(offset, length)` slice — number, type not yet narrowed | `.as<int64_t>()` / `.as<double>()` |
+| `0x07` | `ArrayStart` | marker — no end-index | `is_array()` |
+| `0x08` | `ArrayEnd` | marker | internal |
+| `0x09` | `ObjectStart` | marker — no end-index | `is_object()` |
+| `0x0A` | `ObjectEnd` | marker | internal |
 
 ### String Storage: Zero-Copy
 
@@ -175,16 +176,16 @@ int64_t value = static_cast<int64_t>(raw << 8) >> 8;  // sign-extend 56 bits
       <div class="bd-group__title">TapeArena</div>
       <div class="bd-group__body">
         <div class="bd-tape-strip">
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">OBJ_START</span><span class="bd-tape-cell__val">jump→9</span></div>
-          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"a"</span></div>
-          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">ARR_START</span><span class="bd-tape-cell__val">jump→6</span></div>
-          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[3]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">1</span></div>
-          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[4]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">2</span></div>
-          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[5]</span><span class="bd-tape-cell__tag">UINT64</span><span class="bd-tape-cell__val">3</span></div>
-          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[6]</span><span class="bd-tape-cell__tag">ARR_END</span><span class="bd-tape-cell__val">jump→2</span></div>
-          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[7]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"b"</span></div>
-          <div class="bd-tape-cell bd-tape-cell--bool"><span class="bd-tape-cell__idx">tape[8]</span><span class="bd-tape-cell__tag">BOOL_TRUE</span><span class="bd-tape-cell__val">—</span></div>
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[9]</span><span class="bd-tape-cell__tag">OBJ_END</span><span class="bd-tape-cell__val">jump→0</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">ObjectStart</span><span class="bd-tape-cell__val">—</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">"a"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">ArrayStart</span><span class="bd-tape-cell__val">—</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[3]</span><span class="bd-tape-cell__tag">Integer</span><span class="bd-tape-cell__val">off,len "1"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[4]</span><span class="bd-tape-cell__tag">Integer</span><span class="bd-tape-cell__val">off,len "2"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[5]</span><span class="bd-tape-cell__tag">Integer</span><span class="bd-tape-cell__val">off,len "3"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--arr"><span class="bd-tape-cell__idx">tape[6]</span><span class="bd-tape-cell__tag">ArrayEnd</span><span class="bd-tape-cell__val">—</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[7]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">"b"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--bool"><span class="bd-tape-cell__idx">tape[8]</span><span class="bd-tape-cell__tag">BooleanTrue</span><span class="bd-tape-cell__val">—</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[9]</span><span class="bd-tape-cell__tag">ObjectEnd</span><span class="bd-tape-cell__val">—</span></div>
         </div>
       </div>
     </div>
@@ -430,13 +431,13 @@ The line numbers in the `freed by` section show exactly where the input buffer w
 
 A small number of inputs trigger non-obvious Stage 1 behaviour. These are **not bugs** — they are correctness invariants that every advanced user should know:
 
-#### Very long strings (>= 2³² bytes)
+#### Document and token size limits
 
-The 56-bit payload holds a 48-bit virtual address and an 8-bit length hint. For strings longer than 255 bytes, the 8-bit length overflows into a sentinel value and Stage 2 falls back to a scalar re-scan to compute the true length. Parse correctness is preserved; Stage 1 throughput is unchanged, but Stage 2 has a small additional cost for that specific string token.
+A `TapeNode` is `{ uint32_t meta, uint32_t offset }`. The 32-bit `offset` bounds the whole document to 4 GB — larger inputs are rejected up front. The 16-bit `length` field (in `meta`) records each token's length directly, up to 65535 bytes. These are the exact field widths of the 8-byte node, not heuristics.
 
-#### NEON path on ARM: no `VCOMPRESSB`
+#### NEON path on ARM
 
-ARM NEON lacks the `VCOMPRESSB` instruction. On ARM64, qbuem-json uses a `VBSL`-based gather instead. The structural iteration in Stage 2 uses a slightly longer scalar loop. Throughput on ARM is approximately 40-60% of the AVX-512 path, which is still 20–30× faster than a naive scalar parser.
+ARM NEON has no single-instruction byte-compaction. qbuem-json reduces each 16-byte compare result to a bitmask with `neon_movemask`, then drives the same `ctzll` bit-scan and `prefix_xor` shift-ladder as the x86 path. ARM end-to-end throughput is roughly 40–60% of the AVX-512 path — still far faster than a scalar parser.
 
 #### Escaped quotes near the 64-byte boundary
 

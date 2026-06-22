@@ -330,8 +330,8 @@ Nexus diagnostics apply only to the zero-tape path.  When using the DOM API,
 type mismatches are reported by `Value::as<T>()`:
 
 ```cpp
-qbuem::Document doc = qbuem::parse(json);
-qbuem::Value root = doc.root();
+qbuem::Document doc;
+qbuem::Value root = qbuem::parse(doc, json);   // parse(Document&, json) → root Value
 
 // throws: "qbuem::Value::as<bool>: not a boolean"
 bool v = root["active"].as<bool>();

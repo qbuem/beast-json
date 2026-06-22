@@ -55,14 +55,31 @@ A concrete HFT example: market data feeds deliver millions of JSON messages per 
 
 The naive approach to mapping JSON keys to struct fields is string comparison — `if (key == "id") fill_id(val)` repeated for every field. This is O(N×F) where N is the number of keys and F is the number of fields. For a 20-field struct, that's 400 comparisons per object.
 
-Nexus uses **compile-time FNV-1a hashing** to reduce this to O(1).
+Nexus uses **compile-time key hashing** to reduce this to O(1) — raw little-endian bytes for short keys, FNV-1a for long ones. The `QBUEM_JSON_FIELDS` macro turns your field list into a `switch` whose case labels are computed at compile time; at runtime the scanner hashes each key once and jumps:
 
-At compile time, `QBUEM_JSON_FIELDS(User, id, name, active)` generates a hash for each field name:
+```mermaid
+flowchart LR
+    subgraph CT["compile time — QBUEM_JSON_FIELDS(User, id, name)"]
+      direction TB
+      M["nexus_pulse_h(h, key, p, end, obj)"] --> C1["case fast_key_hash_ce(&quot;id&quot;):"]
+      M --> C2["case fast_key_hash_ce(&quot;name&quot;):"]
+    end
+    subgraph RT["run time — one forward pass"]
+      direction TB
+      K["read_key_h →<br/>scan key + fast_key_hash in one pass"] --> SW{"switch(h)"}
+    end
+    SW -->|match + bytes verify| W["from_json_direct(p, end, obj.field)"]
+    SW -->|no case| SK["skip_direct(p, end)"]
+    C1 -.generates.-> SW
+    C2 -.generates.-> SW
+```
+
+At compile time, `QBUEM_JSON_FIELDS(User, id, name, active)` generates one `switch` case per field, keyed on the field name's hash:
 
 ```cpp
-constexpr uint64_t hash_id     = fnv1a_hash_ce("id");     // 0xa9f37…
-constexpr uint64_t hash_name   = fnv1a_hash_ce("name");   // 0xb4c28…
-constexpr uint64_t hash_active = fnv1a_hash_ce("active"); // 0xf91a3…
+constexpr uint64_t hash_id     = fast_key_hash_ce("id");     // raw LE bytes of "id"
+constexpr uint64_t hash_name   = fast_key_hash_ce("name");   // raw LE bytes of "name"
+constexpr uint64_t hash_active = fast_key_hash_ce("active"); // raw LE bytes
 ```
 
 At parse time, when the scanner sees the key `"name"`:
@@ -84,7 +101,7 @@ At parse time, when the scanner sees the key `"name"`:
             <div class="bd-step__num">2</div>
             <div class="bd-step__body">
               <div class="bd-step__title">Hash at runtime</div>
-              <div class="bd-step__desc"><code>hash("name")</code> — same FNV-1a function, same result as the compile-time constant.</div>
+              <div class="bd-step__desc"><code>fast_key_hash("name")</code> — the scanner computes it in the same pass that reads the key, same result as the compile-time constant.</div>
             </div>
           </div>
           <div class="bd-step">
@@ -107,7 +124,9 @@ At parse time, when the scanner sees the key `"name"`:
   </div>
 </div>
 
-For keys ≤ 8 bytes, `fast_key_hash` loads the key as a single 64-bit integer (one `memcpy`), XOR-folds it, and returns. No loop, no byte-by-byte iteration.
+For keys ≤ 8 bytes, the hash **is** the key: `fast_key_hash` loads the bytes as a single little-endian 64-bit integer and returns it — no fold, no multiply, no byte-by-byte loop. (9–16 byte keys XOR-fold the two halves with the length; keys longer than 16 bytes fall back to FNV-1a.) Because the compile-time `fast_key_hash_ce` and the runtime `fast_key_hash` are byte-identical, the `switch` labels and the scanned key always agree.
+
+Because a hash *could* collide, every matched case re-checks the raw key bytes (`_key == "name"`) before writing the field — exactly what the generated `nexus_pulse_h` does — so a collision can never silently mis-route a value.
 
 ---
 
@@ -133,13 +152,15 @@ struct User {
 };
 QBUEM_JSON_FIELDS(User, id, name, active)
 
-// Now both engines work:
-auto doc = qbuem::parse(doc, json_text);
-User u1  = doc.root().as<User>();       // DOM path: tape → struct
+// Now both engines work, from the same registration:
+qbuem::Document doc;
+auto root = qbuem::parse(doc, json_text);   // DOM: navigate root["id"], mutate, dump
 
-User u2;
-qbuem::fuse(u2, json_text);             // Nexus path: stream → struct, no tape
+User u1 = qbuem::read<User>(json_text);     // DOM path → struct (builds the tape)
+User u2 = qbuem::fuse<User>(json_text);     // Nexus path → struct (no tape)
 ```
 
-The macro supports up to 32 fields. Beyond that, use the manual ADL hook API
-(`from_qbuem_json` / `append_qbuem_json` free functions) — same performance, no limit.
+The macro must sit at **namespace scope** (not inside the struct) — it defines ADL
+free functions, and placing it inside the struct breaks lookup. It supports up to 32
+fields; beyond that, write the ADL hooks (`from_qbuem_json` / `nexus_pulse` /
+`qbuem_json_append_fw`) by hand — same performance, no limit.

@@ -25,21 +25,21 @@ const STAGES = [
   {
     id: 'load',
     label: 'Stage 1a — Load',
-    desc: 'VMOVDQU64 loads 64 bytes into zmm0 in 1 cycle. We show the first 20 bytes of this window.',
+    desc: '_mm512_loadu_si512 loads 64 bytes into a ZMM register. We show the first 20 bytes of this window.',
     highlight: (_i: number) => true,
     accent: '#0097a7',
   },
   {
     id: 'mask',
     label: 'Stage 1b — Structural Mask',
-    desc: '8× VPCMPEQB compares all bytes against structural chars in parallel → 64-bit bitmask.',
+    desc: '_mm512_cmpeq_epi8_mask compares all 64 bytes against each structural char in parallel → 64-bit __mmask64.',
     highlight: (i: number) => bytes[i].structural,
     accent: '#ff9800',
   },
   {
     id: 'string',
-    label: 'Stage 1c — Quote Masking (PCLMULQDQ)',
-    desc: 'Prefix-XOR via carryless multiply suppresses structural chars inside string literals.',
+    label: 'Stage 1c — Quote Masking (shift-XOR ladder)',
+    desc: 'Prefix-XOR via a 6-step shift-XOR ladder (simd::prefix_xor) suppresses structural chars inside string literals.',
     highlight: (i: number) => bytes[i].inString,
     accent: '#e91e63',
   },
@@ -53,7 +53,7 @@ const STAGES = [
   {
     id: 'stage2',
     label: 'Stage 2 — Tape Generation',
-    desc: 'TZCNT iterates set bits. One TapeNode written per structural char. ~5-15% of input visited.',
+    desc: 'ctzll iterates set bits; one TapeNode written per structural token. ~5-15% of input visited.',
     highlight: (i: number) => cleanStructural[i],
     accent: '#9c27b0',
   },
@@ -80,9 +80,9 @@ const tapeNodes = computed(() => {
   bytes.forEach((b, i) => {
     if (!cleanStructural[i]) return
     const tag =
-      b.c === '{' ? 'OBJ_START' :
-      b.c === '}' ? 'OBJ_END'   :
-      b.c === '"' ? (result.length === 0 ? 'KEY' : 'STRING') :
+      b.c === '{' ? 'ObjectStart' :
+      b.c === '}' ? 'ObjectEnd'   :
+      b.c === '"' ? 'StringRaw' :
       b.c === ':' ? 'COLON'     : b.c
     result.push({ char: b.c, tag, idx: i })
   })

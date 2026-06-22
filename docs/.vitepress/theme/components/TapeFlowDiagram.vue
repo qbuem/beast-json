@@ -11,12 +11,12 @@ interface TapeNode {
 }
 
 const nodes: TapeNode[] = [
-  { idx: 0, tag: 'OBJ_START', payload: 'jump→5',   accent: '#0097a7', hasJump: true,  jumpTo: 5 },
-  { idx: 1, tag: 'KEY',       payload: '"id"',      accent: '#00838f', hasJump: false, jumpTo: null },
-  { idx: 2, tag: 'INT64',     payload: '101',       accent: '#4caf50', hasJump: false, jumpTo: null },
-  { idx: 3, tag: 'KEY',       payload: '"active"',  accent: '#00838f', hasJump: false, jumpTo: null },
-  { idx: 4, tag: 'BOOL_TRUE', payload: 'true',      accent: '#ff9800', hasJump: false, jumpTo: null },
-  { idx: 5, tag: 'OBJ_END',   payload: 'jump→0',    accent: '#0097a7', hasJump: true,  jumpTo: 0 },
+  { idx: 0, tag: 'ObjectStart', payload: '{',        accent: '#0097a7', hasJump: false, jumpTo: null },
+  { idx: 1, tag: 'StringRaw',   payload: '"id"',     accent: '#00838f', hasJump: false, jumpTo: null },
+  { idx: 2, tag: 'Integer',     payload: '101',      accent: '#4caf50', hasJump: false, jumpTo: null },
+  { idx: 3, tag: 'StringRaw',   payload: '"active"', accent: '#00838f', hasJump: false, jumpTo: null },
+  { idx: 4, tag: 'BooleanTrue', payload: 'true',     accent: '#ff9800', hasJump: false, jumpTo: null },
+  { idx: 5, tag: 'ObjectEnd',   payload: '}',        accent: '#0097a7', hasJump: false, jumpTo: null },
 ]
 
 const visible = ref(0)
@@ -101,7 +101,7 @@ onUnmounted(() => clearTimer())
             marker-end="url(#arr)"
           />
         </svg>
-        <p class="tfd-jump-label">O(1) skip — one array read: <code>tape[tape[0].jump]</code></p>
+        <p class="tfd-jump-label">skip a subtree — <code>skip_value_</code> streams the span (depth 1→0), no jump table</p>
       </div>
     </Transition>
 

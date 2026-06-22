@@ -435,6 +435,8 @@ export default withMermaid(
                             { text: 'Custom Allocators', link: '/guide/allocators' },
                             { text: 'Language Bindings', link: '/guide/bindings' },
                             { text: 'Low-Latency Patterns', link: '/guide/low-latency-patterns' },
+                            { text: 'Compile-Time Performance', link: '/guide/compile-time' },
+                            { text: 'Nexus Diagnostics', link: '/guide/nexus-diagnostics' },
                             { text: 'Debugging Guide', link: '/guide/debugging' }
                         ]
                     }

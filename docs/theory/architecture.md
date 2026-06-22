@@ -1,4 +1,40 @@
-# The DOM Tape DOM
+# The Tape: a Flat-Array DOM
+
+qbuem-json ships **two parser engines** in one header. This page is about the **DOM
+engine** — the one that builds a navigable, mutable document. (The zero-tape engine
+that maps JSON straight onto a C++ struct is [Nexus Fusion](/theory/nexus-fusion).)
+Here is the whole picture before we zoom in — which entry point drives which engine,
+and what each produces:
+
+```mermaid
+flowchart TB
+    J["JSON bytes<br/>caller-owned buffer — never copied"]
+    J --> Q{"entry point"}
+    Q -->|"parse(doc, json)<br/>read&lt;T&gt;(json)"| DOMa
+    Q -->|"fuse&lt;T&gt;(json)"| NEXa
+
+    subgraph DOM["DOM engine · this page"]
+      direction TB
+      DOMa["Stage 1 — SIMD structural scan<br/>AVX-512 / NEON / SWAR"] --> DOMb["Stage 2 — write 8-byte TapeNodes<br/>into one TapeArena · 1 malloc"]
+    end
+    subgraph NEX["Nexus engine · /theory/nexus-fusion"]
+      direction TB
+      NEXa["one forward pass<br/>key → fast_key_hash → switch"] --> NEXb["value parsed straight<br/>into your struct field"]
+    end
+
+    DOMb --> VAL["Value cursor<br/>navigate · mutate · dump · query · diff"]
+    VAL -.->|"read&lt;T&gt;() copies out"| STR["your struct T"]
+    NEXb --> STR
+
+    classDef eng fill:#1a274408,stroke:#3b6ea5,color:#1a2744;
+    class DOM,NEX eng;
+```
+
+The DOM engine is the right tool when the schema is unknown at compile time, when you
+only read part of a large document, or when you need to mutate and re-serialize.
+Everything below is how its tape makes that fast.
+
+---
 
 A 50 KB JSON document with 1,000 string values makes `nlohmann/json` call `malloc` over 1,000 times. Each node ends up at a random heap address. When you traverse the result, every key and every value is a pointer chase to a different cache line. The CPU's prefetcher stops trying.
 
@@ -52,14 +88,14 @@ qbuem-json doesn't build a tree. It writes a **flat contiguous array** — the t
     <div class="bd-box bd-box--brand" style="max-width:360px;font-family:monospace;">{ "id": 101, "name": "Alice", "active": true }</div>
     <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">single-pass parse — one malloc</div></div>
     <div class="bd-tape-strip">
-      <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">OBJ_START</span><span class="bd-tape-cell__val">jump→7</span></div>
-      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">&amp;buf[2] "id"</span></div>
-      <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">INT64</span><span class="bd-tape-cell__val">101</span></div>
-      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[3]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">&amp;buf[8] "name"</span></div>
-      <div class="bd-tape-cell bd-tape-cell--str"><span class="bd-tape-cell__idx">tape[4]</span><span class="bd-tape-cell__tag">STRING</span><span class="bd-tape-cell__val">&amp;buf[16] "Alice"</span></div>
-      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[5]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">&amp;buf[26] "active"</span></div>
-      <div class="bd-tape-cell bd-tape-cell--bool"><span class="bd-tape-cell__idx">tape[6]</span><span class="bd-tape-cell__tag">BOOL_TRUE</span><span class="bd-tape-cell__val">—</span></div>
-      <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[7]</span><span class="bd-tape-cell__tag">OBJ_END</span><span class="bd-tape-cell__val">jump→0</span></div>
+      <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">ObjectStart</span><span class="bd-tape-cell__val">off→0</span></div>
+      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">off=3 len=2 "id"</span></div>
+      <div class="bd-tape-cell bd-tape-cell--int"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">Integer</span><span class="bd-tape-cell__val">off=8 len=3 "101"</span></div>
+      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[3]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">off=14 len=4 "name"</span></div>
+      <div class="bd-tape-cell bd-tape-cell--str"><span class="bd-tape-cell__idx">tape[4]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">off=22 len=5 "Alice"</span></div>
+      <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[5]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">off=31 len=6 "active"</span></div>
+      <div class="bd-tape-cell bd-tape-cell--bool"><span class="bd-tape-cell__idx">tape[6]</span><span class="bd-tape-cell__tag">BooleanTrue</span><span class="bd-tape-cell__val">—</span></div>
+      <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[7]</span><span class="bd-tape-cell__tag">ObjectEnd</span><span class="bd-tape-cell__val">—</span></div>
     </div>
     <div class="bd-callout" style="font-size:0.8rem;margin-top:0.5rem;">
       8 nodes × 8 bytes = 64 bytes. <strong>Exactly one CPU cache line.</strong>
@@ -67,7 +103,7 @@ qbuem-json doesn't build a tree. It writes a **flat contiguous array** — the t
   </div>
 </div>
 
-Notice what's different. The nodes are sequential — the CPU prefetcher can get all of them in one cache line fill. The strings are not copied — KEY and STRING nodes store a pointer into the original input buffer. And the `OBJ_START` node already knows where the object ends: that `jump→7` is how you skip an entire subtree in one array read.
+Notice what's different. The nodes are sequential — the CPU prefetcher pulls them in cache-line-at-a-time. Strings and numbers are never copied: a `StringRaw`, `Integer`, or `Double` node stores only a `(offset, length)` slice into the original input buffer (and the number's digits aren't even converted until you ask for them — see below). An object is just an `ObjectStart … ObjectEnd` pair with its keys and values laid out in between; there is no separate key store and no child-pointer array.
 
 The flat array is the whole design. Every other mechanism is a consequence of it.
 
@@ -85,20 +121,20 @@ Before writing a single tape node, qbuem-json runs a SIMD scan that classifies *
         <div class="bd-pipeline">
           <div class="bd-pipe-stage">
             <div class="bd-pipe-stage__label">Load</div>
-            <div class="bd-pipe-stage__main">VMOVDQU64</div>
-            <div class="bd-pipe-stage__note">64 bytes → ZMM0</div>
+            <div class="bd-pipe-stage__main">_mm512_loadu_si512</div>
+            <div class="bd-pipe-stage__note">64 bytes → ZMM</div>
           </div>
           <div class="bd-pipe-arrow">→</div>
           <div class="bd-pipe-stage">
             <div class="bd-pipe-stage__label">Classify</div>
-            <div class="bd-pipe-stage__main">VPCMPEQB ×7</div>
-            <div class="bd-pipe-stage__note">one mask per structural char type</div>
+            <div class="bd-pipe-stage__main">cmpeq / cmpgt → __mmask64</div>
+            <div class="bd-pipe-stage__note">brackets · quotes · backslash · whitespace</div>
           </div>
           <div class="bd-pipe-arrow">→</div>
           <div class="bd-pipe-stage">
-            <div class="bd-pipe-stage__label">Merge + Filter</div>
-            <div class="bd-pipe-stage__main">KORQ + PCLMULQDQ</div>
-            <div class="bd-pipe-stage__note">OR masks, suppress chars inside strings</div>
+            <div class="bd-pipe-stage__label">Suppress + Emit</div>
+            <div class="bd-pipe-stage__main">prefix_xor → ctzll</div>
+            <div class="bd-pipe-stage__note">mask out in-string chars, write structural offsets</div>
           </div>
         </div>
       </div>
@@ -114,50 +150,62 @@ On ARM (Apple Silicon, Linux aarch64), four NEON 16-byte loads replace one AVX-5
 
 ---
 
-## Eight bytes is enough for anything
+## Eight bytes, two words
 
-Every JSON type — object, array, string, integer, float, boolean, null — fits in the same 8-byte layout:
+Every node is the same `TapeNode`: two 32-bit words, `meta` and `offset`. No node ever exceeds 8 bytes, and `static_assert(sizeof(TapeNode) == 8)` keeps it that way.
 
 <div class="bd-diagram">
   <div class="bd-col">
     <div class="bd-bits">
-      <div class="bd-bit-seg" style="width:90px;flex-shrink:0;background:color-mix(in srgb,var(--vp-c-brand-1) 22%,transparent);border-radius:4px 0 0 4px;">
-        <span class="bd-bit-seg__range">bits 63–56</span>
-        <span class="bd-bit-seg__val">Type Tag</span>
-        <span class="bd-bit-seg__name">8 bits — 12 types</span>
+      <div class="bd-bit-seg" style="width:84px;flex-shrink:0;background:color-mix(in srgb,var(--vp-c-brand-1) 22%,transparent);border-radius:4px 0 0 4px;">
+        <span class="bd-bit-seg__range">meta 31–24</span>
+        <span class="bd-bit-seg__val">Type</span>
+        <span class="bd-bit-seg__name">8 bits — 11 types</span>
+      </div>
+      <div class="bd-bit-seg" style="width:84px;flex-shrink:0;background:color-mix(in srgb,var(--vp-c-brand-1) 14%,transparent);">
+        <span class="bd-bit-seg__range">meta 23–16</span>
+        <span class="bd-bit-seg__val">Flags</span>
+        <span class="bd-bit-seg__name">8 bits — separator</span>
       </div>
       <div class="bd-bit-seg" style="flex:1;background:color-mix(in srgb,var(--vp-c-brand-1) 9%,transparent);border:1px solid var(--vp-c-divider);border-radius:0 4px 4px 0;">
-        <span class="bd-bit-seg__range">bits 55–0</span>
-        <span class="bd-bit-seg__val">Payload</span>
-        <span class="bd-bit-seg__name">56 bits — meaning depends on type</span>
+        <span class="bd-bit-seg__range">meta 15–0</span>
+        <span class="bd-bit-seg__val">Length</span>
+        <span class="bd-bit-seg__name">16 bits — token length ≤ 65535</span>
+      </div>
+    </div>
+    <div class="bd-bits" style="margin-top:0.35rem;">
+      <div class="bd-bit-seg" style="flex:1;background:color-mix(in srgb,#43a047 12%,transparent);border:1px solid var(--vp-c-divider);border-radius:4px;">
+        <span class="bd-bit-seg__range">offset 31–0</span>
+        <span class="bd-bit-seg__val">Source offset</span>
+        <span class="bd-bit-seg__name">32 bits — byte offset into the input (≤ 4 GB)</span>
       </div>
     </div>
     <div class="bd-row" style="gap:0.75rem;margin-top:0.75rem;flex-wrap:wrap;">
       <div class="bd-group" style="flex:1;min-width:150px;margin:0;">
         <div class="bd-group__title" style="font-size:0.68rem;">Containers</div>
         <div class="bd-group__body" style="padding:0.35rem;">
-          <div class="bd-box bd-box--teal" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>OBJ/ARR _START/_END</code><br><small>payload = jump index →<br>other end of the pair</small></div>
+          <div class="bd-box bd-box--teal" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>ObjectStart/End<br>ArrayStart/End</code><br><small>plain markers —<br>no end-index, no child list</small></div>
         </div>
       </div>
       <div class="bd-group" style="flex:1;min-width:150px;margin:0;">
-        <div class="bd-group__title" style="font-size:0.68rem;">Strings</div>
+        <div class="bd-group__title" style="font-size:0.68rem;">Strings &amp; numbers</div>
         <div class="bd-group__body" style="padding:0.35rem;">
-          <div class="bd-box bd-box--purple" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>KEY / STRING</code><br><small>payload = 48-bit ptr<br>into input buffer<br>+ 8-bit length hint</small></div>
+          <div class="bd-box bd-box--purple" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>StringRaw<br>Integer / Double<br>NumberRaw</code><br><small>offset + length =<br>a slice of the input.<br>Numbers parsed on demand.</small></div>
         </div>
       </div>
       <div class="bd-group" style="flex:1;min-width:150px;margin:0;">
-        <div class="bd-group__title" style="font-size:0.68rem;">Scalars</div>
+        <div class="bd-group__title" style="font-size:0.68rem;">Atoms</div>
         <div class="bd-group__body" style="padding:0.35rem;">
-          <div class="bd-box bd-box--green" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>UINT64 / INT64</code><br><small>value stored inline</small><br><code>DOUBLE</code><br><small>bit-cast from double</small><br><code>BOOL / NULL</code><br><small>type tag only</small></div>
+          <div class="bd-box bd-box--green" style="font-size:0.72rem;padding:0.3rem 0.5rem;"><code>BooleanTrue<br>BooleanFalse<br>Null</code><br><small>type tag only —<br>nothing else needed</small></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-The 56-bit payload is enough to hold a 48-bit virtual address (the actual width on both x86-64 and ARM64) plus an 8-bit string length hint. That means `KEY` and `STRING` nodes carry a full `string_view` in their payload — no heap involved.
+There is **no inline value and no pointer**. A `StringRaw`, `Integer`, or `Double` node holds only an `(offset, length)` slice into your buffer — `source.data() + offset` for `length` bytes. That is the entire trick: the node remembers *where* the token is, not *what* it is. The `flags` byte records the trailing separator (`,` / `:` / none) so `dump()` can re-emit exact punctuation without re-scanning.
 
-Eight bytes per node means **8 nodes per cache line**. An object scan is a sequential memory read that the prefetcher handles automatically.
+Eight bytes per node means **8 nodes per cache line**. An object scan is a sequential memory read the prefetcher handles automatically.
 
 ---
 
@@ -175,10 +223,10 @@ When Stage 2 hits a string or key, it writes the pointer to where the string liv
         </div>
       </div>
     </div>
-    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">Stage 2 writes a pointer, not the data</div></div>
+    <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">Stage 2 writes an offset, not the data</div></div>
     <div class="bd-tape-strip" style="max-width:480px;">
-      <div class="bd-tape-cell bd-tape-cell--key" style="min-width:160px;"><span class="bd-tape-cell__idx">KEY</span><span class="bd-tape-cell__val">ptr=&amp;buf[2] len=4</span></div>
-      <div class="bd-tape-cell bd-tape-cell--str" style="min-width:160px;"><span class="bd-tape-cell__idx">STRING</span><span class="bd-tape-cell__val">ptr=&amp;buf[9] len=5</span></div>
+      <div class="bd-tape-cell bd-tape-cell--key" style="min-width:160px;"><span class="bd-tape-cell__idx">StringRaw (key)</span><span class="bd-tape-cell__val">off=2 len=4</span></div>
+      <div class="bd-tape-cell bd-tape-cell--str" style="min-width:160px;"><span class="bd-tape-cell__idx">StringRaw</span><span class="bd-tape-cell__val">off=9 len=5</span></div>
     </div>
     <div class="bd-arrow"><div class="bd-arrow__icon">↓</div><div class="bd-arrow__label">.as&lt;string_view&gt;() reads one tape cell → returns view into original buf</div></div>
     <div class="bd-callout bd-callout--green" style="max-width:480px;font-size:0.82rem;">
@@ -192,11 +240,11 @@ The lifetime contract is simple: `string_view` stays valid as long as both the `
 
 ---
 
-## Skipping a subtree costs one array read
+## Skipping a subtree is a tight sequential scan
 
-Every `OBJ_START` node stores the tape index of its matching `OBJ_END` in its payload. Same for arrays. This is the jump index.
+There is **no jump-to-end index** stored in a node. To move past a value, `skip_value_` walks the tape forward counting bracket depth — `+1` on every `ObjectStart`/`ArrayStart`, `−1` on every matching `End` — and stops the instant depth returns to zero. A scalar or string is one node; a container is as many nodes as it spans.
 
-When you access `root["status"]` on an object that has a 500-field `"metadata"` block before `"status"`, qbuem-json reads `tape[1]` (KEY "metadata"), sees it's not a match, reads `tape[2]` (OBJ_START), then jumps directly to `tape[tape[2].jump + 1]` — skipping all 500 fields in a single integer read.
+That sounds like the tree walk we were avoiding, but it isn't the same thing. The walk reads only the contiguous 8-byte `meta` words — no pointer chasing, no string decoding, no number parsing, no allocation. When you access `root["status"]` on an object whose first field is a 500-field `"metadata"` block, qbuem-json checks `StringRaw "metadata"`, sees no match, and calls `skip_value_` to stream past the nested object — ~500 packed integers in a row, a handful of cache lines — landing directly on `StringRaw "status"`.
 
 <div class="bd-diagram">
   <div class="bd-col">
@@ -204,40 +252,40 @@ When you access `root["status"]` on an object that has a 500-field `"metadata"` 
       <div class="bd-group__title">Tape for: <code>{ "meta": { ...500 fields... }, "status": "ok" }</code></div>
       <div class="bd-group__body">
         <div class="bd-tape-strip">
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">OBJ_START</span><span class="bd-tape-cell__val">jump→504</span></div>
-          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"meta"</span></div>
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">OBJ_START</span><span class="bd-tape-cell__val">jump→503</span></div>
-          <div class="bd-tape-cell" style="min-width:80px;opacity:0.35;"><span class="bd-tape-cell__idx">tape[3…502]</span><span class="bd-tape-cell__val">500 fields</span></div>
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[503]</span><span class="bd-tape-cell__tag">OBJ_END</span><span class="bd-tape-cell__val">jump→2</span></div>
-          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[504]</span><span class="bd-tape-cell__tag">KEY</span><span class="bd-tape-cell__val">"status"</span></div>
-          <div class="bd-tape-cell bd-tape-cell--str"><span class="bd-tape-cell__idx">tape[505]</span><span class="bd-tape-cell__tag">STRING</span><span class="bd-tape-cell__val">"ok"</span></div>
-          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[506]</span><span class="bd-tape-cell__tag">OBJ_END</span><span class="bd-tape-cell__val">jump→0</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[0]</span><span class="bd-tape-cell__tag">ObjectStart</span><span class="bd-tape-cell__val">depth 1</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[1]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">"meta"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[2]</span><span class="bd-tape-cell__tag">ObjectStart</span><span class="bd-tape-cell__val">depth 2</span></div>
+          <div class="bd-tape-cell" style="min-width:80px;opacity:0.35;"><span class="bd-tape-cell__idx">tape[3…502]</span><span class="bd-tape-cell__val">500 fields · skip_value_ streams over them</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[503]</span><span class="bd-tape-cell__tag">ObjectEnd</span><span class="bd-tape-cell__val">depth 0 ✓</span></div>
+          <div class="bd-tape-cell bd-tape-cell--key"><span class="bd-tape-cell__idx">tape[504]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">"status"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--str"><span class="bd-tape-cell__idx">tape[505]</span><span class="bd-tape-cell__tag">StringRaw</span><span class="bd-tape-cell__val">"ok"</span></div>
+          <div class="bd-tape-cell bd-tape-cell--obj"><span class="bd-tape-cell__idx">tape[506]</span><span class="bd-tape-cell__tag">ObjectEnd</span><span class="bd-tape-cell__val">—</span></div>
         </div>
         <div class="bd-callout bd-callout--green" style="margin-top:0.5rem;font-size:0.8rem;">
-          Looking up "status": KEY "meta" → no match → <code>tape[2].jump = 503</code> → jump to tape[504] KEY "status".<br>
-          <strong>500 fields skipped. Cost: two array reads.</strong>
+          Looking up "status": <code>StringRaw "meta"</code> → no match → <code>skip_value_</code> walks tape[2]…tape[503] (depth 2→0) → lands on tape[504] <code>StringRaw "status"</code>.<br>
+          <strong>500 fields skipped as a sequential <code>meta</code>-word scan — no source bytes touched, no extraction.</strong>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-This is the mechanism behind qbuem-json's "100-level deep, 100-wide" benchmark numbers. Every depth level is one jump read.
+The cost is linear in the number of nodes spanned, but the constant is tiny: 8 packed nodes per cache line, branch-light, streamed by the prefetcher. That is what keeps qbuem-json's deep-and-wide documents fast even without an O(1) jump table — and unlike a tree DOM, the scan never dereferences a heap pointer or materializes a value it skips over.
 
 ---
 
 ## A `Value` is a position, not a value
 
-After parsing, you get back a `qbuem::Value` — a 16-byte token:
+After parsing, you get back a `qbuem::Value` — a 12-byte cursor, not a container:
 
 ```cpp
-struct Value {
-    DocumentView* doc_;  // which document
-    uint32_t      idx_;  // which tape slot
+class Value {
+    DocumentState* doc_;  // the document this cursor belongs to (refcounted)
+    uint32_t       idx_;  // which tape slot it points at
 };
 ```
 
-Navigation — `root["user"]["profile"]["city"]` — just updates `idx_`. No allocation, no string comparison beyond what's needed to match keys, no heap access. You can navigate to any depth and the cost is proportional only to the number of keys matched, not the size of the document.
+Navigating — `root["user"]["profile"]["city"]` — returns a new `Value` with a different `idx_`. No allocation, no heap access, no string comparison beyond matching the keys you ask for. The cost is proportional to the number of keys matched, not the size of the document. Copying a `Value` is cheap but bumps the `Document`'s reference count — that is how the tape is guaranteed to outlive every cursor that points into it.
 
 Extraction is the one operation that touches data:
 
@@ -266,9 +314,9 @@ Extraction is the one operation that touches data:
             <div class="bd-step__body">
               <div class="bd-step__title">Extract — <code>.as&lt;T&gt;()</code></div>
               <div class="bd-step__desc">
-                One tape read. For <code>string_view</code>: zero copy.
-                For <code>std::string</code>: one copy, right here.
-                For integers and doubles: already in the payload, no parsing needed.
+                One tape read to find the slice, then: for <code>string_view</code>, zero copy.
+                For <code>std::string</code>, one copy, right here.
+                For integers and doubles, the digits are converted <em>now</em>, on demand — <code>from_chars</code> for integers, the Eisel-Lemire float path for doubles — over the source slice the node pointed at.
                 For fields you never call <code>.as()</code> on: cost is zero.
               </div>
             </div>
@@ -279,7 +327,7 @@ Extraction is the one operation that touches data:
   </div>
 </div>
 
-<DOMLifecycle />
+<LazyLifecycle />
 
 ---
 
@@ -310,12 +358,14 @@ while (auto line = read_line()) {
 | Allocations per parse | **1** | O(N elements) | 2 |
 | Memory layout | Contiguous tape | Scattered heap | Tape (read-only) |
 | String storage | Zero-copy `string_view` | Heap `std::string` | Zero-copy `string_view` |
-| Object skip | **O(1)** jump index | O(N) walk | O(1) jump index |
+| Object skip | O(N) contiguous scan | O(N) pointer-chase | **O(1)** jump index |
 | Mutation support | ✅ overlay map | ✅ in-place | ❌ |
 | Serialize support | ✅ | ✅ | ❌ |
 | Peak RSS (twitter.json) | **3.4 MB** | 27.4 MB | 11.0 MB |
 
-The gap vs simdjson is mostly mutation and serialization — simdjson's tape is a read-only view and it intentionally doesn't support writing. qbuem-json's tape is writable via an overlay map that stores mutations without touching the original tape.
+<small>RSS figures are representative measurements, not a guarantee — see [Benchmarks](/guide/benchmarks) for methodology and hardware.</small>
+
+Two honest trade-offs are visible here. simdjson's tape stores a jump-to-end index, so its skip is genuinely O(1) where qbuem-json's is an O(N) — but *contiguous and branch-light* — scan; for the deep/wide documents this matters on, the tiny constant keeps qbuem-json competitive. In the other direction, simdjson's tape is read-only by design: qbuem-json adds mutation (via an overlay map that records edits without rewriting the original tape) and serialization, which simdjson intentionally omits.
 
 ---
 
