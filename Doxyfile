@@ -1,8 +1,8 @@
 # Doxyfile 1.9.1
 
-PROJECT_NAME           = "Beast JSON"
-PROJECT_NUMBER         = "1.0.5"
-PROJECT_BRIEF          = "The fastest C++20 JSON library you can drop into any project — single header, zero dependencies."
+PROJECT_NAME           = "qbuem-json"
+PROJECT_NUMBER         = "1.16.0"
+PROJECT_BRIEF          = "Single-header C++20 JSON + CBOR library — dual-engine SIMD DOM and zero-tape struct mapping. Zero dependencies."
 
 OUTPUT_DIRECTORY       = docs/api/
 CREATE_SUBDIRS         = NO
@@ -24,15 +24,15 @@ HIDE_IN_BODY_DOCS      = NO
 INTERNAL_DOCS          = NO
 
 # Input Related
-# Header only: the API reference is generated from the canonical source, which is
-# always in sync. The old INPUT also pulled in three hand-written docs/*.md files
-# that had drifted out of date; they were removed (their accurate replacements
-# live in the VitePress guide/theory pages).
-INPUT                  = include/qbuem_json/qbuem_json.hpp
-FILE_PATTERNS          = *.hpp *.h
+# The API reference is generated from the canonical header (always in sync) plus a
+# single small, purpose-built landing page (docs/api-mainpage.md). The old INPUT
+# pulled in three hand-written docs that had drifted out of date; those were
+# removed (their accurate replacements live in the VitePress guide/theory pages).
+INPUT                  = include/qbuem_json/qbuem_json.hpp docs/api-mainpage.md
+FILE_PATTERNS          = *.hpp *.h *.md
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       =
-USE_MDFILE_AS_MAINPAGE =
+USE_MDFILE_AS_MAINPAGE = docs/api-mainpage.md
 
 # HTML Related
 HTML_OUTPUT            = reference
