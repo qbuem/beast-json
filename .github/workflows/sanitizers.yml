@@ -46,7 +46,7 @@ jobs:
           - { san: tsan, label: "Apple Clang · Apple Silicon", os: macos-latest,     install_clang: false, cxx: clang++,    flags: "-fsanitize=thread -fno-omit-frame-pointer -g", asan_opts: "", ubsan_opts: "", tsan_opts: "halt_on_error=1:abort_on_error=1" }
 
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
 
     - name: Install Clang 18 (Linux)
       if: matrix.install_clang
