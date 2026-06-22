@@ -31,6 +31,11 @@ venv/
 # Rust
 bindings/rust/target/
 **/Cargo.lock
+# ...but commit the binding crate's lock so CI resolves the cxx / cxx-build
+# family to a single, internally-consistent version. Without it, cargo re-resolves
+# them to drifting 1.0.x patches and the cxxbridge mangling numbers mismatch
+# (undefined `qbuem$rust$cxxbridge1$NNN$*` symbols → bench fails to link).
+!bindings/rust/Cargo.lock
 
 # Node.js
 **/node_modules/

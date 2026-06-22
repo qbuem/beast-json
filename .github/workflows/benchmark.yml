@@ -6,6 +6,7 @@ on:
     paths:
       - 'include/**'
       - 'benchmarks/**'
+      - 'bindings/**'
       - '.github/workflows/benchmark.yml'
   workflow_dispatch:
 
@@ -177,7 +178,11 @@ jobs:
         echo "=== Rust Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build_bench/bindings/c
         export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(pwd)/../../build_bench/bindings/c
-        cargo bench --bench qbuem_bench > /tmp/rust_bench_raw.txt 2>&1 || true
+        # --locked: use the committed Cargo.lock verbatim. The cxx / cxx-build
+        # codegen must come from the SAME version or the cxxbridge mangling
+        # numbers mismatch and the bench fails to link; --locked makes a drifted
+        # lock a loud error instead of a silent re-resolve.
+        cargo bench --locked --bench qbuem_bench > /tmp/rust_bench_raw.txt 2>&1 || true
         if ! grep -q "time:" /tmp/rust_bench_raw.txt; then
           echo "::warning::Rust benchmarks produced no results — build/link likely failed:"
           tail -40 /tmp/rust_bench_raw.txt
