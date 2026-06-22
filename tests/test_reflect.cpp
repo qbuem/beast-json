@@ -173,3 +173,44 @@ TEST(Reflect, ReadStrictDoesNotChangeLenientRead) {
   EXPECT_EQ(r.email, "");
   EXPECT_EQ(r.addr.zip, 0);
 }
+
+// ── Macro-free fuse (zero-tape): generic + nested, no QBUEM_JSON_FIELDS ───────
+namespace { template <class T> struct GBox { T value; int tag; std::string note; }; }
+
+TEST(Reflect, FuseMacroFreeFlat) {
+  Flat f = qbuem::fuse<Flat>(R"({"a":1,"b":2,"c":3})");
+  EXPECT_EQ(f.a, 1); EXPECT_EQ(f.b, 2); EXPECT_EQ(f.c, 3);
+}
+
+TEST(Reflect, FuseMacroFreeOutOfOrderSkipUnknownDefaultMissing) {
+  // out-of-order keys, an unknown nested field skipped, a missing field defaults
+  Flat f = qbuem::fuse<Flat>(R"({"c":30,"extra":{"x":[1,2,3]},"a":10})");
+  EXPECT_EQ(f.a, 10); EXPECT_EQ(f.b, 0); EXPECT_EQ(f.c, 30);
+}
+
+TEST(Reflect, FuseMacroFreeNested) {
+  // nested aggregate (Addr) + optional + vector, all macro-free
+  User u = qbuem::fuse<User>(
+      R"({"id":7,"name":"Zed","active":true,"email":"z@x.io","scores":[1,2,3],"addr":{"city":"NY","zip":10001}})");
+  EXPECT_EQ(u.id, 7); EXPECT_EQ(u.name, "Zed"); EXPECT_TRUE(u.active);
+  ASSERT_TRUE(u.email.has_value()); EXPECT_EQ(*u.email, "z@x.io");
+  ASSERT_EQ(u.scores.size(), 3u); EXPECT_EQ(u.scores[2], 3);
+  EXPECT_EQ(u.addr.city, "NY"); EXPECT_EQ(u.addr.zip, 10001);
+}
+
+TEST(Reflect, FuseMacroFreeGeneric) {
+  // each template instantiation reflects on its own — no per-type registration
+  auto bd = qbuem::fuse<GBox<double>>(R"({"value":3.14,"tag":2,"note":"pi"})");
+  EXPECT_DOUBLE_EQ(bd.value, 3.14); EXPECT_EQ(bd.tag, 2); EXPECT_EQ(bd.note, "pi");
+  auto bs = qbuem::fuse<GBox<std::string>>(R"({"value":"hey","tag":9,"note":"x"})");
+  EXPECT_EQ(bs.value, "hey"); EXPECT_EQ(bs.tag, 9); EXPECT_EQ(bs.note, "x");
+}
+
+TEST(Reflect, FuseMacroFreeMatchesRead) {
+  // the zero-tape fuse and the tape read<T> must route fields identically
+  const char *j = R"({"id":7,"name":"Zed","active":false,"scores":[9],"addr":{"city":"LA","zip":90001}})";
+  User a = qbuem::fuse<User>(j);
+  User b = qbuem::read<User>(j);
+  EXPECT_EQ(a.id, b.id); EXPECT_EQ(a.name, b.name); EXPECT_EQ(a.active, b.active);
+  EXPECT_EQ(a.addr.city, b.addr.city); EXPECT_EQ(a.addr.zip, b.addr.zip);
+}

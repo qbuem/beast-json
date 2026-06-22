@@ -8389,6 +8389,36 @@ consteval uint64_t fast_key_hash_ce(const char *s) noexcept {
   return h;
 }
 
+// string_view consteval variant — for hashing reflected field names, which are
+// non-null-terminated views into __PRETTY_FUNCTION__. Produces the SAME value as
+// fast_key_hash_ce(const char*) / fast_key_hash(string_view) for the same bytes.
+// A separate name (not an overload) so a string-literal argument to the macro's
+// fast_key_hash_ce(...) stays unambiguous.
+consteval uint64_t fast_key_hash_ce_sv(std::string_view s) noexcept {
+  const size_t n = s.size();
+  if (n == 0) return 0;
+  if (n <= 8) {
+    uint64_t v = 0;
+    for (size_t i = 0; i < n; ++i)
+      v |= static_cast<uint64_t>(static_cast<unsigned char>(s[i])) << (i * 8);
+    return v;
+  }
+  if (n <= 16) {
+    uint64_t a = 0, b = 0;
+    for (size_t i = 0; i < 8; ++i)
+      a |= static_cast<uint64_t>(static_cast<unsigned char>(s[i]))       << (i * 8);
+    for (size_t i = 0; i < 8; ++i)
+      b |= static_cast<uint64_t>(static_cast<unsigned char>(s[n - 8 + i])) << (i * 8);
+    return a ^ b ^ (static_cast<uint64_t>(n) << 56);
+  }
+  uint64_t h = 0xcbf29ce484222325ULL;
+  for (size_t i = 0; i < n; ++i) {
+    h ^= static_cast<uint64_t>(static_cast<unsigned char>(s[i]));
+    h *= 0x100000001b3ULL;
+  }
+  return h;
+}
+
 QBUEM_INLINE uint64_t fast_key_hash(std::string_view s) noexcept {
   const size_t n = s.size();
   if (n == 0) return 0;
@@ -8643,6 +8673,11 @@ concept ReflectableAggregate =
     ::std::is_default_constructible_v<::std::remove_cvref_t<T>> &&
     !::std::is_array_v<::std::remove_cvref_t<T>> &&
     !::std::is_union_v<::std::remove_cvref_t<T>> &&
+    // Exclude tuple-like types (std::array / std::tuple / std::pair): they are
+    // aggregates too, but their structured binding follows the tuple protocol
+    // (N elements) while field_count sees one member — and they have dedicated
+    // array/tuple branches. Checked before field_count so it never probes them.
+    !requires { ::std::tuple_size<::std::remove_cvref_t<T>>::value; } &&
     (refl::field_count<T>() >= 1) &&
     (refl::field_count<T>() <= refl::kReflectMaxFields);
 
@@ -10673,9 +10708,40 @@ template <typename T> void from_json_direct(const char *&p, const char *end, T &
       if (nexus_strict_mode()) nexus_type_error("array", p, end);
       else skip_direct(p, end);
     }
+  } else if constexpr (ReflectableAggregate<T>) {
+    // Macro-free nested aggregate: recurse via the same streaming fill (its keys
+    // route through nexus_reflect_pulse_). Placed AFTER the container branches so
+    // std::array / tuple / map — which are also aggregates — keep their specific
+    // handling.
+    NexusDepthGuard _g;
+    NexusScanner scanner{p, end};
+    scanner.fill(out);
+    p = scanner.p;
   } else {
     skip_direct(p, end);
   }
+}
+
+// Macro-free fuse dispatch: route a scanned key (already hashed by read_key_h) to
+// the matching reflected field and stream its value straight into it. Mirrors the
+// macro-generated nexus_pulse_h switch — hash match + byte verify, then
+// from_json_direct — but built from refl primitives, so a plain aggregate needs no
+// QBUEM_JSON_FIELDS. The ladder compares against compile-time field-name hashes (so
+// GCC/Clang can fold it); for very wide hot-path structs the macro's switch is still
+// the optimal dispatch.
+template <typename T>
+QBUEM_INLINE void nexus_reflect_pulse_(uint64_t h, ::std::string_view key,
+                                       const char *&p, const char *end, T &obj) {
+  auto _ptrs = refl::field_ptrs(obj);
+  const bool _matched =
+      [&]<::std::size_t... I>(::std::index_sequence<I...>) {
+        return (((h == fast_key_hash_ce_sv(refl::field_name<T, I>()) &&
+                  key == refl::field_name<T, I>())
+                     ? (from_json_direct(p, end, *::std::get<I>(_ptrs)), true)
+                     : false) ||
+                ...);
+      }(::std::make_index_sequence<refl::field_count<T>()>{});
+  if (!_matched) skip_direct(p, end);
 }
 
 template <typename T> inline void NexusScanner::fill(T &obj) {
@@ -10694,8 +10760,18 @@ template <typename T> inline void NexusScanner::fill(T &obj) {
       // Fast path: hash computed during key scan — zero extra traversal
       const uint64_t h = read_key_h();
       nexus_pulse_h(h, last_key_, p, end, obj);
-    } else {
+    } else if constexpr (HasNexusPulse<T>) {
       nexus_pulse(read_key(), p, end, obj);
+    } else if constexpr (ReflectableAggregate<T>) {
+      // Macro-free aggregate: same hash dispatch the macro would generate, built
+      // from reflected field names instead of a QBUEM_JSON_FIELDS switch.
+      const uint64_t h = read_key_h();
+      nexus_reflect_pulse_(h, last_key_, p, end, obj);
+    } else {
+      static_assert(sizeof(T) == 0,
+                    "qbuem::fuse<T>: T must be registered with QBUEM_JSON_FIELDS, "
+                    "provide a manual nexus_pulse hook, or be a reflectable "
+                    "aggregate (GCC/Clang).");
     }
     if (p < end && (unsigned char)*p <= 32) [[unlikely]] ws();
     if (p < end && *p == ',') [[likely]] { ++p; }
