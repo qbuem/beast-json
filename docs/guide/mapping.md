@@ -62,8 +62,9 @@ User u = qbuem::fuse<User>(json_str);
 
 *(v1.14.0+, GCC/Clang)* For a **plain aggregate** — a struct with public members, no
 user-declared constructors, and no base classes — you don't need any macro at all.
-`qbuem::write` / `read` and `cbor::encode` / `decode` reflect the fields (and recover
-their **names**, used as JSON keys) automatically:
+`qbuem::write` / `read` / `read_strict`, the zero-tape `qbuem::fuse`, and
+`cbor::encode` / `decode` reflect the fields (and recover their **names**, used as
+JSON keys) automatically:
 
 ```cpp
 struct CreateUserReq {            // no QBUEM_JSON_FIELDS needed
@@ -76,15 +77,18 @@ std::string j = qbuem::write(CreateUserReq{"Ada", 30, std::nullopt});
 // {"name":"Ada","age":30,"referrer":null}
 CreateUserReq r = qbuem::read<CreateUserReq>(body);   // request DTO, zero boilerplate
 std::string bin = qbuem::cbor::encode(r);             // same fields → CBOR
+CreateUserReq f = qbuem::fuse<CreateUserReq>(body);   // zero-tape, still no macro
 ```
 
 This is built for backends with many request/response DTOs: define the struct, serialize
-it. Nested aggregates, `std::optional`, and STL containers all work.
+it. Nested aggregates, **generic / template** aggregates (each instantiation reflects on
+its own), `std::optional`, and STL containers all work — across every engine above.
 
 | Detail | Behaviour |
 |:---|:---|
 | **Precedence** | A `QBUEM_JSON_FIELDS` / `from_qbuem_json` registration, if present, **always wins** — reflection is a fallback, so this is purely additive. |
-| **When to use the macro instead** | Field **renaming** (`(member, "jsonKey")`), **skip**, non-aggregates (private members / constructors), `> 32` fields, or the zero-tape **`fuse<T>`** fast path — all still require `QBUEM_JSON_FIELDS`. |
+| **When to use the macro instead** | Field **renaming** (`(member, "jsonKey")`), **skip**, non-aggregates (private members / constructors), or `> 32` fields still require `QBUEM_JSON_FIELDS`. |
+| **`fuse<T>` performance** | `fuse<T>` works macro-free for aggregates too (generic and nested). Its key→field routing is a reflected hash-ladder rather than the macro's compile-time `switch`, so for **very wide hot-path structs** the macro (`QBUEM_JSON_FIELDS` / `QBUEM_JSON_FIELDS_TPL`) stays the peak-dispatch path (≈1.5× faster on a realistic DTO; the gap grows with field count). |
 | **Requirements** | Aggregate, default-constructible, ≤ 32 fields. Works for any linkage (incl. anonymous-namespace / function-local types) and non-`constexpr` members (`std::map`, …). |
 | **Why GCC/Clang only** | Field names are recovered from `__PRETTY_FUNCTION__`. The library is GCC/Clang-only by design, so this needs no MSVC fallback — the no-Windows scope *enables* the feature rather than limiting it. |
 
