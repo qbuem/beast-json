@@ -1,6 +1,20 @@
 /**
- * @brief qbuem-json v1.15.0 - High-Performance C++20 JSON Parser
- * @version 1.15.0
+ * @brief qbuem-json v1.16.0 - High-Performance C++20 JSON Parser
+ * @version 1.16.0
+ *
+ * v1.16.0: RFC conformance hardening, verified against the official external
+ *          test suites. (1) JSONPath (RFC 9535): qbuem::query now passes the full
+ *          JSONPath Compliance Test Suite (cts.json) — name selectors decode
+ *          \uXXXX + surrogate pairs and match escaped object keys; invalid
+ *          selectors are rejected (leading/trailing whitespace, leading zeros,
+ *          '+', '-0', out-of-I-JSON-range indices, malformed number literals,
+ *          unescaped control chars / invalid surrogates in strings, digit-leading
+ *          shorthand names, space before a function '('); whitespace is allowed
+ *          between segments inside queries. (2) Canonical JSON (RFC 8785/JCS):
+ *          qbuem::canonicalize is now BYTE-EXACT — member keys sort by UTF-16
+ *          code units and doubles use ECMAScript Number::toString formatting
+ *          (1e+30, not 1E30). Both are locked by tests/test_rfc_conformance.cpp
+ *          against the pinned official suites in CI. No public API change.
  *
  * v1.15.0: qbuem::read_strict<T> — strict deserialization for reflectable
  *          aggregates. Unlike read<T> (which silently default-constructs absent
@@ -10791,19 +10805,90 @@ template <typename T>::std::string to_json_str(const T &val) {
 // RFC 8785 signing, account for the two notes above.
 
 namespace json::detail {
+// Transcode UTF-8 → UTF-16 code units, for RFC 8785 §3.2.3 key ordering (JCS
+// sorts member names by UTF-16 code units, which differs from UTF-8/code-point
+// order only for supplementary-plane characters — those use surrogate pairs).
+inline ::std::u16string canon_utf8_to_utf16_(::std::string_view s) {
+  ::std::u16string out;
+  ::std::size_t i = 0;
+  while (i < s.size()) {
+    unsigned char c = static_cast<unsigned char>(s[i]);
+    uint32_t cp; int len;
+    if (c < 0x80) { cp = c; len = 1; }
+    else if ((c >> 5) == 0x6) { cp = c & 0x1F; len = 2; }
+    else if ((c >> 4) == 0xE) { cp = c & 0x0F; len = 3; }
+    else { cp = c & 0x07; len = 4; }
+    for (int k = 1; k < len && i + static_cast<::std::size_t>(k) < s.size(); ++k)
+      cp = (cp << 6) | (static_cast<unsigned char>(s[i + k]) & 0x3F);
+    i += static_cast<::std::size_t>(len);
+    if (cp < 0x10000) out += static_cast<char16_t>(cp);
+    else {
+      cp -= 0x10000;
+      out += static_cast<char16_t>(0xD800 + (cp >> 10));
+      out += static_cast<char16_t>(0xDC00 + (cp & 0x3FF));
+    }
+  }
+  return out;
+}
+
+// Format a double as RFC 8785 / ECMAScript Number::toString (shortest round-trip,
+// with the ECMAScript exponent rules: 'e+NN' / 'e-NN', integers without a point).
+inline ::std::string canon_number_(double d) {
+  if (d == 0.0) return "0";
+  ::std::string s = to_json_str(d); // shortest decimal (Schubfach), maybe with E/.
+  bool neg = false; ::std::size_t i = 0;
+  if (!s.empty() && s[0] == '-') { neg = true; i = 1; }
+  ::std::size_t ep = s.find_first_of("eE", i);
+  ::std::string mant = (ep == ::std::string::npos) ? s.substr(i) : s.substr(i, ep - i);
+  int exp10 = (ep == ::std::string::npos) ? 0 : ::std::atoi(s.c_str() + ep + 1);
+  ::std::size_t dot = mant.find('.');
+  ::std::string ipart = (dot == ::std::string::npos) ? mant : mant.substr(0, dot);
+  ::std::string fpart = (dot == ::std::string::npos) ? ::std::string() : mant.substr(dot + 1);
+  ::std::string digits = ipart + fpart;
+  int point = static_cast<int>(ipart.size()) + exp10; // decimal point pos in `digits`
+  ::std::size_t lead = 0;
+  while (lead + 1 < digits.size() && digits[lead] == '0') { ++lead; --point; }
+  digits.erase(0, lead);
+  ::std::size_t tlen = digits.size();
+  while (tlen > 1 && digits[tlen - 1] == '0') --tlen;
+  digits.resize(tlen);
+  const int k = static_cast<int>(digits.size());
+  const int n = point;
+  ::std::string out;
+  if (neg) out += '-';
+  if (k <= n && n <= 21) { out += digits; out.append(static_cast<::std::size_t>(n - k), '0'); }
+  else if (0 < n && n <= 21) { out += digits.substr(0, static_cast<::std::size_t>(n)); out += '.'; out += digits.substr(static_cast<::std::size_t>(n)); }
+  else if (-6 < n && n <= 0) { out += "0."; out.append(static_cast<::std::size_t>(-n), '0'); out += digits; }
+  else {
+    out += digits[0];
+    if (k > 1) { out += '.'; out += digits.substr(1); }
+    out += 'e';
+    int e = n - 1;
+    out += (e >= 0) ? '+' : '-';
+    out += ::std::to_string(e >= 0 ? e : -e);
+  }
+  return out;
+}
+
 inline void canon_emit_(const json::Value &v, ::std::string &out) {
   if (v.is_object()) {
-    ::std::vector<::std::pair<::std::string, json::Value>> items;
-    for (const auto &[k, val] : v.items())
-      items.emplace_back(::qbuem::json::detail::json_unescape(k), val);
+    ::std::vector<::std::pair<::std::u16string, ::std::pair<::std::string, json::Value>>> items;
+    for (const auto &[k, val] : v.items()) {
+      ::std::string dk = ::qbuem::json::detail::json_unescape(k);
+      // Transcode BEFORE moving dk — argument evaluation order is unspecified, so
+      // computing the UTF-16 sort key and std::move(dk) in one call would risk
+      // transcoding a moved-from (empty) string.
+      ::std::u16string u16 = canon_utf8_to_utf16_(dk);
+      items.emplace_back(::std::move(u16), ::std::make_pair(::std::move(dk), val));
+    }
     ::std::sort(items.begin(), items.end(),
                 [](const auto &a, const auto &b) { return a.first < b.first; });
     out += '{';
     for (::std::size_t i = 0; i < items.size(); ++i) {
       if (i) out += ',';
-      out += to_json_str(items[i].first); // canonical (minimal) key escaping
+      out += to_json_str(items[i].second.first); // canonical (minimal) key escaping
       out += ':';
-      canon_emit_(items[i].second, out);
+      canon_emit_(items[i].second.second, out);
     }
     out += '}';
   } else if (v.is_array()) {
@@ -10822,9 +10907,7 @@ inline void canon_emit_(const json::Value &v, ::std::string &out) {
   } else if (v.is_int()) {
     out += to_json_str(v.as<int64_t>());
   } else if (v.is_double()) {
-    double d = v.as<double>();
-    if (d == 0.0) d = 0.0; // normalize -0.0 → 0.0
-    out += to_json_str(d);
+    out += canon_number_(v.as<double>()); // RFC 8785 / ECMAScript Number::toString
   } else {
     out += "null";
   }
@@ -11417,30 +11500,82 @@ struct JpParser {
   }
   void ws() { while (p < end && (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')) ++p; }
 
-  // Parse a quoted name selector ('...' or "..."), with the JSON-ish escapes the
-  // RFC allows.  Returns the decoded name.
+  // Parse a quoted name selector ('...' or "...") per RFC 9535 §2.3.1.1: the JSON
+  // string grammar including \uXXXX (and surrogate pairs). Returns the decoded
+  // UTF-8 name. Rejects unescaped control characters, invalid escapes, and a
+  // backslash-escaped non-matching quote (\" is only legal inside "...", \' only
+  // inside '...').
   ::std::string parse_quoted(char q) {
     ::std::string out;
     ++p; // opening quote
+    auto hex4 = [&]() -> uint32_t {
+      uint32_t v = 0;
+      for (int i = 0; i < 4; ++i) {
+        if (p >= end) fail("JSONPath: unterminated \\u escape");
+        char h = *p++;
+        uint32_t d;
+        if (h >= '0' && h <= '9') d = static_cast<uint32_t>(h - '0');
+        else if (h >= 'a' && h <= 'f') d = static_cast<uint32_t>(h - 'a' + 10);
+        else if (h >= 'A' && h <= 'F') d = static_cast<uint32_t>(h - 'A' + 10);
+        else { fail("JSONPath: invalid hex digit in \\u escape"); }
+        v = (v << 4) | d;
+      }
+      return v;
+    };
+    auto emit_cp = [&](uint32_t cp) {
+      if (cp <= 0x7F) out += static_cast<char>(cp);
+      else if (cp <= 0x7FF) {
+        out += static_cast<char>(0xC0 | (cp >> 6));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+      } else if (cp <= 0xFFFF) {
+        out += static_cast<char>(0xE0 | (cp >> 12));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+      } else {
+        out += static_cast<char>(0xF0 | (cp >> 18));
+        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out += static_cast<char>(0x80 | (cp & 0x3F));
+      }
+    };
     while (p < end && *p != q) {
-      char c = *p++;
+      unsigned char c = static_cast<unsigned char>(*p++);
       if (c == '\\') {
         if (p >= end) fail("JSONPath: unterminated escape");
         char e = *p++;
         switch (e) {
-          case 'n': out += '\n'; break;
-          case 't': out += '\t'; break;
-          case 'r': out += '\r'; break;
           case 'b': out += '\b'; break;
           case 'f': out += '\f'; break;
+          case 'n': out += '\n'; break;
+          case 'r': out += '\r'; break;
+          case 't': out += '\t'; break;
           case '/': out += '/'; break;
           case '\\': out += '\\'; break;
-          case '\'': out += '\''; break;
-          case '"': out += '"'; break;
-          default: out += e; break; // lenient (incl. \uXXXX left as-is is out of scope)
+          case 'u': {
+            uint32_t cp = hex4();
+            if (cp >= 0xD800 && cp <= 0xDBFF) { // high surrogate: a low MUST follow
+              if (!(p + 1 < end && p[0] == '\\' && p[1] == 'u'))
+                fail("JSONPath: lone high surrogate in \\u escape");
+              p += 2;
+              uint32_t lo = hex4();
+              if (lo < 0xDC00 || lo > 0xDFFF)
+                fail("JSONPath: high surrogate not followed by a low surrogate");
+              cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+            } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+              fail("JSONPath: lone low surrogate in \\u escape");
+            }
+            emit_cp(cp);
+            break;
+          }
+          default:
+            if (e == q) out += q;       // \" inside "...", or \' inside '...'
+            else fail("JSONPath: invalid escape in string selector");
+            break;
         }
+      } else if (c <= 0x1F) {
+        fail("JSONPath: unescaped control character in string selector");
       } else {
-        out += c;
+        out += static_cast<char>(c);
       }
     }
     if (p >= end) fail("JSONPath: unterminated string");
@@ -11449,17 +11584,30 @@ struct JpParser {
   }
 
   // Parse an optionally-signed integer; returns it and whether any digit was read.
+  // RFC 9535 §2.3.3/§2.3.4 `int`: optional '-' then a single 0 or a non-zero
+  // leading digit run. No '+', no leading zeros, no '-0'. The value must be in
+  // the I-JSON range ±(2^53 − 1). Returns false (without consuming) otherwise.
   bool parse_int(int64_t &out) {
     ws();
     const char *s = p;
-    if (p < end && *p == '+') ++p;        // std::from_chars rejects a leading '+'
+    const bool neg = (p < end && *p == '-');
+    if (neg) ++p;
+    if (p >= end || *p < '0' || *p > '9') { p = s; return false; } // need a digit
     const char *num = p;
-    if (p < end && *p == '-') ++p;
-    while (p < end && *p >= '0' && *p <= '9') ++p;
-    // need at least one digit after the optional sign
-    if (p == num || (p == num + 1 && *num == '-')) { p = s; return false; }
-    auto [ptr, ec] = ::std::from_chars(num, p, out); // detects overflow cleanly
-    if (ec != ::std::errc{}) { p = s; return false; } // out of range or malformed
+    if (*p == '0') {
+      ++p;
+      if (p < end && *p >= '0' && *p <= '9') { p = s; return false; } // "01"
+      if (neg) { p = s; return false; }                              // "-0"
+    } else {
+      while (p < end && *p >= '0' && *p <= '9') ++p;
+    }
+    int64_t mag;
+    auto [ptr, ec] = ::std::from_chars(num, p, mag);
+    (void)ptr;
+    if (ec != ::std::errc{}) { p = s; return false; } // overflow
+    constexpr int64_t kMax = 9007199254740991LL; // 2^53 − 1
+    if (mag > kMax) { p = s; return false; }
+    out = neg ? -mag : mag;
     return true;
   }
 
@@ -11537,12 +11685,18 @@ struct JpParser {
 
   ::std::vector<JpSegment> parse() {
     ::std::vector<JpSegment> segs;
-    ws();
-    if (p >= end || *p != '$') fail("JSONPath: query must start with '$'");
+    // RFC 9535: a query has NO leading whitespace (whitespace is only allowed
+    // *between* segments) and NO trailing whitespace.
+    if (p >= end || *p != '$')
+      fail("JSONPath: query must start with '$' (no leading whitespace)");
     ++p;
     while (true) {
+      const char *ws_start = p;
       ws();
-      if (p >= end) break;
+      if (p >= end) {
+        if (p != ws_start) fail("JSONPath: trailing whitespace");
+        break;
+      }
       JpSegment seg;
       if (!parse_one_segment(seg)) fail("JSONPath: expected '.', '..', or '['");
       segs.push_back(std::move(seg));
@@ -11565,6 +11719,14 @@ struct JpParser {
   // filter-operator characters so `@.price<10` reads the name as `price`.
   ::std::string parse_member_name() {
     const char *s = p;
+    // RFC 9535 member-name-shorthand name-first = ALPHA / "_" / non-ASCII (no
+    // digit, no `*`, no operator). The remaining name-chars are read with a
+    // lenient terminator set (so e.g. `content-type` works as an extension).
+    if (p >= end) return {};
+    unsigned char f0 = static_cast<unsigned char>(*p);
+    if (!((f0 >= 'A' && f0 <= 'Z') || (f0 >= 'a' && f0 <= 'z') || f0 == '_' || f0 >= 0x80))
+      return {};
+    ++p;
     while (p < end) {
       char c = *p;
       if (c == '.' || c == '[' || c == ']' || c == ' ' || c == '\t' ||
@@ -11720,7 +11882,8 @@ struct JpParser {
     if (id == "true") { Comparable cv; cv.t = Comparable::T::Bool; cv.b = true; return cv; }
     if (id == "false") { Comparable cv; cv.t = Comparable::T::Bool; cv.b = false; return cv; }
     if (id == "null") { Comparable cv; cv.t = Comparable::T::Null; return cv; }
-    ws();
+    // RFC 9535 function-expr: the name is immediately followed by '(' — NO
+    // whitespace between the function name and the opening parenthesis.
     if (p < end && *p == '(') {
       ++p;
       if (id == "length") {
@@ -11757,6 +11920,7 @@ struct JpParser {
     else if (p < end && *p == '@') { ++p; }
     else fail("JSONPath: a query must start with '@' or '$'");
     while (true) {
+      ws(); // RFC 9535: whitespace is allowed between segments of a query
       if (p < end && *p == '.' && !(p + 1 < end && p[1] == '.')) {
         ++p;
         SingularQuery::Step st; st.is_index = false; st.index = 0;
@@ -11798,15 +11962,26 @@ struct JpParser {
     return q;
   }
 
+  // RFC 9535 §2.3.5.2.1 number: (int / "-0") [frac] [exp]. int = "0" / (["-"]
+  // [1-9][0-9]*). Strictly rejects leading zeros, a missing fractional digit
+  // ("1."), and a missing exponent digit ("1e").
   Comparable parse_number_comparable() {
     const char *s = p;
     if (p < end && *p == '-') ++p;
-    while (p < end && *p >= '0' && *p <= '9') ++p;
+    if (p >= end || *p < '0' || *p > '9') fail("JSONPath: invalid number literal");
+    if (*p == '0') ++p;                              // lone 0 (or -0)
+    else while (p < end && *p >= '0' && *p <= '9') ++p;
+    if (p < end && *p >= '0' && *p <= '9') fail("JSONPath: leading zero in number");
     bool is_dbl = false;
-    if (p < end && *p == '.') { is_dbl = true; ++p; while (p < end && *p >= '0' && *p <= '9') ++p; }
+    if (p < end && *p == '.') {
+      is_dbl = true; ++p;
+      if (p >= end || *p < '0' || *p > '9') fail("JSONPath: no digit after '.'");
+      while (p < end && *p >= '0' && *p <= '9') ++p;
+    }
     if (p < end && (*p == 'e' || *p == 'E')) {
       is_dbl = true; ++p;
       if (p < end && (*p == '+' || *p == '-')) ++p;
+      if (p >= end || *p < '0' || *p > '9') fail("JSONPath: no digit in exponent");
       while (p < end && *p >= '0' && *p <= '9') ++p;
     }
     Comparable cv;
@@ -11885,7 +12060,16 @@ inline void jp_apply_selector(const Value &v, const JpSelector &s,
     return;
   }
   if (s.kind == K::Name) {
-    if (v.is_object()) { Value m = v[std::string_view(s.name)]; if (m.is_valid()) out.push_back(m); }
+    if (v.is_object()) {
+      // Fast path: raw on-the-wire byte match (the common case).
+      Value m = v[std::string_view(s.name)];
+      if (m.is_valid()) { out.push_back(m); return; }
+      // Slow path: the member's key may be escaped on the wire (control chars,
+      // \uXXXX, surrogate pairs), so its raw bytes differ from the decoded
+      // selector name. Compare decoded keys.
+      for (const auto &[rk, val] : v.items())
+        if (::qbuem::json::detail::json_unescape(rk) == s.name) { out.push_back(val); return; }
+    }
   } else if (s.kind == K::Wildcard) {
     if (v.is_object()) { for (const auto &[k, val] : v.items()) { (void)k; out.push_back(val); } }
     else if (v.is_array()) { for (const auto &e : v.elements()) out.push_back(e); }

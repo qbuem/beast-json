@@ -79,6 +79,9 @@ add_qbuem_gtest(test_jsonpath)
 add_qbuem_gtest(test_sax)
 add_qbuem_gtest(test_diff)
 add_qbuem_gtest(test_reflect)
+# RFC conformance against official external suites (JSONPath CTS, JCS vectors).
+# Skips unless QBUEM_JSONPATH_CTS / QBUEM_JCS_DIR point at fetched copies (CI job).
+add_qbuem_gtest(test_rfc_conformance)
 # JSONTestSuite conformance — skips unless QBUEM_JSONTESTSUITE_DIR points at a
 # checkout of the corpus (CI clones it at a pinned commit; see conformance job).
 add_qbuem_gtest(test_jsontestsuite)

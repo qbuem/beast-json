@@ -173,13 +173,14 @@ jobs:
         ctest -C ${{ matrix.build_type }} --output-on-failure --timeout 180 \
           || ctest -C ${{ matrix.build_type }} --output-on-failure --timeout 180 --rerun-failed
 
-  # ── JSONTestSuite conformance ─────────────────────────────────────────────
-  # Runs the canonical "Parsing JSON is a Minefield" corpus (nst/JSONTestSuite,
-  # pinned commit) through parse_strict, under ASan+UBSan so the 318 adversarial
-  # inputs also prove memory safety. The corpus is fetched here, not vendored;
-  # test_jsontestsuite skips when QBUEM_JSONTESTSUITE_DIR is unset (every other job).
+  # ── RFC / standards conformance ───────────────────────────────────────────
+  # Runs three OFFICIAL external suites under ASan+UBSan (fetched at pinned
+  # commits, not vendored; each test skips when its env var is unset):
+  #   - RFC 8259: nst/JSONTestSuite "Parsing JSON is a Minefield" (parse_strict).
+  #   - RFC 9535: jsonpath-compliance-test-suite cts.json (qbuem::query).
+  #   - RFC 8785: cyberphone/json-canonicalization vectors (qbuem::canonicalize).
   conformance:
-    name: JSONTestSuite conformance (ASan+UBSan)
+    name: RFC conformance (JSONTestSuite + JSONPath CTS + JCS, ASan+UBSan)
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v6
@@ -187,11 +188,17 @@ jobs:
     - name: Install Clang 18
       run: wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s 18
 
-    - name: Fetch JSONTestSuite corpus (pinned)
+    - name: Fetch conformance suites (pinned)
       run: |
         git clone --filter=blob:none --no-checkout https://github.com/nst/JSONTestSuite.git "$RUNNER_TEMP/JSONTestSuite"
         git -C "$RUNNER_TEMP/JSONTestSuite" checkout 1ef36fa01286573e846ac449e8683f8833c5b26a
         echo "QBUEM_JSONTESTSUITE_DIR=$RUNNER_TEMP/JSONTestSuite" >> "$GITHUB_ENV"
+        git clone --filter=blob:none --no-checkout https://github.com/jsonpath-standard/jsonpath-compliance-test-suite.git "$RUNNER_TEMP/cts"
+        git -C "$RUNNER_TEMP/cts" checkout 7be7c1fc28057c91e8eefaf197060fba7ed43acd -- cts.json
+        echo "QBUEM_JSONPATH_CTS=$RUNNER_TEMP/cts/cts.json" >> "$GITHUB_ENV"
+        git clone --filter=blob:none --no-checkout https://github.com/cyberphone/json-canonicalization.git "$RUNNER_TEMP/jcs"
+        git -C "$RUNNER_TEMP/jcs" checkout 19d51d7fe467d4706a3ff08adf8a748f29fc21e0 -- testdata
+        echo "QBUEM_JCS_DIR=$RUNNER_TEMP/jcs/testdata" >> "$GITHUB_ENV"
 
     - name: Configure (ASan+UBSan)
       env:
@@ -204,8 +211,11 @@ jobs:
         -DQBUEM_JSON_BUILD_BENCHMARKS=OFF
         -DQBUEM_JSON_SANITIZE=ON
 
-    - name: Build conformance test
-      run: cmake --build build-conformance --target test_jsontestsuite -j2
+    - name: Build conformance tests
+      run: cmake --build build-conformance --target test_jsontestsuite test_rfc_conformance -j2
 
-    - name: Run conformance (95 y_ accept · 188 n_ reject · 35 i_ profile)
+    - name: RFC 8259 — JSONTestSuite (95 y_ · 188 n_ · 35 i_)
       run: ./build-conformance/tests/test_jsontestsuite --gtest_color=yes
+
+    - name: RFC 9535 (JSONPath CTS) + RFC 8785 (JCS)
+      run: ./build-conformance/tests/test_rfc_conformance --gtest_color=yes
