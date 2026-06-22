@@ -24,11 +24,15 @@ HIDE_IN_BODY_DOCS      = NO
 INTERNAL_DOCS          = NO
 
 # Input Related
-INPUT                  = include/qbuem_json/qbuem_json.hpp docs/TECHNICAL_REFERENCE.md docs/GETTING_STARTED.md docs/TEST_CASES.md
-FILE_PATTERNS          = *.hpp *.h *.md
+# Header only: the API reference is generated from the canonical source, which is
+# always in sync. The old INPUT also pulled in three hand-written docs/*.md files
+# that had drifted out of date; they were removed (their accurate replacements
+# live in the VitePress guide/theory pages).
+INPUT                  = include/qbuem_json/qbuem_json.hpp
+FILE_PATTERNS          = *.hpp *.h
 RECURSIVE              = YES
 EXCLUDE_PATTERNS       =
-USE_MDFILE_AS_MAINPAGE = docs/TECHNICAL_REFERENCE.md
+USE_MDFILE_AS_MAINPAGE =
 
 # HTML Related
 HTML_OUTPUT            = reference
