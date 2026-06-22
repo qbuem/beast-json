@@ -38,6 +38,9 @@ jobs:
       - name: Node smoke test
         run: node bindings/wasm/test/smoke.mjs
 
+      - name: Strict RFC conformance (canonicalize / query / validate)
+        run: node bindings/wasm/test/strict.mjs
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
