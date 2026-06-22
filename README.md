@@ -182,6 +182,13 @@ qbuem-json is licensed under the **Apache License 2.0** — permissive commercia
 
 ---
 
+## 📋 Changelog
+
+Release history for the v1 line (v1.0.0 → v1.16.0) is in **[CHANGELOG.md](CHANGELOG.md)**.
+Per-release notes are also published on the [GitHub Releases](https://github.com/qbuem/qbuem-json/releases) page.
+
+---
+
 ## ⚖️ License
 
 qbuem-json is licensed under the **Apache License 2.0**.
