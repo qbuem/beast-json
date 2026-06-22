@@ -234,6 +234,39 @@
  * ============================================================================
  */
 
+/**
+ * @mainpage qbuem-json — API Reference
+ *
+ * Auto-generated API reference for **qbuem-json**, a single-header,
+ * zero-dependency C++20 JSON + CBOR library. It is generated directly from this
+ * header, so it always matches the source.
+ *
+ * - Full guide, tutorials, and architecture: https://qbuem.com/qbuem-json/
+ * - Source, releases, and issues: https://github.com/qbuem/qbuem-json
+ *
+ * @section mainpage_start Where to start
+ *
+ * Register a struct once with `QBUEM_JSON_FIELDS(T, field1, field2, ...)` at
+ * namespace scope (outside the struct), then:
+ * - qbuem::parse() — build a DOM tape, returns a qbuem::Value cursor.
+ * - qbuem::read() / qbuem::fuse() — map JSON straight into a registered struct
+ *   (tape vs. zero-tape).
+ * - qbuem::read_strict() — reject a payload missing a required (non-optional) field.
+ * - qbuem::write() / qbuem::write_to() — serialize a struct to JSON.
+ * - qbuem::cbor::encode() / qbuem::cbor::decode() — the same field list as CBOR
+ *   (RFC 8949).
+ * - qbuem::canonicalize() (RFC 8785), qbuem::query() (RFC 9535),
+ *   qbuem::diff() / qbuem::apply_patch() (RFC 6902).
+ *
+ * @note A qbuem::Value / qbuem::Document holds a *non-owning* view into the bytes
+ * you parse — the input buffer must outlive every Value. Passing a temporary
+ * `std::string` to parse() is a compile error (the rvalue overload is deleted);
+ * the copying read() / fuse() take a `string_view` and are safe with temporaries.
+ *
+ * Supported platforms: Linux (x86_64 / aarch64) and macOS (Apple Silicon), GCC and
+ * Clang. Browse the Namespaces, Concepts, and Data Structures for the full reference.
+ */
+
 #ifndef QBUEM_JSON_HPP
 #define QBUEM_JSON_HPP
 
