@@ -199,7 +199,7 @@ export default withMermaid(
                             '675 passing tests, 17 libFuzzer targets',
                             'STL container support (vector, map, optional, tuple, variant)',
                             'Enum support: integer by default, value-name via QBUEM_JSON_ENUM (JSON + CBOR)',
-                            'Macro-free aggregate reflection: plain structs serialize/deserialize (JSON + CBOR) with no QBUEM_JSON_FIELDS registration (GCC/Clang)',
+                            'Macro-free aggregate reflection: plain structs serialize/deserialize across JSON, CBOR, and the zero-tape fuse<T> with no QBUEM_JSON_FIELDS registration — including generic and nested aggregates (GCC/Clang)',
                             'Strict deserialization (qbuem::read_strict): missing required (non-optional) fields throw, for safe backend request DTOs',
                             'Field rename (member, "jsonKey") and skip-by-omission, across JSON/fuse/CBOR',
                             'NDJSON / JSON Lines streaming (read_lines / write_lines) in bounded memory',
@@ -351,7 +351,7 @@ export default withMermaid(
                                 name: 'What is Nexus Fusion and when should I use it?',
                                 acceptedAnswer: {
                                     '@type': 'Answer',
-                                    text: 'Nexus Fusion is qbuem-json\'s zero-tape engine. Instead of building a DOM tape first, it streams JSON bytes directly into struct fields using compile-time FNV-1a key hashing for O(1) dispatch. Use qbuem::fuse<T>() instead of qbuem::read<T>() when you need minimum latency (50–230 ns) on a known-schema DTO — e.g. the request-handling hot path of a high-throughput C++ backend. Requires QBUEM_JSON_FIELDS registration.'
+                                    text: 'Nexus Fusion is qbuem-json\'s zero-tape engine. Instead of building a DOM tape first, it streams JSON bytes directly into struct fields, routing each key by a compile-time key hash for O(1) dispatch. Use qbuem::fuse<T>() instead of qbuem::read<T>() when you need minimum latency (50–230 ns) on a known-schema DTO — e.g. the request-handling hot path of a high-throughput C++ backend. Register the struct with QBUEM_JSON_FIELDS for the macro\'s compile-time switch dispatch, or — on GCC/Clang — fuse a plain aggregate (including generic and nested) macro-free via reflection, at a small dispatch cost on very wide structs.'
                                 }
                             },
                             {

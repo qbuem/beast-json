@@ -22,7 +22,7 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 
 ## Tier 1
 
-- ✅ **Macro-free aggregate reflection** *(v1.14.0, GCC/Clang)* — plain aggregate structs serialize/deserialize across JSON and CBOR with no `QBUEM_JSON_FIELDS` (field names via reflection); the macro/registration always wins, so it is purely additive. Built for backend DTOs.
+- ✅ **Macro-free aggregate reflection** *(v1.14.0+, GCC/Clang)* — plain aggregate structs serialize/deserialize across JSON, CBOR, and the zero-tape `fuse<T>` (including generic and nested aggregates) with no `QBUEM_JSON_FIELDS` (field names via reflection); the macro/registration always wins, so it is purely additive. For `fuse<T>` the macro's compile-time `switch` is still the peak dispatch on very wide hot-path structs. Built for backend DTOs.
 - ✅ **Rich error context** — `parse_error` exposes line/column + `format_error()` caret rendering *(v1.3.0)*.
 - ✅ **serde-style field attributes** — enum (integer default + `QBUEM_JSON_ENUM` value names) *(v1.4.0)*, field rename `(member, "jsonKey")` + skip-by-omission *(v1.5.0)*, default-on-absent (built in).
 - ✅ **NDJSON / JSON Lines** streaming — `read_lines` / `write_lines`, bounded memory *(v1.6.0)*.

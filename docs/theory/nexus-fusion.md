@@ -164,3 +164,25 @@ The macro must sit at **namespace scope** (not inside the struct) — it defines
 free functions, and placing it inside the struct breaks lookup. It supports up to 32
 fields; beyond that, write the ADL hooks (`from_qbuem_json` / `nexus_pulse` /
 `qbuem_json_append_fw`) by hand — same performance, no limit.
+
+## Macro-free fuse (no registration)
+
+On GCC/Clang you don't even need the macro. A **plain aggregate** — public members, no
+user-declared constructors, no base classes — fuses straight from reflected field names.
+Each template instantiation reflects on its own and nested aggregates recurse, so generic
+DTOs work with **no per-type registration**:
+
+```cpp
+template <class T>
+struct Envelope { T payload; uint64_t seq; std::string trace_id; };  // no macro
+
+auto e = qbuem::fuse<Envelope<Order>>(bytes);   // reflects Envelope<Order> automatically
+```
+
+The only difference from the macro is the **dispatch**: the macro emits a compile-time
+`switch` over field-name hashes (`O(1)`), while the macro-free path compares the scanned
+key's hash against each reflected field name (`O(fields)`). For small/medium structs that
+is near-parity; for **very wide hot-path structs** the macro stays the peak option
+(≈1.5× on a realistic DTO, growing with field count). A `QBUEM_JSON_FIELDS` /
+`QBUEM_JSON_FIELDS_TPL` registration, when present, always wins. Full rules:
+[Macro-Free Mapping](/guide/mapping#macro-free-mapping-aggregate-reflection).

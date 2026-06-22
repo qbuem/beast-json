@@ -10,6 +10,15 @@ Windows/MSVC is intentionally unsupported by design.
 
 ## [Unreleased]
 
+### Added
+- **Macro-free `fuse<T>` for aggregates.** The zero-tape Nexus engine now works on a
+  plain aggregate with no `QBUEM_JSON_FIELDS` — including generic (template) and nested
+  aggregates — completing the macro-free story (already true for `read` / `write` /
+  `read_strict` / CBOR). Key→field routing uses a reflected compile-time-hash ladder; the
+  macro's compile-time `switch` stays the peak-dispatch path for very wide hot-path
+  structs (~1.5× on a realistic DTO, growing with field count). GCC/Clang, plain
+  aggregate, ≤32 fields. A `QBUEM_JSON_FIELDS` registration always wins when present.
+
 ### Fixed
 - **Rust binding benchmark produced no numbers in CI.** `bindings/rust/build.rs`
   was matched by an over-broad `build*` `.gitignore` rule and had never been
