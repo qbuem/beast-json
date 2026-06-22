@@ -159,14 +159,29 @@ jobs:
           }' \
         >> ../../build_bench/benchmarks/bench_output.txt || true
 
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+
     - name: Run Rust benchmarks
       working-directory: bindings/rust
+      # The cxx-bridge shim that build.rs compiles must link, so point cc/cxx at
+      # the real system compiler — the ccache-action wraps cc/c++ on PATH, which
+      # previously left libqbuem_rust_shim.a unlinked and the bench un-built.
+      # Redirect BOTH streams to the file (build/link errors go to stderr) so a
+      # failure is captured rather than silently producing zero rows.
+      env:
+        CC: /usr/bin/cc
+        CXX: /usr/bin/c++
       run: |
         echo "##section bindings" >> ../../build_bench/benchmarks/bench_output.txt
         echo "=== Rust Bindings ===" >> ../../build_bench/benchmarks/bench_output.txt
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(pwd)/../../build_bench/bindings/c
         export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(pwd)/../../build_bench/bindings/c
-        cargo bench --bench qbuem_bench 2>&1 > /tmp/rust_bench_raw.txt || true
+        cargo bench --bench qbuem_bench > /tmp/rust_bench_raw.txt 2>&1 || true
+        if ! grep -q "time:" /tmp/rust_bench_raw.txt; then
+          echo "::warning::Rust benchmarks produced no results — build/link likely failed:"
+          tail -40 /tmp/rust_bench_raw.txt
+        fi
         python3 << 'PYEOF'
         import re, sys
         text = open("/tmp/rust_bench_raw.txt").read()

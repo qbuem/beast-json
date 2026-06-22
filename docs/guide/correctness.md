@@ -187,6 +187,30 @@ request (the `conformance` job in [ci.yml](https://github.com/qbuem/qbuem-json/b
 
 ---
 
+## Standards & RFC conformance
+
+Every RFC the library claims is verified against an **official external test
+suite** where one exists — not just internal unit tests. The conformance job runs
+these on every push, under ASan+UBSan:
+
+| RFC | What | How it's verified | Result |
+|:---|:---|:---|:---|
+| **RFC 8259** | JSON syntax | [JSONTestSuite](https://github.com/nst/JSONTestSuite) (318 cases) | **283/283** mandatory (95 accept · 188 reject) |
+| **RFC 9535** | JSONPath | [JSONPath Compliance Test Suite](https://github.com/jsonpath-standard/jsonpath-compliance-test-suite) (`cts.json`) | **all** applicable tests pass *(the I-Regexp `match()`/`search()` functions are the only intentional exclusion — they throw)* |
+| **RFC 8785** | JSON Canonicalization (JCS) | [cyberphone/json-canonicalization](https://github.com/cyberphone/json-canonicalization) vectors | **byte-exact** on all 6 vectors (UTF-16 key ordering + ECMAScript number formatting) |
+| **RFC 8949** | CBOR | round-trip + decode of `qbuem::cbor::encode` output by a third-party decoder (`cbor2`) | wire format valid & round-trips *(scoped to the struct/value data model — not a general CBOR parser with tags/bignums)* |
+| **RFC 6901** | JSON Pointer | unit tests over the RFC's own examples (`test_compliance`) | pass |
+| **RFC 6902** | JSON Patch | all six ops + transactional rollback (`test_compliance`, `test_diff`) | pass |
+| **RFC 7396** | JSON Merge Patch | RFC appendix examples | pass |
+| **IEEE 754** | float round-trip | all 64-bit doubles via the three-stage parser | exact |
+
+The external suites are fetched at pinned commits and locked by
+`tests/test_rfc_conformance.cpp` (skips locally unless `QBUEM_JSONPATH_CTS` /
+`QBUEM_JCS_DIR` point at checkouts; always run in CI), so a future change that
+breaks conformance fails the build.
+
+---
+
 ## JSON Schema validation (interop)
 
 qbuem-json **does not ship a JSON Schema validator**, and that is a deliberate
