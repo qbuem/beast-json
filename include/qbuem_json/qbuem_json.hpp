@@ -10875,7 +10875,11 @@ inline void canon_emit_(const json::Value &v, ::std::string &out) {
     ::std::vector<::std::pair<::std::u16string, ::std::pair<::std::string, json::Value>>> items;
     for (const auto &[k, val] : v.items()) {
       ::std::string dk = ::qbuem::json::detail::json_unescape(k);
-      items.emplace_back(canon_utf8_to_utf16_(dk), ::std::make_pair(::std::move(dk), val));
+      // Transcode BEFORE moving dk — argument evaluation order is unspecified, so
+      // computing the UTF-16 sort key and std::move(dk) in one call would risk
+      // transcoding a moved-from (empty) string.
+      ::std::u16string u16 = canon_utf8_to_utf16_(dk);
+      items.emplace_back(::std::move(u16), ::std::make_pair(::std::move(dk), val));
     }
     ::std::sort(items.begin(), items.end(),
                 [](const auto &a, const auto &b) { return a.first < b.first; });
