@@ -115,7 +115,7 @@ int main() {
 | `qbuem::parse_reuse(doc, json)` | Same as `parse()` but documents intent to reuse the doc in a hot loop (tape memory is reused, not reallocated). |
 | `qbuem::parse_strict(doc, json)` | RFC 8259 strict mode. Throws on trailing commas, leading zeros, lone surrogates. |
 | `qbuem::read<T>(json)` | Parse JSON and deserialize into type `T`. Uses DOM engine + type mapping. |
-| `qbuem::fuse<T>(json)` | Nexus Fusion: zero-tape direct struct mapping. Fastest path. Requires `QBUEM_JSON_FIELDS`. |
+| `qbuem::fuse<T>(json)` | Nexus Fusion: zero-tape direct struct mapping. Fastest path. `QBUEM_JSON_FIELDS` for peak (compile-time switch) dispatch, or a plain aggregate macro-free on GCC/Clang. |
 
 **Important:** `Document` must outlive all `Value` objects derived from it. Values are 16-byte handles pointing into the document's tape.
 
@@ -220,7 +220,7 @@ auto title = root.at("/store/book/1/title"_jptr).as<std::string>();
 
 ## Struct Mapping — Macro-Free Reflection or QBUEM_JSON_FIELDS Macro
 
-**Macro-free (v1.14.0+, GCC/Clang):** a plain aggregate struct (public members, no user-declared constructors, no base classes) serializes/deserializes with NO registration — qbuem::write/read and cbor::encode/decode reflect the fields and recover their names automatically. Built for backend DTOs. Works for any linkage (incl. anonymous-namespace/local types) and non-constexpr members (std::map); default-constructible, <= 32 fields. A QBUEM_JSON_FIELDS / from_qbuem_json registration ALWAYS wins (purely additive). The zero-tape fuse<T> path still needs the macro.
+**Macro-free (v1.14.0+, GCC/Clang):** a plain aggregate struct (public members, no user-declared constructors, no base classes) serializes/deserializes with NO registration — qbuem::write/read and cbor::encode/decode reflect the fields and recover their names automatically. Built for backend DTOs. Works for any linkage (incl. anonymous-namespace/local types) and non-constexpr members (std::map); default-constructible, <= 32 fields. A QBUEM_JSON_FIELDS / from_qbuem_json registration ALWAYS wins (purely additive). The zero-tape fuse<T> path also works macro-free for aggregates — including generic (template) and nested ones — on GCC/Clang; its key→field routing is a reflected hash-ladder (vs the macro's compile-time switch), so for very wide hot-path structs the macro stays the peak-dispatch option (~1.5x on a realistic DTO).
 
 The `QBUEM_JSON_FIELDS` macro (for renames, skip, non-aggregates, >32 fields, or fuse) must be placed **outside** the struct, at namespace scope. It generates free functions for ADL-based serialization/deserialization.
 

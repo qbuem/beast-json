@@ -82,7 +82,7 @@ auto user = qbuem::read<User>(R"({"name": "Alice", "age": 30})");
 
 ### `qbuem::fuse<T>(json)` — Direct Fusion (Nexus Engine)
 
-The **lowest-latency** way to parse. It bypasses the Tape entirely and streams JSON directly into your struct. Requires your struct to be registered via `QBUEM_JSON_FIELDS`.
+The **lowest-latency** way to parse. It bypasses the Tape entirely and streams JSON directly into your struct. Register the struct with `QBUEM_JSON_FIELDS` for the macro's `O(1)` compile-time `switch` dispatch — or, on GCC/Clang, skip the macro entirely: a plain aggregate (incl. generic and nested) fuses [macro-free](/guide/mapping#macro-free-mapping-aggregate-reflection) via reflection, at a small dispatch cost on very wide structs.
 
 ```cpp
 // 0.0 Tape Allocation. O(1) Perfect Hash Dispatch.
