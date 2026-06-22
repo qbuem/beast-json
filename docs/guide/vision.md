@@ -45,11 +45,12 @@ The full, sourced roadmap lives in [`ROADMAP.md`](https://github.com/qbuem/qbuem
 - ⏸️ **Chunked / incremental (socket) parsing** — **deferred**: WebSocket frames and framed CBOR are already message-delimited, so a full message arrives before parse.
 - ⏸️ **C++26 P2996 reflection backend** — **gated** to stable compilers (~2028): macro-free registration as an *opt-in fast-lane* (the macro stays the portable default).
 
-The curated roadmap is **complete as of v1.15.0** — Tier 1, Tier 2, and the subset
+The curated roadmap is **complete as of v1.16.0** — Tier 1, Tier 2, and the subset
 of Tier 3 that fits the library's identity are shipped (including macro-free
-aggregate reflection in v1.14.0 and `read_strict<T>` strict deserialization in
-v1.15.0); everything else above is a conscious decline/defer/gate. Further work is
-demand-driven, not roadmap-driven.
+aggregate reflection in v1.14.0, `read_strict<T>` strict deserialization in
+v1.15.0, and RFC conformance hardening verified against the official JSONPath /
+JCS / JSONTestSuite corpora in v1.16.0); everything else above is a conscious
+decline/defer/gate. Further work is demand-driven, not roadmap-driven.
 
 ## Declined
 

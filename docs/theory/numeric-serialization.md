@@ -253,20 +253,11 @@ The key computation is `sig × pow10[k]` — a 64×64→128 bit multiplication.
             </div>
           </div>
           <div class="bd-group" style="flex:1;margin:0;">
-            <div class="bd-group__title" style="font-size:0.7rem;">MSVC x86-64</div>
-            <div class="bd-group__body">
-              <div class="bd-box bd-box--orange" style="font-size:0.78rem;">
-                <code>_umul128()</code> + <code>__umulh()</code><br>
-                <small>Intrinsic pair, 2 cycles</small>
-              </div>
-            </div>
-          </div>
-          <div class="bd-group" style="flex:1;margin:0;">
-            <div class="bd-group__title" style="font-size:0.7rem;">MSVC ARM64</div>
+            <div class="bd-group__title" style="font-size:0.7rem;">ARM64 (GCC / Clang)</div>
             <div class="bd-group__body">
               <div class="bd-box bd-box--purple" style="font-size:0.78rem;">
-                <code>_umul128()</code> + <code>__umulh()</code><br>
-                <small>ARM64 <code>UMULH</code> instruction</small>
+                <code>__uint128_t</code><br>
+                <small>lowers to <code>MUL</code> + <code>UMULH</code></small>
               </div>
             </div>
           </div>

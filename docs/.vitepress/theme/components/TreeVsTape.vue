@@ -27,12 +27,12 @@ interface TapeCell {
 }
 
 const tapeCells: TapeCell[] = [
-  { idx: 0, tag: 'OBJ_START', note: 'jump→5',           accent: '#0097a7' },
-  { idx: 1, tag: 'KEY',       note: '"name" → buf ptr', accent: '#00838f' },
-  { idx: 2, tag: 'STRING',    note: '"Alice" → buf ptr',accent: '#4caf50' },
-  { idx: 3, tag: 'KEY',       note: '"age" → buf ptr',  accent: '#00838f' },
-  { idx: 4, tag: 'INT64',     note: '30 inline',        accent: '#4caf50' },
-  { idx: 5, tag: 'OBJ_END',   note: 'jump→0',           accent: '#0097a7' },
+  { idx: 0, tag: 'ObjectStart', note: 'marker',           accent: '#0097a7' },
+  { idx: 1, tag: 'StringRaw',   note: '"name" → off,len', accent: '#00838f' },
+  { idx: 2, tag: 'StringRaw',   note: '"Alice" → off,len',accent: '#4caf50' },
+  { idx: 3, tag: 'StringRaw',   note: '"age" → off,len',  accent: '#00838f' },
+  { idx: 4, tag: 'Integer',     note: '30 → off,len',     accent: '#4caf50' },
+  { idx: 5, tag: 'ObjectEnd',   note: 'marker',           accent: '#0097a7' },
 ]
 
 // ── Animation state ────────────────────────────────────────────────────────

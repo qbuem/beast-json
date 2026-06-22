@@ -18,7 +18,7 @@ parsing function.  Build commands use `-std=c++20`; release times use `-O2`.
 
 | Library | Header size (lines) | Debug (`-O0`) per TU | Release (`-O2`) per TU |
 |:---|---:|---:|---:|
-| **qbuem-json** | ~8,700 | **0.3–0.7 s** | **0.7–1.4 s** |
+| **qbuem-json** | ~12,400 | **0.3–0.7 s** | **0.7–1.4 s** |
 | RapidJSON | ~11,000 | 0.9–1.8 s | 1.5–3.5 s |
 | simdjson (amalgam) | ~18,000 | 1.2–2.5 s | 2.5–5.1 s |
 | Glaze | ~15,000 | 2.5–5.5 s | 5.0–12 s |
@@ -31,7 +31,7 @@ on Ubuntu 24.04 x86_64.  Timings are wall-clock front-end parse + instantiation.
 
 **1. Smaller header by design**
 
-At ~8,700 lines, qbuem-json is less than one-third the size of nlohmann/json.
+At ~12,400 lines, qbuem-json is still well under half the size of nlohmann/json.
 The SIMD intrinsic headers (`<immintrin.h>`, `<arm_neon.h>`) are guarded by
 `#if __has_include` and pulled in only when the target ISA supports them —
 they contribute zero parse time on environments without AVX-512 or NEON.
@@ -55,12 +55,14 @@ for a detailed explanation.
 specialisations or SFINAE-based overload sets pay an exponential cost in
 instantiation depth; qbuem-json's depth is constant at 1.
 
-**4. No ADL-based customization points**
+**4. ADL hooks that resolve to flat code**
 
-`nlohmann::json` and Glaze rely on ADL (`to_json` / `from_json` free functions,
-`glaze::meta` specialisations) that force the compiler to search every visible
-namespace at every call site.  `QBUEM_JSON_FIELDS` emits member functions inside
-the struct itself, so lookup is trivially resolved.
+Like `nlohmann::json` and Glaze, `QBUEM_JSON_FIELDS` defines its customization
+points as ADL free functions — so they must sit at **namespace scope, outside the
+struct** (putting them inside breaks lookup). The difference is what they expand
+to: a single non-recursive `switch` over the key hash plus an `if constexpr` type
+chain, not a recursive template specialisation. Lookup resolves once, at constant
+instantiation depth.
 
 **5. Concepts over SFINAE**
 
@@ -93,7 +95,7 @@ the number of `QBUEM_JSON_FIELDS` annotations per TU.
 | Schubfach / yy-itoa numeric serializers | ~1,200 lines of constexpr / template code |
 | `NexusScanner` + `from_json_direct` | One template instantiation tree per target type |
 
-The total header weighs roughly **8,700 lines**.  In a debug build on a mid-range
+The total header weighs roughly **12,400 lines**.  In a debug build on a mid-range
 workstation, each translation unit that includes it adds about **0.3–0.7 s** of
 front-end parse time (measured with `-ftime-report` / `time-trace`).
 
@@ -203,17 +205,17 @@ replaces the corresponding feature, reducing instantiation work:
 
 | Macro | Effect |
 |---|---|
-| `QBUEM_DISABLE_SIMD` | Disables all SIMD paths; uses portable SWAR fallback |
-| `QBUEM_NEXUS_STRICT` | Enables strict type checking in Nexus (adds checks, not templates) |
+| `QBUEM_NEXUS_STRICT` | Enables strict type checking in Nexus (adds runtime checks, not templates) |
 
-```cpp
-// In a file where you only need DOM navigation, not Nexus:
-#define QBUEM_DISABLE_SIMD   // removes SSE/AVX/NEON intrinsic headers
-#include <qbuem_json/qbuem_json.hpp>
+There is no `QBUEM_DISABLE_SIMD` toggle. The SIMD path is selected **automatically**
+from the target's feature macros (`__AVX512F__`, `__AVX2__`, `__ARM_NEON`). To build
+the portable SWAR scalar path instead, compile without those features enabled — i.e.
+omit `-march=native` and target a baseline ISA:
+
+```bash
+# Force the scalar SWAR path (smaller code, lower throughput)
+g++ -std=c++20 -O2 main.cpp -o main          # no -march → no AVX/NEON intrinsics
 ```
-
-> **Note:** `QBUEM_DISABLE_SIMD` reduces throughput on hot paths.  Only use it
-> in files where JSON parsing is infrequent.
 
 ---
 

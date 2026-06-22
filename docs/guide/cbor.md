@@ -20,6 +20,15 @@ Child       back  = qbuem::cbor::decode<Child>(bytes);   // ← back to the stru
 
 That's the whole story: `qbuem::cbor::encode` / `qbuem::cbor::decode`, same struct, same field list as `qbuem::write` / `qbuem::read`.
 
+::: warning Scope: this is a typed struct/value codec, not a general CBOR reader
+`qbuem::cbor` encodes and decodes the shapes your code already models — registered
+structs, scalars, strings, and STL containers — over the CBOR wire format. It is
+**not** a general-purpose CBOR parser: it does not interpret semantic tags
+(major type 6), bignums, or arbitrary unknown structures into a dynamic document.
+Producing bytes that any RFC 8949 reader accepts is fully supported; consuming
+arbitrary third-party CBOR is out of scope — decode into a known type.
+:::
+
 ---
 
 ## Why CBOR

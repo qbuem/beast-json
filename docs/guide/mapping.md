@@ -405,10 +405,16 @@ namespace third_party {
     struct Custom { int x; };
 
     inline void nexus_pulse(std::string_view key, const char*& p, const char* end, Custom& obj) {
-        // High-performance dispatch using FNV-1a hashes
-        switch (qbuem::json::detail::fnv1a_hash(key)) {
-            case qbuem::json::detail::fnv1a_hash_ce("x"):
-                qbuem::json::detail::from_json_direct(p, end, obj.x);
+        // Same key hash the macro uses: fast_key_hash at runtime,
+        // fast_key_hash_ce (consteval) for the case labels. After a hash
+        // match, verify the raw bytes — exactly as the generated dispatch
+        // does — so a hash collision can never mis-route a field.
+        switch (qbuem::json::detail::fast_key_hash(key)) {
+            case qbuem::json::detail::fast_key_hash_ce("x"):
+                if (key == "x")
+                    qbuem::json::detail::from_json_direct(p, end, obj.x);
+                else
+                    qbuem::json::detail::skip_direct(p, end);
                 break;
             default:
                 qbuem::json::detail::skip_direct(p, end);

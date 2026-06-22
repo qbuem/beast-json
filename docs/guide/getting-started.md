@@ -23,8 +23,16 @@ wget https://raw.githubusercontent.com/qbuem/qbuem-json/main/include/qbuem_json/
 Compile with C++20:
 
 ```bash
-g++ -std=c++20 -O3 main.cpp -o main
+g++ -std=c++20 -O3 -march=native main.cpp -o main
 ```
+
+::: warning -march=native is what unlocks the SIMD path
+The AVX-512 / AVX2 / NEON structural scanner is selected **at compile time** from
+the target's feature macros (`__AVX512F__`, `__AVX2__`, `__ARM_NEON`). Without
+`-march=native` (or an explicit `-mavx2` / `-mavx512f` / `-march=armv8-a+...`),
+the build falls back to the portable SWAR scalar path and you will **not** see the
+headline throughput. Pick the widest ISA your deployment target supports.
+:::
 
 ### Option B: CMake FetchContent
 
@@ -71,7 +79,7 @@ target_link_libraries(your_target PRIVATE qbuem_json::qbuem_json)
 
 ```bash
 conan create . -s compiler.cppstd=20      # build & test the package locally
-# in your conanfile: requires = "qbuem-json/1.15.0"
+# in your conanfile: requires = "qbuem-json/1.16.0"
 ```
 
 **vcpkg** — an overlay port ships under `ports/qbuem-json/`:

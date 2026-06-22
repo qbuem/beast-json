@@ -45,10 +45,10 @@ QBUEM_JSON_FIELDS(Order, id, price, symbol)
 Order o{42, 99.5, "AAPL"};
 std::string json = qbuem::write(o);         // compact
 std::string pretty = qbuem::write(o, 2);    // 2-space indented
+```
 
 > [!TIP]
 > `qbuem::write` is universal. It works perfectly for structs whether you parse them via the **DOM Engine** (`qbuem::read`) or the **Nexus Engine** (`qbuem::fuse`).
-```
 
 **When to use `qbuem::write()`:**
 - Serializing application structs / STL containers to send over a network or write to disk.

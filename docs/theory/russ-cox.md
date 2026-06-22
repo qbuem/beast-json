@@ -2,6 +2,25 @@
 
 Standard library functions like `strtod` and `atof` are notoriously slow for high-throughput parsing. qbuem-json replaces them with a two-stage integer-only algorithm that produces bit-accurate IEEE-754 `double` results without touching the FPU rounding mode.
 
+::: tip Where this fits — the fast path is Eisel-Lemire
+The common case (~99% of decimal→double conversions) is handled by the **Eisel-Lemire**
+algorithm: a single 128-bit multiply against a power-of-ten table (`eisel_lemire_f64`).
+Only the ~1% of inputs that land in the rounding "halfway zone" fall through to the
+**Russ-Cox unrounded scaling** described on this page (`russ_cox_uscale_f64`), with a
+tiny residue deferring to `strtod`. This page is the *correctness fallback*, not the
+hot path.
+:::
+
+```mermaid
+flowchart LR
+    S["decimal string"] --> M["SIMD digit scan → (mantissa, exp10)"]
+    M --> EL{"Eisel-Lemire<br/>128-bit multiply"}
+    EL -->|"~99% — unambiguous"| OK["IEEE-754 double ✓"]
+    EL -->|"~1% — halfway zone"| RC["Russ-Cox unrounded scaling"]
+    RC --> OK
+    RC -.->|"rare residue"| STD["strtod fallback"]
+```
+
 ---
 
 ## Why `strtod` Is Slow

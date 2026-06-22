@@ -193,7 +193,7 @@ One `Document`, one tape allocation for the entire chunk — regardless of how m
 | `qbuem::parse_reuse(doc, …)` | **Zero** after warmup | ★★★★★ | Any hot loop (explicit reuse intent) |
 | `qbuem::parse(doc, …)` reuse | **Zero** after warmup | ★★★★★ | Any hot loop (equivalent to above) |
 | `thread_local Document` | **Zero** per request | ★★★★★ | Web servers, workers |
-| `std::pmr` stack pool | **Zero** (no heap) | ★★★★★ | Embedded, hard RT |
+| `write_to(buf, obj)` reuse | **Zero** after warmup | ★★★★★ | Serialization hot loops |
 | `doc.reserve(N)` at startup | One-time only | ★★★★☆ | All of the above |
 | `| default` fallback access | None | ★★★☆☆ | Defensive field reads |
 | DOM `.as<T>()` extraction | Per field, on demand | ★★★☆☆ | Sparse access patterns |
@@ -209,4 +209,4 @@ Your code benefits from this automatically; no annotation is required on the cal
 ---
 
 > [!TIP]
-> For even tighter control over where qbuem-json allocates, see [Custom Allocators](/guide/allocators). Combining `std::pmr::monotonic_buffer_resource` with document reuse is the highest-performance configuration for throughput-critical workloads.
+> The zero-allocation combination is **`Document` reuse** for parsing plus a **reused output buffer** (`write_to(buf, obj)`) for serialization. Note that the DOM tape uses its own internal arena — you **cannot** redirect it through a `std::pmr::memory_resource`. See [Custom Allocators](/guide/allocators) for what is and isn't configurable.

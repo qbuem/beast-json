@@ -31,44 +31,44 @@ const tapeSets: TapeNode[][] = [
   // Sample 0: { "id": 42, "ok": true }
   [
     {
-      idx: 0, tag: 'OBJ_START', tagHex: '0x01', payload: 'jump→5', payHex: '0x000000000000005',
+      idx: 0, tag: 'ObjectStart', tagHex: '0x09', payload: '—', payHex: 'meta=0x09000000 off=0x00000000',
       accent: '#0097a7',
-      detail: 'Opening brace. Payload stores the index of the matching OBJ_END (5).\nSkipping the whole object costs one integer read: tape[tape[0].jump].',
+      detail: 'Opening-brace marker. Containers store NO end-index. To skip the whole\nobject, skip_value_ walks forward counting bracket depth until it returns\nto zero — a sequential scan, not a jump.',
       access: 'Auto-handled by the parser. Exposed via root.is_object().',
-      cost: '0 allocs · O(1) skip',
+      cost: '0 allocs · O(N) sequential skip',
     },
     {
-      idx: 1, tag: 'KEY', tagHex: '0x05', payload: 'ptr+len → "id"', payHex: '0x00[ptr48][len8]',
+      idx: 1, tag: 'StringRaw', tagHex: '0x05', payload: 'off=3 len=2 → "id"', payHex: 'meta=0x05000002 off=0x00000003',
       accent: '#00838f',
-      detail: 'Key string node. Payload is a 48-bit virtual address pointing into the\ninput buffer, plus an 8-bit inline length field.\nZero bytes are copied. No heap involved.',
-      access: 'Matched by root["id"] — compares string_view at this ptr+len.',
+      detail: 'Key node = an (offset, length) slice into the source buffer (offset 3,\nlength 2). No pointer, no 48-bit address — just a 32-bit byte offset and\na 16-bit length. Zero bytes copied, no heap.',
+      access: 'Matched by root["id"] — compares the string_view at (offset, length).',
       cost: '0 allocs · 0 copies',
     },
     {
-      idx: 2, tag: 'INT64', tagHex: '0x08', payload: '42 (inline)', payHex: '0x000000000000002A',
+      idx: 2, tag: 'Integer', tagHex: '0x03', payload: 'off=8 len=2 → "42"', payHex: 'meta=0x03000002 off=0x00000008',
       accent: '#4caf50',
-      detail: 'Integer stored entirely inline in the 56-bit payload.\nNo heap node, no pointer. Value is extracted by a single bit-shift:\n  int64_t v = static_cast<int64_t>(node.raw << 8) >> 8;',
-      access: 'root["id"].as<int>()  →  reads tape[2], extracts bits 55..0.',
-      cost: '1 register read · 0 allocs',
+      detail: 'Integer token "42", stored as an (offset, length) slice — NOT inline.\nThe digits are converted only on demand: .as<int>() runs from_chars over\nsource[8..10]. A field you never read costs nothing.',
+      access: 'root["id"].as<int>()  →  from_chars(source+8, 2)  →  42.',
+      cost: '0 allocs · parsed on access',
     },
     {
-      idx: 3, tag: 'KEY', tagHex: '0x05', payload: 'ptr+len → "ok"', payHex: '0x00[ptr48][len8]',
+      idx: 3, tag: 'StringRaw', tagHex: '0x05', payload: 'off=13 len=2 → "ok"', payHex: 'meta=0x05000002 off=0x0000000D',
       accent: '#00838f',
-      detail: 'Key string node for "ok".\nSame zero-copy pointer-into-input-buffer strategy as tape[1].',
+      detail: 'Key node for "ok". Same (offset, length) zero-copy slice as tape[1].',
       access: 'Matched by root["ok"].',
       cost: '0 allocs · 0 copies',
     },
     {
-      idx: 4, tag: 'BOOL_TRUE', tagHex: '0x0A', payload: '(unused)', payHex: '0x000000000000000',
+      idx: 4, tag: 'BooleanTrue', tagHex: '0x01', payload: '—', payHex: 'meta=0x01000000 off=0x00000012',
       accent: '#ff9800',
-      detail: 'Boolean true. The type tag alone carries all the information.\nPayload is always zero — no value to store for a boolean.\nBOOL_FALSE would be tag 0x0B.',
-      access: 'root["ok"].as<bool>()  →  tag == 0x0A ? true : false.',
-      cost: '1 register read · 0 allocs',
+      detail: 'Boolean true. The type tag (0x01) carries all the information — there is\nnothing else to store. BooleanFalse is 0x02.',
+      access: 'root["ok"].as<bool>()  →  type == BooleanTrue ? true : false.',
+      cost: '1 tape read · 0 allocs',
     },
     {
-      idx: 5, tag: 'OBJ_END', tagHex: '0x02', payload: 'jump→0', payHex: '0x000000000000000',
+      idx: 5, tag: 'ObjectEnd', tagHex: '0x0A', payload: '—', payHex: 'meta=0x0A000000 off=0x00000017',
       accent: '#0097a7',
-      detail: 'Closing brace. Payload stores the index of the matching OBJ_START (0).\nIterating object keys starts at tape[0+1] and stops at tape[5].',
+      detail: 'Closing-brace marker. Object iteration starts at tape[1] and stops when\nit reaches this ObjectEnd — no back-pointer needed.',
       access: 'Auto-handled by iteration logic.',
       cost: '0 allocs',
     },
@@ -76,30 +76,30 @@ const tapeSets: TapeNode[][] = [
   // Sample 1: { "name": "Alice" }
   [
     {
-      idx: 0, tag: 'OBJ_START', tagHex: '0x01', payload: 'jump→3', payHex: '0x000000000000003',
+      idx: 0, tag: 'ObjectStart', tagHex: '0x09', payload: '—', payHex: 'meta=0x09000000 off=0x00000000',
       accent: '#0097a7',
-      detail: 'Object container. jump=3 means tape[3] is the matching OBJ_END.',
+      detail: 'Object container marker. No end-index is stored; skip_value_ walks to\nthe matching ObjectEnd when a subtree is skipped.',
       access: 'root.is_object()  →  true',
-      cost: '0 allocs · O(1) skip',
+      cost: '0 allocs · O(N) sequential skip',
     },
     {
-      idx: 1, tag: 'KEY', tagHex: '0x05', payload: 'ptr+len → "name"', payHex: '0x00[ptr48][len8]',
+      idx: 1, tag: 'StringRaw', tagHex: '0x05', payload: 'off=3 len=4 → "name"', payHex: 'meta=0x05000004 off=0x00000003',
       accent: '#00838f',
-      detail: 'Key node pointing into the input buffer at the "name" substring.\nThe 48-bit address is the actual virtual address of the first byte.\nThe 8-bit length field holds 4 (length of "name").',
+      detail: 'Key node = (offset, length) slice into the input at the "name" substring.\nA 32-bit byte offset plus a 16-bit length — no virtual address, no copy.',
       access: 'root["name"]  →  walks tape forward, compares this string_view.',
       cost: '0 allocs · 0 copies',
     },
     {
-      idx: 2, tag: 'STRING', tagHex: '0x06', payload: 'ptr+len → "Alice"', payHex: '0x00[ptr48][len8]',
-      accent: '#9c27b0',
-      detail: 'Value string. Like KEY, stores a zero-copy pointer into the input buffer.\nThe 48-bit address points at the "A" of Alice.\nThe 8-bit length holds 5.\nThe caller\'s input buffer must stay alive as long as this view is used.',
-      access: 'root["name"].as<string_view>()  →  reads tape[2], returns {ptr, 5}.',
-      cost: '1 array read · 0 allocs · 0 copies',
+      idx: 2, tag: 'StringRaw', tagHex: '0x05', payload: 'off=11 len=5 → "Alice"', payHex: 'meta=0x05000005 off=0x0000000B',
+      accent: '#00838f',
+      detail: 'Value string — same StringRaw node type as a key, an (offset, length)\nslice pointing at the "A" of Alice. The caller\'s input buffer must stay\nalive as long as this view is used (decoded() copies if you need escapes resolved).',
+      access: 'root["name"].as<string_view>()  →  {source+11, 5}.',
+      cost: '1 tape read · 0 allocs · 0 copies',
     },
     {
-      idx: 3, tag: 'OBJ_END', tagHex: '0x02', payload: 'jump→0', payHex: '0x000000000000000',
+      idx: 3, tag: 'ObjectEnd', tagHex: '0x0A', payload: '—', payHex: 'meta=0x0A000000 off=0x00000012',
       accent: '#0097a7',
-      detail: 'Closing brace. Matches tape[0].',
+      detail: 'Closing-brace marker for the object opened at tape[0].',
       access: 'Auto-handled.',
       cost: '0 allocs',
     },
@@ -107,56 +107,56 @@ const tapeSets: TapeNode[][] = [
   // Sample 2: { "tags": [1, 2, 3] }
   [
     {
-      idx: 0, tag: 'OBJ_START', tagHex: '0x01', payload: 'jump→7', payHex: '0x000000000000007',
+      idx: 0, tag: 'ObjectStart', tagHex: '0x09', payload: '—', payHex: 'meta=0x09000000 off=0x00000000',
       accent: '#0097a7',
-      detail: 'Top-level object. Matching OBJ_END is at tape[7].',
+      detail: 'Top-level object marker. No end-index stored.',
       access: 'root.is_object()  →  true',
       cost: '0 allocs',
     },
     {
-      idx: 1, tag: 'KEY', tagHex: '0x05', payload: 'ptr+len → "tags"', payHex: '0x00[ptr48][len8]',
+      idx: 1, tag: 'StringRaw', tagHex: '0x05', payload: 'off=3 len=4 → "tags"', payHex: 'meta=0x05000004 off=0x00000003',
       accent: '#00838f',
-      detail: 'Key for the array. Zero-copy pointer into input buffer.',
-      access: 'root["tags"]  →  matches this KEY node.',
+      detail: 'Key for the array — an (offset, length) slice into the input.',
+      access: 'root["tags"]  →  matches this StringRaw key node.',
       cost: '0 allocs',
     },
     {
-      idx: 2, tag: 'ARR_START', tagHex: '0x03', payload: 'jump→6', payHex: '0x000000000000006',
+      idx: 2, tag: 'ArrayStart', tagHex: '0x07', payload: '—', payHex: 'meta=0x07000000 off=0x0000000A',
       accent: '#e91e63',
-      detail: 'Array open bracket. jump=6 points to ARR_END.\nTo skip the entire array in O(1):\n  tape[tape[2].jump]  →  jumps directly to tape[6].',
+      detail: 'Array-open marker. Like objects, it stores no end-index: skip_value_\nstreams over the elements (tape[3..5]) to skip the whole array.',
       access: 'root["tags"].is_array()  →  true',
-      cost: '0 allocs · O(1) skip',
+      cost: '0 allocs · O(N) sequential skip',
     },
     {
-      idx: 3, tag: 'UINT64', tagHex: '0x07', payload: '1 (inline)', payHex: '0x000000000000001',
+      idx: 3, tag: 'Integer', tagHex: '0x03', payload: 'off=11 len=1 → "1"', payHex: 'meta=0x03000001 off=0x0000000B',
       accent: '#4caf50',
-      detail: 'Unsigned integer 1. Stored inline in 56-bit payload.\nUINT64 is used when value fits in 56 bits unsigned (< 2^56).',
-      access: 'root["tags"][0].as<int>()  →  reads tape[3].',
-      cost: '1 array read · 0 allocs',
+      detail: 'Integer token "1" as an (offset, length) slice. There is no separate\nunsigned type — Integer covers it; the value is parsed on demand.',
+      access: 'root["tags"][0].as<int>()  →  from_chars(source+11, 1)  →  1.',
+      cost: '0 allocs · parsed on access',
     },
     {
-      idx: 4, tag: 'UINT64', tagHex: '0x07', payload: '2 (inline)', payHex: '0x000000000000002',
+      idx: 4, tag: 'Integer', tagHex: '0x03', payload: 'off=14 len=1 → "2"', payHex: 'meta=0x03000001 off=0x0000000E',
       accent: '#4caf50',
-      detail: 'Unsigned integer 2. Inline storage, same pattern as tape[3].',
+      detail: 'Integer token "2" — same (offset, length) pattern as tape[3].',
       access: 'root["tags"][1].as<int>()',
-      cost: '1 array read · 0 allocs',
+      cost: '0 allocs · parsed on access',
     },
     {
-      idx: 5, tag: 'UINT64', tagHex: '0x07', payload: '3 (inline)', payHex: '0x000000000000003',
+      idx: 5, tag: 'Integer', tagHex: '0x03', payload: 'off=17 len=1 → "3"', payHex: 'meta=0x03000001 off=0x00000011',
       accent: '#4caf50',
-      detail: 'Unsigned integer 3.',
+      detail: 'Integer token "3".',
       access: 'root["tags"][2].as<int>()',
-      cost: '1 array read · 0 allocs',
+      cost: '0 allocs · parsed on access',
     },
     {
-      idx: 6, tag: 'ARR_END', tagHex: '0x04', payload: 'jump→2', payHex: '0x000000000000002',
+      idx: 6, tag: 'ArrayEnd', tagHex: '0x08', payload: '—', payHex: 'meta=0x08000000 off=0x00000012',
       accent: '#e91e63',
-      detail: 'Array close bracket. jump=2 links back to ARR_START.\nThis enables bidirectional O(1) navigation.',
+      detail: 'Array-close marker for the array opened at tape[2]. No back-pointer.',
       access: 'Auto-handled by iteration.',
       cost: '0 allocs',
     },
     {
-      idx: 7, tag: 'OBJ_END', tagHex: '0x02', payload: 'jump→0', payHex: '0x000000000000000',
+      idx: 7, tag: 'ObjectEnd', tagHex: '0x0A', payload: '—', payHex: 'meta=0x0A000000 off=0x00000014',
       accent: '#0097a7',
       detail: 'Top-level object close.',
       access: 'Auto-handled.',
@@ -166,28 +166,28 @@ const tapeSets: TapeNode[][] = [
   // Sample 3: { "ratio": 3.14 }
   [
     {
-      idx: 0, tag: 'OBJ_START', tagHex: '0x01', payload: 'jump→3', payHex: '0x000000000000003',
+      idx: 0, tag: 'ObjectStart', tagHex: '0x09', payload: '—', payHex: 'meta=0x09000000 off=0x00000000',
       accent: '#0097a7',
-      detail: 'Object container.',
+      detail: 'Object container marker.',
       access: 'root.is_object()',
       cost: '0 allocs',
     },
     {
-      idx: 1, tag: 'KEY', tagHex: '0x05', payload: 'ptr+len → "ratio"', payHex: '0x00[ptr48][len8]',
+      idx: 1, tag: 'StringRaw', tagHex: '0x05', payload: 'off=3 len=5 → "ratio"', payHex: 'meta=0x05000005 off=0x00000003',
       accent: '#00838f',
-      detail: 'Key node for "ratio". Zero-copy pointer into input.',
+      detail: 'Key node for "ratio" — an (offset, length) slice into the input.',
       access: 'root["ratio"]  →  matches this key.',
       cost: '0 allocs',
     },
     {
-      idx: 2, tag: 'DOUBLE', tagHex: '0x09', payload: '3.14 (bit-cast)', payHex: '0x400091EB851EB852',
+      idx: 2, tag: 'Double', tagHex: '0x04', payload: 'off=11 len=4 → "3.14"', payHex: 'meta=0x04000004 off=0x0000000B',
       accent: '#ff5722',
-      detail: 'Double-precision float stored as a bit-cast uint64_t.\nThe Russ Cox unrounded algorithm converts "3.14" to the closest IEEE 754\ndouble during Stage 2 — no strtod(), no locale dependency.\nRecovery: bit_cast<double>(payload) returns 3.14 exactly.',
-      access: 'root["ratio"].as<double>()  →  bit_cast<double>(tape[2] & mask56).',
-      cost: '1 array read · 0 allocs',
+      detail: 'Double token "3.14" — stored as an (offset, length) slice, NOT a\nbit-cast value. The digits are converted only on demand: .as<double>()\nruns the Eisel-Lemire fast path (Russ-Cox unrounded scaling for the ~1% of\nhalfway cases) over source[11..15] — no strtod, no locale dependency.',
+      access: 'root["ratio"].as<double>()  →  Eisel-Lemire parse of source[11..15].',
+      cost: '0 allocs · parsed on access',
     },
     {
-      idx: 3, tag: 'OBJ_END', tagHex: '0x02', payload: 'jump→0', payHex: '0x000000000000000',
+      idx: 3, tag: 'ObjectEnd', tagHex: '0x0A', payload: '—', payHex: 'meta=0x0A000000 off=0x00000010',
       accent: '#0097a7',
       detail: 'Object close.',
       access: 'Auto-handled.',
@@ -213,13 +213,12 @@ function changeSample(i: number) {
 
 // 64-bit breakdown visual
 const tagColors: Record<string, string> = {
-  '0x01': '#0097a7', '0x02': '#0097a7',
-  '0x03': '#e91e63', '0x04': '#e91e63',
+  '0x00': '#607d8b',
+  '0x01': '#ff9800', '0x02': '#ff9800',
+  '0x03': '#4caf50', '0x04': '#ff5722',
   '0x05': '#00838f', '0x06': '#9c27b0',
-  '0x07': '#4caf50', '0x08': '#4caf50',
-  '0x09': '#ff5722',
-  '0x0A': '#ff9800', '0x0B': '#ff9800',
-  '0x0C': '#607d8b',
+  '0x07': '#e91e63', '0x08': '#e91e63',
+  '0x09': '#0097a7', '0x0A': '#0097a7',
 }
 </script>
 
@@ -265,19 +264,19 @@ const tagColors: Record<string, string> = {
     <!-- Detail panel -->
     <Transition name="ti-slide">
       <div v-if="selected" class="ti-detail" :style="{ '--acc': selected.accent }">
-        <!-- 64-bit layout bar -->
+        <!-- 8-byte layout bar: meta (type|flags|length) + offset -->
         <div class="ti-bits-section">
-          <span class="ti-detail-label">64-bit TapeNode layout:</span>
+          <span class="ti-detail-label">8-byte TapeNode layout:  { uint32 meta, uint32 offset }</span>
           <div class="ti-bits-bar">
             <div class="ti-bit-tag" :style="{ background: tagColors[selected.tagHex] || '#666' }">
-              <span class="ti-bit-range">63–56</span>
+              <span class="ti-bit-range">meta 31–24</span>
               <span class="ti-bit-value">{{ selected.tagHex }}</span>
-              <span class="ti-bit-name">type tag</span>
+              <span class="ti-bit-name">type · 8b</span>
             </div>
             <div class="ti-bit-pay">
-              <span class="ti-bit-range">55–0</span>
+              <span class="ti-bit-range">meta 23–16 / 15–0 · offset 31–0</span>
               <span class="ti-bit-value">{{ selected.payHex }}</span>
-              <span class="ti-bit-name">payload (56 bits)</span>
+              <span class="ti-bit-name">flags · length · source offset</span>
             </div>
           </div>
         </div>

@@ -113,25 +113,26 @@ After the first message warms up the tape, **every subsequent parse is allocatio
 
 ### Tape capacity growth policy
 
-The tape uses a doubling strategy. If an incoming document requires more nodes than the current capacity, `realloc` is called once to double the buffer:
+There is no doubling and no grow-`realloc`. Before each parse, `TapeArena::reserve(n)` is called with `n = input_length + 64` — a safe upper bound, since a document can never produce more tape nodes than it has bytes. The policy is **reuse, or exact-fit**:
+
+- If the cached buffer already holds at least `n` nodes, it is reused as-is — just `head = base`, zero allocation.
+- Otherwise the old buffer is freed and a single `malloc` of *exactly* `n` nodes is taken (no geometric over-allocation).
 
 <div class="bd-diagram">
   <div class="bd-col">
-    <div class="bd-pipeline" style="flex-direction:column;align-items:stretch;max-width:400px;margin:0 auto;">
-      <div class="bd-pipe-stage"><div class="bd-pipe-stage__label">Initial</div><div class="bd-pipe-stage__main">capacity = 0</div></div>
+    <div class="bd-pipeline" style="flex-direction:column;align-items:stretch;max-width:440px;margin:0 auto;">
+      <div class="bd-pipe-stage"><div class="bd-pipe-stage__label">Fresh Document</div><div class="bd-pipe-stage__main">base = nullptr, cap = 0</div></div>
       <div class="bd-pipe-arrow" style="align-self:center;transform:rotate(90deg);">→</div>
-      <div class="bd-pipe-stage bd-box--orange" style="border-color:#ff9800;background:rgba(255,152,0,0.06);"><div class="bd-pipe-stage__label">1× realloc</div><div class="bd-pipe-stage__main">capacity = 256</div><div class="bd-pipe-stage__note">first doc (200 nodes)</div></div>
+      <div class="bd-pipe-stage bd-box--orange" style="border-color:#ff9800;background:rgba(255,152,0,0.06);"><div class="bd-pipe-stage__label">parse 2 KB doc</div><div class="bd-pipe-stage__main">malloc 2112 nodes</div><div class="bd-pipe-stage__note">cap − base &lt; n → one exact malloc</div></div>
       <div class="bd-pipe-arrow" style="align-self:center;transform:rotate(90deg);">→</div>
-      <div class="bd-pipe-stage bd-box--orange" style="border-color:#ff9800;background:rgba(255,152,0,0.06);"><div class="bd-pipe-stage__label">1× realloc</div><div class="bd-pipe-stage__main">capacity = 512</div><div class="bd-pipe-stage__note">doc with 300 nodes</div></div>
+      <div class="bd-pipe-stage bd-box--green" style="border-color:#4caf50;background:rgba(76,175,80,0.08);"><div class="bd-pipe-stage__label">parse another ≤2 KB doc</div><div class="bd-pipe-stage__main">reset() — head = base</div><div class="bd-pipe-stage__note">cap − base ≥ n → reuse, zero malloc</div></div>
       <div class="bd-pipe-arrow" style="align-self:center;transform:rotate(90deg);">→</div>
-      <div class="bd-pipe-stage bd-box--orange" style="border-color:#ff9800;background:rgba(255,152,0,0.06);"><div class="bd-pipe-stage__label">1× realloc</div><div class="bd-pipe-stage__main">capacity = 1024</div><div class="bd-pipe-stage__note">doc with 600 nodes</div></div>
-      <div class="bd-pipe-arrow" style="align-self:center;transform:rotate(90deg);">→</div>
-      <div class="bd-pipe-stage bd-box--green" style="border-color:#4caf50;background:rgba(76,175,80,0.08);"><div class="bd-pipe-stage__label">Stable</div><div class="bd-pipe-stage__main">capacity = 1024</div><div class="bd-pipe-stage__note">all future docs → zero allocations</div></div>
+      <div class="bd-pipe-stage bd-box--orange" style="border-color:#ff9800;background:rgba(255,152,0,0.06);"><div class="bd-pipe-stage__label">parse 5 KB doc</div><div class="bd-pipe-stage__main">free + malloc 5184 nodes</div><div class="bd-pipe-stage__note">bigger than cached → one exact malloc</div></div>
     </div>
   </div>
 </div>
 
-In practice, documents in a single application tend to have stable schemas — after a few warmup parses, capacity stabilizes and no further allocations occur.
+In practice, documents in one application tend to have a stable size band — once the cached buffer is as large as the biggest document seen so far, every later parse reuses it and no further allocation occurs.
 
 ---
 

@@ -2,6 +2,23 @@
 
 qbuem-json gives you full control over how errors are handled. You can choose between **throwing exceptions** for known schemas, **monadic chaining** for untrusted data, or **explicit boolean checks** for fine-grained control.
 
+::: danger Lifetime: don't parse a temporary string
+A DOM `Document`/`Value` holds a **non-owning view** into the bytes you parse, so the
+input buffer must outlive every `Value`. To turn the classic dangling-view bug into a
+*compile* error, the rvalue-`std::string` overloads of `parse` / `parse_reuse` are
+deleted:
+
+```cpp
+auto root = qbuem::parse(doc, build_json());   // ❌ won't compile: temporary std::string
+std::string body = build_json();
+auto root = qbuem::parse(doc, body);           // ✅ body outlives root
+```
+
+The value-returning, copying APIs `qbuem::read<T>()` / `qbuem::fuse<T>()` take a
+`string_view` and copy out what they need during the call, so passing a temporary to
+*those* is fine.
+:::
+
 ## 🗺️ Choosing Your Strategy
 
 | Strategy | API | Throws? | Best For |

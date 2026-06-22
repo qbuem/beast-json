@@ -190,7 +190,7 @@ If your language isn't listed above, you can build a binding in minutes using th
 ### A. Mapping Opaque Handles
 The C API uses two primary types:
 - `QbuemJSONDocument*`: A memory arena. Always map this as a pointer (IntPtr, void*, etc.).
-- `QbuemJSONValue`: A small POD struct (64-bit). **Do not** allocate this on the heap. Pass it by value.
+- `QbuemJSONValue`: A small POD struct (12 bytes — a `void* state` plus a `uint32_t index`; 16 with padding), mirroring the C++ `Value` cursor. **Do not** allocate this on the heap. Pass it by value.
 
 ```c
 typedef struct {
