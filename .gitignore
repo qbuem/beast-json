@@ -2,7 +2,11 @@
 # Build Artifacts
 .agent/
 .agent
-build*
+# Trailing slash: ignore CMake build directories (build/, build-asan/, build_bench/)
+# WITHOUT swallowing source files like bindings/rust/build.rs (the cxx-bridge build
+# script). The bare `build*` previously gitignored build.rs, so it was never
+# committed and the Rust bench failed to link in CI (no shim → undefined symbols).
+build*/
 .*cache
 _deps/
 *.pc
