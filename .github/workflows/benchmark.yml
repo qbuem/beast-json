@@ -52,7 +52,7 @@ jobs:
     # Cache the benchmark JSON data files separately so network failures
     # on simdjson-data do not silently produce empty general-section results.
     - name: Cache benchmark data files
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: bench_data
         key: bench-data-v1
@@ -82,7 +82,7 @@ jobs:
     # Set up Python BEFORE CMake configure so nanobind is built against the correct interpreter.
     # Without this, nanobind gets compiled for the system Python (wrong ABI) and import fails.
     - name: Setup Python
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
@@ -133,7 +133,7 @@ jobs:
         ./bench --quick --all 2>&1 | tee bench_output.txt || true
 
     - name: Setup Go for benchmarks
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v7
       with:
         go-version: '1.24'
         cache: false
